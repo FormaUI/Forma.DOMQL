@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { DomqlModule } from '#domql/language/DomqlModule.mjs';
-import { Registry } from '#domql/language/Registry.mjs';
+import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
 import { RequestResolver } from '#domql/language/RequestResolver.mjs';
 import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
@@ -227,7 +227,7 @@ describe('RequestResolver', () => {
                 predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh' }],
             });
 
-            const registry = new Registry([Vocabulary.module, module]);
+            const registry = new ModuleRegistry([Vocabulary.module, module]);
             const element = document.createElement('div');
             const resolveWith = text => {
                 const query = Domql.parse(text, { panel: element });

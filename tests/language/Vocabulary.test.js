@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { Registry } from '#domql/language/Registry.mjs';
+import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
 import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
 describe('Vocabulary', () => {
-    const registry = new Registry([Vocabulary.module]);
+    const registry = new ModuleRegistry([Vocabulary.module]);
     const names = [
         'size', 'devicePixelRatio', 'rect', 'clientSize', 'grid', 'selection', 'children', 'parent', 'count', 'first', 'last',
         'matches-media', 'supports', 'is', 'has', 'attribute-of', 'computedstyle-of', 'intersects', 'overlaps', 'matches', 'closest',

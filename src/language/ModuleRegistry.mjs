@@ -1,11 +1,11 @@
 /**
- * Registry — the declarations of every module registered for a document, which requests resolve against
+ * ModuleRegistry — the declarations of every module registered for a document, which requests resolve against
  */
 
 import { DomqlError } from './DomqlError.mjs';
 import { Type } from './Type.mjs';
 
-export class Registry {
+export class ModuleRegistry {
     /** @type {Map<string, import('./DomqlModule.mjs').DomqlModule>} */
     #modules = new Map();
 
@@ -29,7 +29,7 @@ export class Registry {
 
     /** @param {import('./DomqlModule.mjs').DomqlModule[]} modules The modules registered at the start. */
     constructor(modules = []) {
-        modules.forEach(module => this.register(module));
+        modules.forEach(module => this.registerModule(module));
     }
 
     /** The number of modules registered, which changes whenever the vocabulary does. */
@@ -43,7 +43,7 @@ export class Registry {
     }
 
     /** Registers a module's declarations, refusing a module whose names are taken or which declares outside its namespace. */
-    register(module) {
+    registerModule(module) {
         const fail = (message, declaration) => { throw DomqlError.module(message, declaration === undefined ? { module: module.name } : { module: module.name, declaration }); };
 
         if (this.#modules.has(module.name)) {
@@ -65,7 +65,7 @@ export class Registry {
         }
 
         for (const predicate of module.predicates) {
-            if (this.#predicates.has(Registry.#predicateKey(predicate.verb, predicate.name))) {
+            if (this.#predicates.has(ModuleRegistry.#predicateKey(predicate.verb, predicate.name))) {
                 fail(`The predicate '${predicate.verb} ${predicate.name}' is declared already`, predicate.name);
             }
         }
@@ -86,7 +86,7 @@ export class Registry {
         }
 
         for (const predicate of module.predicates) {
-            this.#predicates.set(Registry.#predicateKey(predicate.verb, predicate.name), predicate);
+            this.#predicates.set(ModuleRegistry.#predicateKey(predicate.verb, predicate.name), predicate);
             this.#owners.set(predicate, module.name);
         }
 
@@ -117,7 +117,7 @@ export class Registry {
 
     /** The predicate the verb reads under the name, or undefined. */
     getPredicate(verb, name) {
-        return this.#predicates.get(Registry.#predicateKey(verb, name));
+        return this.#predicates.get(ModuleRegistry.#predicateKey(verb, name));
     }
 
     /** Whether a module declared the feature. */
@@ -151,7 +151,7 @@ export class Registry {
         }
 
         const on = Array.isArray(declaration.on) ? declaration.on : [declaration.on];
-        const isOwn = on.every(text => ownTypes.has(Registry.#rootName(text)));
+        const isOwn = on.every(text => ownTypes.has(ModuleRegistry.#rootName(text)));
 
         if (!isOwn && declaration.name !== module.name) {
             fail(`A member outside its module's own types is named for the module, '${module.name}'`, declaration.name);
@@ -163,7 +163,7 @@ export class Registry {
         for (const other of others) {
             for (const mine of Array.isArray(declaration.on) ? declaration.on : [declaration.on]) {
                 for (const theirs of Array.isArray(other.on) ? other.on : [other.on]) {
-                    if (Registry.#overlap(mine, theirs)) {
+                    if (ModuleRegistry.#overlap(mine, theirs)) {
                         fail(`'${declaration.name}' is declared already for ${theirs}`, declaration.name);
                     }
                 }

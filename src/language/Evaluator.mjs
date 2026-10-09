@@ -16,7 +16,7 @@ export class Evaluator {
     #locations;
 
     /**
-     * @param {import('./Registry.mjs').Registry} registry The vocabulary the request was resolved against.
+     * @param {import('./ModuleRegistry.mjs').ModuleRegistry} registry The vocabulary the request was resolved against.
      * @param {import('./ResolvedRequest.mjs').ResolvedRequest} request The request to read.
      * @param {import('./Bindings.mjs').Bindings} bindings What the request's parameters are bound to.
      * @param {Environment} environment The window and the document the roots stand for.

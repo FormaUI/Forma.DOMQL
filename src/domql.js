@@ -8,8 +8,8 @@ import { DomqlError } from './language/DomqlError.mjs';
 import { DomqlModule } from './language/DomqlModule.mjs';
 import { DomqlQuery } from './language/DomqlQuery.mjs';
 import { Evaluator } from './language/Evaluator.mjs';
+import { ModuleRegistry } from './language/ModuleRegistry.mjs';
 import { ParsedTexts } from './language/ParsedTexts.mjs';
-import { Registry } from './language/Registry.mjs';
 import { RequestResolver } from './language/RequestResolver.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
@@ -31,7 +31,7 @@ export class Domql {
         return Specification.version;
     }
 
-    static #registry = new Registry([Vocabulary.module]);
+    static #registry = new ModuleRegistry([Vocabulary.module]);
 
     /**
      * The resolutions of each query by the options they were made under, valid for the registry revision they were made at and released with the query.
@@ -41,7 +41,7 @@ export class Domql {
 
     /** Registers a module's vocabulary, which every query resolved afterwards may use. */
     static registerModule(module) {
-        Domql.#registry.register(module);
+        Domql.#registry.registerModule(module);
     }
 
     /**

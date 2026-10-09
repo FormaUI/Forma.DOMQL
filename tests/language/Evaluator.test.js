@@ -3,7 +3,7 @@ import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { DomqlModule } from '#domql/language/DomqlModule.mjs';
 import { Evaluator } from '#domql/language/Evaluator.mjs';
-import { Registry } from '#domql/language/Registry.mjs';
+import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
 import { RequestResolver } from '#domql/language/RequestResolver.mjs';
 import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
@@ -27,7 +27,7 @@ const propertyModule = (name, implementation) => new DomqlModule(name, {
 
 /** Reads a query against a registry of its own holding the core vocabulary and the module. */
 const readWith = (module, text, bindings) => {
-    const registry = new Registry([Vocabulary.module, module]);
+    const registry = new ModuleRegistry([Vocabulary.module, module]);
     const query = Domql.parse(text, bindings);
     const request = new RequestResolver(registry, query.bindings, null, {}).resolve(query.definition);
 
