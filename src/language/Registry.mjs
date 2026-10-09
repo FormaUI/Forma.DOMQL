@@ -53,7 +53,7 @@ export class Registry {
             }
         }
 
-        for (const event of module.events) {
+        for (const event of module.eventTypes) {
             if (this.#events.has(event.name)) {
                 fail(`The event '${event.name}' is declared already`, event.name);
             }
@@ -65,9 +65,9 @@ export class Registry {
             }
         }
 
-        module.declarations.forEach((declaration, index) => {
+        module.members.forEach((declaration, index) => {
             this.#checkNamespace(module, declaration, ownTypes, fail);
-            this.#checkCollision(declaration, [...this.getMembers(declaration.name), ...module.declarations.slice(0, index).filter(other => other.name === declaration.name)], fail);
+            this.#checkCollision(declaration, [...this.getMembers(declaration.name), ...module.members.slice(0, index).filter(other => other.name === declaration.name)], fail);
         });
 
         this.#modules.set(module.name, module);
@@ -76,17 +76,18 @@ export class Registry {
             this.#types.set(type.name, type);
         }
 
-        for (const event of module.events) {
+        for (const event of module.eventTypes) {
             this.#events.set(event.name, event);
         }
 
         for (const predicate of module.predicates) {
             this.#predicates.set(Registry.#predicateKey(predicate.verb, predicate.name), predicate);
+            this.#owners.set(predicate, module.name);
         }
 
         module.features.forEach(feature => this.#features.add(feature));
 
-        for (const declaration of module.declarations) {
+        for (const declaration of module.members) {
             this.#members.set(declaration.name, [...(this.#members.get(declaration.name) ?? []), declaration]);
             this.#owners.set(declaration, module.name);
         }
@@ -124,9 +125,14 @@ export class Registry {
         return [...this.#predicates.values()].filter(predicate => predicate.verb === verb).map(predicate => predicate.name);
     }
 
-    /** The name of the module that declared the member. */
+    /** The name of the module that declared the member or the predicate. */
     getOwner(declaration) {
         return this.#owners.get(declaration);
+    }
+
+    /** The function that carries out the member or answers the predicate, or undefined where its module supplies none. */
+    getFunction(declaration) {
+        return this.#modules.get(this.#owners.get(declaration))?.functions?.[declaration.function];
     }
 
     static #predicateKey(verb, name) {
@@ -135,7 +141,7 @@ export class Registry {
 
     /** A module outside the core adds members to its own types, and a single member named for itself to any other. */
     #checkNamespace(module, declaration, ownTypes, fail) {
-        if (module.isCore) {
+        if (module.isBuiltIn) {
             return;
         }
 

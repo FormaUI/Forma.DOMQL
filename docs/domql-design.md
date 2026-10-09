@@ -17,6 +17,10 @@ The [DOMQL specification](domql-specification.md) defines the language. This des
 
 An extension a request names is loaded when the request is prepared, before it is first carried out, and preparation validates it against the vocabulary, as the specification sets out.
 
+### Reading
+
+A read prepares the query, then evaluates it once against the document in a single synchronous pass, following the preparation's resolutions rather than looking names up again. The answer is a detached copy, frozen, that holds nothing of the document. A member whose function answers a type other than the one it declares has broken its contract, and the read fails with an evaluation error naming the member and where it stands in the query; so does a member whose function throws, with the thrown error as its cause. A member a module declares and does not implement fails the read the same way. A member maintained by an observation, or an occurrence source, cannot be read in a single synchronous pass and fails it.
+
 ### Waiting for maintained members
 
 A maintained member is pending until its first sample arrives, as the specification defines.
@@ -118,7 +122,7 @@ Domql.registerModule(new InputRouterDomqlModule(InputRouter));
 
 ### Declarations
 
-A module is created with its declarations and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The core vocabulary is the module `core`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
+A module is created with its members and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The core vocabulary is the module `core`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
 
 - **A declaration** names the member's DOMQL name, its builder name and the key of its function in the module's functions, each independent of the others; its kind, one of property, operation, source, action and behavior; the types it applies to; its parameters; its result type; and its observation coverage.
 - **A parameter** is a value or an expression. An expression is evaluated against each item of the list it follows and declares the type it produces. A parameter declares whether it is required, its default where it is not, and whether a null argument propagates, making the call answer null, or is accepted.
@@ -126,7 +130,7 @@ A module is created with its declarations and, once it can carry them out, the f
 - **Types, events, predicates and features** are contributed by modules as data: structured types with their fields, event types with the type of their occurrences, predicates under `is` or `has` with the types they apply to, and the features `supports` names.
 - **Observation coverage** states how a member changes (constant, observable, partly observable with the changes it misses, unobserved, or derived from its receiver and arguments) and how it reads (fresh, maintained, captured or derived).
 
-A request is prepared with `Domql.prepare`, which resolves every member against the registry, types the answer and records what each member resolved to, without a browser and without evaluating anything. A watch over a member that is unobserved is refused, and one over a partly observable member is refused unless it accepts partial observation.
+A request is resolved with `Domql.resolve`, which resolves every member against the registry, types the answer and records what each member resolved to, without a browser and without evaluating anything. A watch over a member that is unobserved is refused, and one over a partly observable member is refused unless it accepts partial observation.
 
 A module is given the capability it exposes, never an instance of it, since instances belong to the callers that establish them. A module exposes a capability through DOMQL without the capability depending on DOMQL: the capability keeps an API of its own, and its module lives beside it or in an integration package for it.
 

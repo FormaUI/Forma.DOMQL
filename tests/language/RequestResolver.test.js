@@ -5,10 +5,10 @@ import { DomqlModule } from '#domql/language/DomqlModule.mjs';
 
 const panel = document.createElement('div');
 
-const prepare = (text, bindings = { panel }, options = {}) => Domql.prepare(Domql.parse(text, bindings), options);
+const resolve = (text, bindings = { panel }, options = {}) => Domql.resolve(Domql.parse(text, bindings), options);
 const failure = (text, bindings, options) => {
     try {
-        prepare(text, bindings, options);
+        resolve(text, bindings, options);
     } catch (error) {
         expect(error).toBeInstanceOf(DomqlError);
         expect(error.kind).toBe('validation');
@@ -16,57 +16,57 @@ const failure = (text, bindings, options) => {
         return error;
     }
 
-    throw new Error('The query was prepared');
+    throw new Error('The query was resolved');
 };
 
 describe('RequestResolver', () => {
     describe('types', () => {
         it('types a property of the window', () => {
-            expect(prepare('@window.size').type.toString()).toBe('size');
+            expect(resolve('@window.size').type.toString()).toBe('size');
         });
 
         it('types a field of a structured type, nullable after a nullable receiver', () => {
-            expect(prepare('@panel.size.width').type.toString()).toBe('number?');
+            expect(resolve('@panel.size.width').type.toString()).toBe('number?');
         });
 
         it('types a list property and an aggregate over its items', () => {
-            expect(prepare('@panel.children.count').type.toString()).toBe('number');
-            expect(prepare('@panel.children.sum(size.width)').type.toString()).toBe('number');
-            expect(prepare('@panel.children.max(size.width)').type.toString()).toBe('number?');
+            expect(resolve('@panel.children.count').type.toString()).toBe('number');
+            expect(resolve('@panel.children.sum(size.width)').type.toString()).toBe('number');
+            expect(resolve('@panel.children.max(size.width)').type.toString()).toBe('number?');
         });
 
         it('keeps the item type through where, first and at', () => {
-            expect(prepare('@panel.children.where(is "attached").first.size').type.toString()).toBe('size?');
-            expect(prepare('@panel.children.at(0).size').type.toString()).toBe('size?');
+            expect(resolve('@panel.children.where(is "attached").first.size').type.toString()).toBe('size?');
+            expect(resolve('@panel.children.at(0).size').type.toString()).toBe('size?');
         });
 
         it('types a shape by its inferred field names', () => {
-            expect(prepare('@panel { size, hasFocus: is "focused" }').type.toString()).toBe('{ size: size?, hasFocus: boolean }');
+            expect(resolve('@panel { size, hasFocus: is "focused" }').type.toString()).toBe('{ size: size?, hasFocus: boolean }');
         });
 
         it('types a bound value by the type it has', () => {
-            expect(prepare('@count', { count: 3 }).type.toString()).toBe('number');
-            expect(prepare('@nothing', { nothing: Domql.bind(null, 'string?') }).type.toString()).toBe('string?');
+            expect(resolve('@count', { count: 3 }).type.toString()).toBe('number');
+            expect(resolve('@nothing', { nothing: Domql.bind(null, 'string?') }).type.toString()).toBe('string?');
         });
     });
 
     describe('requests', () => {
-        it('prepares a path of properties and operations as a query', () => {
-            expect(prepare('@panel.size').kind).toBe('query');
+        it('resolves a path of properties and operations as a query', () => {
+            expect(resolve('@panel.size').kind).toBe('query');
         });
 
-        it('prepares an occurrence source as a subscription', () => {
-            const prepared = prepare('@document.events-of "keydown" { key }');
+        it('resolves an occurrence source as a subscription', () => {
+            const resolved = resolve('@document.events-of "keydown" { key }');
 
-            expect(prepared.kind).toBe('subscription');
-            expect(prepared.type.toString()).toBe('occurrence<{ key: string }>');
+            expect(resolved.kind).toBe('subscription');
+            expect(resolved.type.toString()).toBe('occurrence<{ key: string }>');
         });
 
         it('shapes the occurrences of a source by the fields of its payload', () => {
-            const prepared = prepare('@panel.events-of "click" { clientX, button }');
+            const resolved = resolve('@panel.events-of "click" { clientX, button }');
 
-            expect(prepared.kind).toBe('subscription');
-            expect(prepared.type.toString()).toBe('occurrence<{ clientX: number, button: number }>');
+            expect(resolved.kind).toBe('subscription');
+            expect(resolved.type.toString()).toBe('occurrence<{ clientX: number, button: number }>');
         });
 
         it('refuses an answer that is no data', () => {
@@ -127,38 +127,38 @@ describe('RequestResolver', () => {
         });
 
         it('resolves an omitted argument to its default', () => {
-            const prepared = prepare('@panel.intersects');
-            const [, margin] = prepared.getResolution('/query').arguments;
+            const resolved = resolve('@panel.intersects');
+            const [, margin] = resolved.getResolution('/query').arguments;
 
-            expect(prepared.type.toString()).toBe('boolean?');
+            expect(resolved.type.toString()).toBe('boolean?');
             expect(margin.isDefault).toBe(true);
             expect(margin.value).toBe(0);
         });
 
         it('accepts a null for a parameter that accepts it', () => {
-            expect(prepare('@panel.intersects null').type.toString()).toBe('boolean?');
+            expect(resolve('@panel.intersects null').type.toString()).toBe('boolean?');
         });
     });
 
     describe('null', () => {
         it('makes a call answer null for a null argument of a propagating parameter', () => {
-            const prepared = prepare('@panel.matches @selector', { panel, selector: Domql.bind(null, 'string?') });
+            const resolved = resolve('@panel.matches @selector', { panel, selector: Domql.bind(null, 'string?') });
 
-            expect(prepared.type.toString()).toBe('boolean?');
+            expect(resolved.type.toString()).toBe('boolean?');
         });
 
         it('makes a call answer null for a written null on a propagating parameter', () => {
-            expect(prepare('@window.matches-media "(min-width: 1px)"').type.toString()).toBe('boolean');
-            expect(prepare('@window.matches-media null').type.toString()).toBe('boolean?');
+            expect(resolve('@window.matches-media "(min-width: 1px)"').type.toString()).toBe('boolean');
+            expect(resolve('@window.matches-media null').type.toString()).toBe('boolean?');
         });
 
         it('makes a call on a nullable receiver nullable', () => {
-            expect(prepare('@panel.parent.size').type.toString()).toBe('size?');
-            expect(prepare('@panel.parent.children.count').type.toString()).toBe('number?');
+            expect(resolve('@panel.parent.size').type.toString()).toBe('size?');
+            expect(resolve('@panel.parent.children.count').type.toString()).toBe('number?');
         });
 
         it('lets an aggregate expression produce null per item', () => {
-            expect(prepare('@panel.children.sum(size.width)').type.toString()).toBe('number');
+            expect(resolve('@panel.children.sum(size.width)').type.toString()).toBe('number');
         });
 
         it('refuses an aggregate expression of another type', () => {
@@ -168,14 +168,14 @@ describe('RequestResolver', () => {
 
     describe('fixed names', () => {
         it('resolves a predicate of a receiver', () => {
-            const prepared = prepare('@panel.is "disabled"');
+            const resolved = resolve('@panel.is "disabled"');
 
-            expect(prepared.type.toString()).toBe('boolean');
-            expect(prepared.getResolution('/query').selected.name).toBe('disabled');
+            expect(resolved.type.toString()).toBe('boolean');
+            expect(resolved.getResolution('/query').selected.name).toBe('disabled');
         });
 
         it('takes the name from a bound string', () => {
-            expect(prepare('@panel.is @name', { panel, name: 'focused' }).type.toString()).toBe('boolean');
+            expect(resolve('@panel.is @name', { panel, name: 'focused' }).type.toString()).toBe('boolean');
         });
 
         it('refuses a predicate the receiver has not', () => {
@@ -185,7 +185,7 @@ describe('RequestResolver', () => {
 
         it('keeps is and has apart', () => {
             expect(failure('@panel.has "disabled"').message).toContain('no predicate');
-            expect(prepare('@panel.has "children"').type.toString()).toBe('boolean');
+            expect(resolve('@panel.has "children"').type.toString()).toBe('boolean');
         });
 
         it('refuses a name that is null, unbound text or no string', () => {
@@ -196,8 +196,8 @@ describe('RequestResolver', () => {
         });
 
         it('resolves the path a get names to the type at its end', () => {
-            expect(prepare('@panel.get "size.width"').type.toString()).toBe('number?');
-            expect(prepare('@panel.get "children.count"').type.toString()).toBe('number');
+            expect(resolve('@panel.get "size.width"').type.toString()).toBe('number?');
+            expect(resolve('@panel.get "children.count"').type.toString()).toBe('number');
         });
 
         it('refuses a get of a path that names nothing', () => {
@@ -206,8 +206,8 @@ describe('RequestResolver', () => {
         });
 
         it('resolves an event type and a feature', () => {
-            expect(prepare('@document.events-of "keydown" { key }').type.toString()).toBe('occurrence<{ key: string }>');
-            expect(prepare('@window.supports "share"').type.toString()).toBe('boolean');
+            expect(resolve('@document.events-of "keydown" { key }').type.toString()).toBe('occurrence<{ key: string }>');
+            expect(resolve('@window.supports "share"').type.toString()).toBe('boolean');
         });
 
         it('refuses an event type or a feature the vocabulary does not declare', () => {
@@ -220,15 +220,15 @@ describe('RequestResolver', () => {
         it('resolves against the types, predicates and events a registered module contributes', () => {
             const module = new DomqlModule('charts', {
                 types: [{ name: 'chartEvent', fields: { value: 'number' } }],
-                events: [{ name: 'chart-selected', payload: 'chartEvent' }],
-                predicates: [{ verb: 'is', name: 'plotted', on: 'element', changes: 'observable', reads: 'fresh' }],
+                eventTypes: [{ name: 'chart-selected', payload: 'chartEvent' }],
+                predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh' }],
             });
 
             Domql.registerModule(module);
 
             const element = document.createElement('div');
-            const events = Domql.prepare(Domql.parse('@panel.events-of "chart-selected" { value }', { panel: element }));
-            const predicate = Domql.prepare(Domql.parse('@panel.is "plotted"', { panel: element }));
+            const events = Domql.resolve(Domql.parse('@panel.events-of "chart-selected" { value }', { panel: element }));
+            const predicate = Domql.resolve(Domql.parse('@panel.is "plotted"', { panel: element }));
 
             expect(events.type.toString()).toBe('occurrence<{ value: number }>');
             expect(predicate.type.toString()).toBe('boolean');
@@ -237,22 +237,22 @@ describe('RequestResolver', () => {
 
     describe('observation', () => {
         it('lets a query follow anything', () => {
-            expect(() => prepare('@panel.matches ":hover"')).not.toThrow();
+            expect(() => resolve('@panel.matches ":hover"')).not.toThrow();
         });
 
         it('refuses a watch of a partly observable member unless it accepts partial observation', () => {
             const error = failure('@panel.matches ":hover"', { panel }, { watch: true });
 
             expect(error.message).toContain('misses pointer state');
-            expect(() => prepare('@panel.matches ":hover"', { panel }, { watch: true, acceptPartialObservation: true })).not.toThrow();
+            expect(() => resolve('@panel.matches ":hover"', { panel }, { watch: true, acceptPartialObservation: true })).not.toThrow();
         });
 
         it('lets a watch follow what is observable', () => {
-            expect(() => prepare('@panel.size', { panel }, { watch: true })).not.toThrow();
+            expect(() => resolve('@panel.size', { panel }, { watch: true })).not.toThrow();
         });
 
         it('lists the declarations a request uses', () => {
-            const names = prepare('@panel.children.count').usedMembers.map(use => use.declaration.name);
+            const names = resolve('@panel.children.count').usedMembers.map(use => use.declaration.name);
 
             expect(names).toEqual(['children', 'count']);
         });
@@ -274,18 +274,18 @@ describe('RequestResolver', () => {
             };
 
             try {
-                Domql.prepare(Domql.create(definition, { panel }));
+                Domql.resolve(Domql.create(definition, { panel }));
             } catch (error) {
                 expect(error.location.pointer).toBe('/query');
 
                 return;
             }
 
-            throw new Error('The query was prepared');
+            throw new Error('The query was resolved');
         });
 
-        it('prepares without a browser-bound evaluation', () => {
-            expect(prepare('@panel.size').definition).toBe(Domql.parse('@panel.size', { panel }).definition);
+        it('resolves without a browser-bound evaluation', () => {
+            expect(resolve('@panel.size').definition).toBe(Domql.parse('@panel.size', { panel }).definition);
         });
     });
 });

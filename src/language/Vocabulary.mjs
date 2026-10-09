@@ -1,8 +1,9 @@
 /**
- * Vocabulary — DOMQL's core vocabulary, as the declarations the specification's tables state
+ * Vocabulary — the core vocabulary the built-in module declares, as the specification's tables state it
  */
 
 import { DomqlModule } from './DomqlModule.mjs';
+import { VocabularyFunctions } from './VocabularyFunctions.mjs';
 
 /** A value parameter, required unless it is given a default. */
 function value(name, type, options = {}) {
@@ -24,6 +25,10 @@ function expression(type) {
 function member(kind, name, on, result, { builder = name, function: implementation = builder, parameters = [], changes = 'observable', reads = 'fresh', misses } = {}) {
     const declaration = { name, builder, function: implementation, kind, on, parameters, result, changes, reads };
 
+    if (implementation === null) {
+        delete declaration.function;
+    }
+
     if (misses !== undefined) {
         declaration.misses = misses;
     }
@@ -36,7 +41,7 @@ const operation = (name, on, result, options) => member('operation', name, on, r
 
 /** A predicate the verb reads. */
 function predicate(verb, name, on, { changes = 'observable', reads = 'fresh', misses } = {}) {
-    const declaration = { verb, name, on, changes, reads };
+    const declaration = { verb, name, function: `${verb}${name[0].toUpperCase()}${name.slice(1)}`, on, changes, reads };
 
     if (misses !== undefined) {
         declaration.misses = misses;
@@ -53,7 +58,7 @@ const STYLE = { changes: 'partly-observable', misses: 'rules matching from elsew
 export class Vocabulary {
     /** The core vocabulary's module. */
     static get module() {
-        return DomqlModule.core({
+        return DomqlModule.createBuiltIn({
             types: [
                 { name: 'size', fields: { width: 'number', height: 'number' } },
                 { name: 'rectangle', fields: { left: 'number', top: 'number', right: 'number', bottom: 'number', width: 'number', height: 'number' } },
@@ -65,7 +70,7 @@ export class Vocabulary {
                 { name: 'dragEvent', fields: { target: 'element', clientX: 'number', clientY: 'number' } },
             ],
 
-            events: [
+            eventTypes: [
                 { name: 'click', payload: 'pointerEvent' },
                 { name: 'pointerdown', payload: 'pointerEvent' },
                 { name: 'pointerup', payload: 'pointerEvent' },
@@ -93,13 +98,13 @@ export class Vocabulary {
                 predicate('has', 'focus', 'document'),
             ],
 
-            declarations: [
+            members: [
                 property('size', 'window', 'size', { function: 'windowSize' }),
                 property('devicePixelRatio', 'window', 'number'),
                 property('rect', 'element', 'rectangle?', { ...GEOMETRY, parameters: [value('relativeTo', 'element', { default: null, omitted: 'the layout viewport' })] }),
                 property('size', 'element', 'size?'),
                 property('clientSize', 'element', 'size?'),
-                property('grid', 'element', 'grid', STYLE),
+                property('grid', 'element', 'grid?', STYLE),
                 property('selection', 'element', 'selection?', { changes: 'partly-observable', misses: 'selections assigned by script' }),
                 property('children', 'element', 'list<element>'),
                 property('parent', 'element', 'element?'),
@@ -109,8 +114,8 @@ export class Vocabulary {
 
                 operation('matches-media', 'window', 'boolean', { builder: 'matchesMedia', parameters: [value('query', 'string')] }),
                 operation('supports', 'window', 'boolean', { changes: 'constant', parameters: [value('feature', 'string', { fixed: true, selects: 'feature' })] }),
-                operation('is', ['document', 'element'], 'boolean', { changes: 'derived', reads: 'derived', parameters: [value('predicate', 'string', { fixed: true, selects: 'predicate' })] }),
-                operation('has', ['document', 'element'], 'boolean', { changes: 'derived', reads: 'derived', parameters: [value('predicate', 'string', { fixed: true, selects: 'predicate' })] }),
+                operation('is', ['document', 'element'], 'boolean', { function: null, changes: 'derived', reads: 'derived', parameters: [value('predicate', 'string', { fixed: true, selects: 'predicate' })] }),
+                operation('has', ['document', 'element'], 'boolean', { function: null, changes: 'derived', reads: 'derived', parameters: [value('predicate', 'string', { fixed: true, selects: 'predicate' })] }),
                 operation('attribute-of', 'element', 'string?', { builder: 'attributeOf', parameters: [value('name', 'string')] }),
                 operation('computedstyle-of', 'element', 'string?', { ...STYLE, builder: 'computedStyle', parameters: [value('property', 'string')] }),
                 operation('intersects', 'element', 'boolean?', { reads: 'maintained', parameters: [value('root', 'element?', { default: null, nulls: 'accept', omitted: 'the window' }), value('margin', 'number', { default: 0 })] }),
@@ -119,7 +124,7 @@ export class Vocabulary {
                 operation('closest', 'element', 'element?', { ...MATCHING, parameters: SELECTOR }),
                 operation('first', 'element', 'element?', { ...MATCHING, function: 'firstMatching', parameters: SELECTOR }),
                 operation('all', 'element', 'list<element>', { ...MATCHING, parameters: SELECTOR }),
-                operation('get', 'any', '@selected', { changes: 'derived', reads: 'derived', parameters: [value('name', 'string', { fixed: true, selects: 'member' })] }),
+                operation('get', 'any', '@selected', { function: null, changes: 'derived', reads: 'derived', parameters: [value('name', 'string', { fixed: true, selects: 'member' })] }),
                 operation('at', 'list<T>', 'T?', { changes: 'derived', reads: 'derived', parameters: [value('index', 'number')] }),
                 operation('max', 'list<T>', 'number?', { changes: 'derived', reads: 'derived', parameters: [expression('number?')] }),
                 operation('min', 'list<T>', 'number?', { changes: 'derived', reads: 'derived', parameters: [expression('number?')] }),
@@ -128,6 +133,6 @@ export class Vocabulary {
 
                 { ...operation('events-of', ['element', 'document', 'window'], 'occurrence<@selected>', { builder: 'eventsOf', changes: 'constant', reads: 'captured', parameters: [value('type', 'string', { fixed: true, selects: 'occurrence' })] }), kind: 'source' },
             ],
-        });
+        }, VocabularyFunctions.functions);
     }
 }

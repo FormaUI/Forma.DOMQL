@@ -14,20 +14,21 @@
  */
 
 export class DomqlError extends Error {
-    /** @type {'syntax' | 'structure' | 'validation' | 'module'} */
+    /** @type {'syntax' | 'structure' | 'validation' | 'module' | 'evaluation'} */
     kind;
 
     /** @type {Location} */
     location;
 
     /**
-     * @param {'syntax' | 'structure' | 'validation' | 'module'} kind The stage the request failed in.
+     * @param {'syntax' | 'structure' | 'validation' | 'module' | 'evaluation'} kind The stage the request failed in.
      * @param {string} message What is wrong.
      * @param {Location} location Where it is wrong.
+     * @param {{ cause?: unknown }} [options] What caused it.
      */
-    constructor(kind, message, location) {
+    constructor(kind, message, location, options = undefined) {
         const place = DomqlError.#describe(location);
-        super(place === '' ? message : `${message} (${place})`);
+        super(place === '' ? message : `${message} (${place})`, options);
         this.name = 'DomqlError';
         this.kind = kind;
         this.location = location;
@@ -46,6 +47,11 @@ export class DomqlError extends Error {
     /** A request that does not follow the vocabulary, failing at the location. */
     static validation(message, location) {
         return new DomqlError('validation', message, location);
+    }
+
+    /** A request that fails as it is carried out, at the location of the part that failed. */
+    static evaluation(message, location, options) {
+        return new DomqlError('evaluation', message, location, options);
     }
 
     /** A module whose declarations do not follow the declaration contract, failing at the location. */

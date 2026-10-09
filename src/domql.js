@@ -6,6 +6,7 @@ import { Bindings } from './language/Bindings.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
 import { DomqlModule } from './language/DomqlModule.mjs';
 import { DomqlQuery } from './language/DomqlQuery.mjs';
+import { Evaluator } from './language/Evaluator.mjs';
 import { ParsedTexts } from './language/ParsedTexts.mjs';
 import { Registry } from './language/Registry.mjs';
 import { RequestResolver } from './language/RequestResolver.mjs';
@@ -15,10 +16,10 @@ import { Vocabulary } from './language/Vocabulary.mjs';
 
 export class Domql {
     /**
-     * Creates a module from the vocabulary it declares and the functions that carry the declarations out.
+     * Creates a module from the vocabulary it declares and the functions that carry the members out.
      * @param {string} name The module's name.
      * @param {object} contents What the module declares.
-     * @param {Record<string, Function> | null} functions The functions the declarations name.
+     * @param {Record<string, Function> | null} functions The functions the members name.
      */
     static createModule(name, contents, functions = null) {
         return new DomqlModule(name, contents, functions);
@@ -31,18 +32,29 @@ export class Domql {
 
     static #registry = new Registry([Vocabulary.module]);
 
-    /** Registers a module's vocabulary, which every query prepared afterwards may use. */
+    /** Registers a module's vocabulary, which every query resolved afterwards may use. */
     static registerModule(module) {
         Domql.#registry.register(module);
     }
 
     /**
      * Resolves a query against the registered vocabulary and types it, without evaluating anything.
-     * @param {DomqlQuery} query The query to prepare.
+     * @param {DomqlQuery} query The query to resolve.
      * @param {{ watch?: boolean, acceptPartialObservation?: boolean }} options How the query will be carried out.
      */
-    static prepare(query, options = {}) {
+    static resolve(query, options = {}) {
         return new RequestResolver(Domql.#registry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolve(query.definition);
+    }
+
+    /**
+     * Reads a query once, answering immutable data that holds nothing of the document.
+     * @param {DomqlQuery} query The query to read.
+     * @param {Window} window The window `@window` stands for, and whose document `@document` stands for.
+     */
+    static read(query, window = globalThis.window) {
+        const request = Domql.resolve(query);
+
+        return new Evaluator(Domql.#registry, request, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
     }
 
     /**

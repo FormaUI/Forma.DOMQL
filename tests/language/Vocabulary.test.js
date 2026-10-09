@@ -15,14 +15,14 @@ describe('Vocabulary', () => {
     });
 
     it('gives every member observation coverage and, where partial, what it misses', () => {
-        for (const member of Vocabulary.module.declarations) {
+        for (const member of Vocabulary.module.members) {
             expect(member.changes).toBeTypeOf('string');
             expect(member.changes === 'partly-observable' ? member.misses : 'n/a').toBeTruthy();
         }
     });
 
     it('names every function key a module of functions would supply', () => {
-        const keys = Vocabulary.module.declarations.map(member => `${member.on}:${member.name}:${member.function}`);
+        const keys = Vocabulary.module.members.map(member => `${member.on}:${member.name}:${member.function}`);
 
         expect(new Set(keys).size).toBe(keys.length);
     });

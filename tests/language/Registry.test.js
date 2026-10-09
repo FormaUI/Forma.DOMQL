@@ -7,7 +7,7 @@ import { declaration, messageOf } from './declarations.mjs';
 describe('Registry', () => {
     const own = () => new DomqlModule('charts', {
         types: [{ name: 'chart', fields: { points: 'number' } }],
-        declarations: [declaration({ name: 'points', on: 'chart' }), declaration({ name: 'charts', on: 'element' })],
+        members: [declaration({ name: 'points', on: 'chart' }), declaration({ name: 'charts', on: 'element' })],
     });
 
     it('registers the core and a module beside it', () => {
@@ -19,16 +19,16 @@ describe('Registry', () => {
     });
 
     it('refuses a member outside the module own types unless it is named for the module', () => {
-        const module = new DomqlModule('charts', { declarations: [declaration({ name: 'other' })] });
+        const module = new DomqlModule('charts', { members: [declaration({ name: 'other' })] });
 
         expect(messageOf(() => new Registry([module]))).toContain("named for the module, 'charts'");
     });
 
     it('refuses a member the registry already answers on the same receiver', () => {
-        const module = new DomqlModule('charts', { declarations: [declaration({ name: 'charts', on: 'element' }), declaration({ name: 'charts', on: 'element' })] });
+        const module = new DomqlModule('charts', { members: [declaration({ name: 'charts', on: 'element' }), declaration({ name: 'charts', on: 'element' })] });
 
         expect(messageOf(() => new Registry([module]))).toContain('declared already');
-        expect(messageOf(() => new Registry([Vocabulary.module, new DomqlModule('size', { declarations: [declaration({ name: 'size', on: 'element' })] })]))).toContain('declared already');
+        expect(messageOf(() => new Registry([Vocabulary.module, new DomqlModule('size', { members: [declaration({ name: 'size', on: 'element' })] })]))).toContain('declared already');
     });
 
     it('lets one name answer on different receivers', () => {
@@ -38,7 +38,7 @@ describe('Registry', () => {
     });
 
     it('refuses an event, a predicate or a type declared twice', () => {
-        const events = new DomqlModule('twice', { events: [{ name: 'click', payload: 'domEvent' }] });
+        const events = new DomqlModule('twice', { eventTypes: [{ name: 'click', payload: 'domEvent' }] });
 
         expect(messageOf(() => new Registry([Vocabulary.module, events]))).toContain("'click' is declared already");
     });

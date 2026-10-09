@@ -129,24 +129,22 @@ export class RequestResolver {
 
         const resolved = this.#resolveArguments(declaration, node, pointer, scope, receiverType, matched);
 
-        this.#used.push({ declaration, pointer });
-        this.#resolutions.set(pointer, { kind: 'member', declaration, receiverType, arguments: resolved.arguments, selected: resolved.selected });
-
-        if (resolved.predicate !== undefined) {
-            this.#used.push({ declaration: { name: `${declaration.name} ${resolved.predicate.name}`, changes: resolved.predicate.changes, reads: resolved.predicate.reads, misses: resolved.predicate.misses }, pointer });
-        }
-
         const variables = new Map(matched);
 
         if (resolved.selected !== undefined) {
             variables.set('@selected', resolved.selected.type);
         }
 
-        let type = Type.substitute(Type.parse(declaration.result), variables);
+        const declared = Type.substitute(Type.parse(declaration.result), variables);
 
-        if (receiverType.isNullable || resolved.isNullable) {
-            type = type.toNullable();
+        this.#used.push({ declaration, pointer });
+        this.#resolutions.set(pointer, { kind: 'member', declaration, receiverType, type: declared, arguments: resolved.arguments, selected: resolved.selected, predicate: resolved.predicate, steps: resolved.steps });
+
+        if (resolved.predicate !== undefined) {
+            this.#used.push({ declaration: { name: `${declaration.name} ${resolved.predicate.name}`, changes: resolved.predicate.changes, reads: resolved.predicate.reads, misses: resolved.predicate.misses }, pointer });
         }
+
+        const type = receiverType.isNullable || resolved.isNullable ? declared.toNullable() : declared;
 
         return { type, kind: RequestResolver.#kindOf(declaration), isFixed: false };
     }
@@ -185,6 +183,7 @@ export class RequestResolver {
         let isNullable = false;
         let selected;
         let predicate;
+        let steps;
 
         for (const parameter of parameters) {
             const given = supplied.get(parameter.name);
@@ -227,12 +226,13 @@ export class RequestResolver {
 
                 selected = selection.selected ?? selected;
                 predicate = selection.predicate ?? predicate;
+                steps = selection.steps ?? steps;
             }
 
-            resolved.push({ parameter, isDefault: false, pointer: valuePointer });
+            resolved.push({ parameter, isDefault: false, pointer: valuePointer, node: given.argument.value, value: parameter.fixed === true ? result.value : undefined });
         }
 
-        return { arguments: resolved, isNullable, selected, predicate };
+        return { arguments: resolved, isNullable, selected, predicate, steps };
     }
 
     /** Checks a value argument against its parameter, answering false where a null makes the call answer null. */
@@ -283,7 +283,7 @@ export class RequestResolver {
 
         switch (parameter.selects) {
             case 'member':
-                return { selected: { name, type: this.#selectMember(receiverType, name, pointer) } };
+                return this.#selectMember(receiverType, name, pointer);
             case 'predicate': {
                 const predicate = this.#registry.getPredicate(declaration.name, name);
 
@@ -317,6 +317,7 @@ export class RequestResolver {
     #selectMember(receiverType, path, pointer) {
         let current = receiverType;
         let isNullable = false;
+        const steps = [];
 
         for (const segment of path.split('.')) {
             isNullable ||= current.isNullable;
@@ -324,6 +325,7 @@ export class RequestResolver {
             const field = this.#getField(current, segment);
 
             if (field !== null) {
+                steps.push({ kind: 'field', name: segment });
                 current = field;
                 isNullable ||= field.isNullable;
                 continue;
@@ -338,11 +340,12 @@ export class RequestResolver {
             const matched = new Map();
             RequestResolver.#matchesReceiver(declaration, current, matched);
             current = Type.substitute(Type.parse(declaration.result), matched);
+            steps.push({ kind: 'member', declaration, type: current });
             isNullable ||= current.isNullable;
             this.#used.push({ declaration, pointer });
         }
 
-        return isNullable ? current.toNullable() : current;
+        return { selected: { name: path, type: isNullable ? current.toNullable() : current }, steps };
     }
 
     #shape(node, pointer, scope) {
