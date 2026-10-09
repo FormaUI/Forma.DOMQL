@@ -36,6 +36,16 @@ import { Domql } from '/_content/domql/domql.js';
 
 If the application is hosted under a subpath, include that base path in the URL. The bundle can also be served directly in a non-.NET application. For building a local package, see the [repository README](https://github.com/FormaUI/Forma.DOMQL#development).
 
+## TypeScript
+
+The package serves `domql.d.ts` beside `domql.js`, so a TypeScript project that imports the bundle by its path has the types of the whole API: `Domql`, the queries it makes, the resolved definition, `DomqlError` and the module declarations.
+
+```ts
+import { Domql } from '/_content/domql/domql.js';
+
+const count = Domql.read<number>(Domql.parse('@panel.children.count', { panel }));
+```
+
 ## Read a query
 
 Given this markup, which the examples below use throughout:
