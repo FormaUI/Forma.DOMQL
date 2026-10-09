@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <StaticWebAssetBasePath>_content/DOMQL</StaticWebAssetBasePath>
+        <StaticWebAssetBasePath>_content/domql</StaticWebAssetBasePath>
     </PropertyGroup>
 
     <!-- The package a host references. It ships DOMQL as the one bundled file wwwroot/domql.js, which scripts/bundle.mjs makes from src/. -->

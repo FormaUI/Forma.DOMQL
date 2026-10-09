@@ -25,7 +25,7 @@ nuget/          # the package project, which serves the bundle as wwwroot/domql.
 docs/           # the specification and the design
 ```
 
-DOMQL is a JavaScript library. It is published as the NuGet package `formaui-net.DOMQL`, which carries one minified file, `domql.js`, bundled from `src/` and served from `_content/DOMQL/`.
+DOMQL is a JavaScript library. It is published as the NuGet package `formaui-net.DOMQL`, which carries one minified file, `domql.js`, bundled from `src/` and served from `_content/domql/`.
 
 ## Building
 

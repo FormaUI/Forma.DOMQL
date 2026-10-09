@@ -1,13 +1,13 @@
 # DOMQL
 
-DOMQL, the query language a caller asks the browser about a document in, as the [DOMQL specification](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-specification.md) defines it and the [DOMQL design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md) sets out how it runs. The package serves it as one minified file, `domql.js`, from `_content/DOMQL/`.
+DOMQL, the query language a caller asks the browser about a document in, as the [DOMQL specification](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-specification.md) defines it and the [DOMQL design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md) sets out how it runs. The package serves it as one minified file, `domql.js`, from `_content/domql/`.
 
 ## Creating a query
 
 `Domql.parse` reads a query's text and `Domql.create` takes its definition, each binding the query's parameters by name; both check the query's structure and throw a `DomqlError` naming where it fails.
 
 ```js
-import { Domql } from '/_content/DOMQL/domql.js';
+import { Domql } from '/_content/domql/domql.js';
 
 const query = Domql.parse(`
     @panel {
