@@ -1,5 +1,7 @@
 # DOMQL
 
+> **Preview, not yet published to NuGet.** The package `formaui-net.DOMQL` is not on NuGet yet. Build it from the [repository](https://github.com/FormaUI/Forma.DOMQL#development) to try it, as [Install and load](#install-and-load) shows.
+
 DOMQL is an extensible query language for reading DOM state as plain data. Select the properties you need, project collections into objects, and reuse the same query against changing document state or different targets.
 
 The `formaui-net.DOMQL` NuGet package supplies the JavaScript library as a single minified ES module at `_content/domql/domql.js`. It can be used by applications and libraries. The API documented here runs in JavaScript.
@@ -18,11 +20,13 @@ Watching changes, listening to occurrences, actions, behaviors and maintained ob
 
 ## Install and load
 
-Add a package version available from your configured NuGet source:
+The package is not published yet. Build it from the repository with `./publish.ps1`, which writes it to `artifacts/`, and add it from there:
 
 ```sh
-dotnet add package formaui-net.DOMQL --prerelease
+dotnet add package formaui-net.DOMQL --prerelease --source ./artifacts
 ```
+
+Once it is published, `dotnet add package formaui-net.DOMQL --prerelease` adds it from NuGet.
 
 In a .NET web application hosted at the site root, import the static web asset from a JavaScript module:
 

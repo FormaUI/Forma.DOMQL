@@ -1,5 +1,7 @@
 # DOMQL
 
+> **Preview, not yet published to NuGet.** The package `formaui-net.DOMQL` is not on NuGet yet. Build it from this repository to try it; see [Development](#development).
+
 DOMQL is an extensible query language for reading DOM state as plain data. Describe the values you need—across one element, a collection or several targets—and receive an answer with the same shape.
 
 ```text
@@ -15,7 +17,7 @@ DOMQL is an extensible query language for reading DOM state as plain data. Descr
 
 DOMQL brings member lookup, argument validation, null handling and result shaping into one reusable model. Its vocabulary is extensible: modules add concepts without changing the grammar. It is designed for use by libraries and applications and is not tied to a particular UI component framework.
 
-DOMQL is a JavaScript library. It is published as the NuGet package `formaui-net.DOMQL`, which carries one minified file, `domql.js`, bundled from `src/` and served from `_content/domql/`. To use it, start with the [package README](nuget/README.md): how to load it, the language by example, the API and how to extend the vocabulary.
+DOMQL is a JavaScript library. It is packaged as the NuGet package `formaui-net.DOMQL`, which is not yet published and which carries one minified file, `domql.js`, bundled from `src/` and served from `_content/domql/`. To use it, start with the [package README](nuget/README.md): how to load it, the language by example, the API and how to extend the vocabulary.
 
 ## Current scope
 
@@ -67,7 +69,7 @@ From the repository root:
 ./build.ps1
 ```
 
-The build gate runs tests, bundles the source into `nuget/wwwroot/domql.js`, builds the package project and checks formatting. To run the gate and create the NuGet package in `artifacts/`:
+The build gate runs tests, bundles the source into `nuget/wwwroot/domql.js`, builds the package project and checks formatting. To run the gate and create the NuGet package in `artifacts/`, which is how to get the package until it is published:
 
 ```powershell
 ./publish.ps1
