@@ -1,4 +1,4 @@
-# DOMQL Design v1.0.3
+# DOMQL Design v1.0.5
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how answers and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
@@ -9,7 +9,7 @@ This design describes the whole runtime. Reading a query once is built; watching
 | Decision | Contract |
 | --- | --- |
 | A small language | Paths, shapes and lists, with literals and parameters. Arithmetic, conditions, ordering and anything else a query needs computed belongs to a member or to the caller. |
-| An open vocabulary | Everything a query can ask about is a member a vocabulary contributes; the core vocabulary and every extension follow one contract, and adding a member leaves the grammar unchanged. |
+| An open vocabulary | Everything a query can ask about is a member a vocabulary contributes; the built-in vocabulary and every extension follow one contract, and adding a member leaves the grammar unchanged. |
 | Queries read, requests act | Reading, watching or listening to a query reads the document and changes nothing, whatever vocabulary it uses; an action or a behavior request is a request of its own kind, carried out only when its caller runs or establishes it. |
 | One meaning | A query evaluates the same way for every caller, however it was written. |
 | Three ways in | A query is parsed from text, built fluently, or created from its JSON definition, and each produces a definition with the same meaning, validated and evaluated alike. |
@@ -31,9 +31,9 @@ A maintained member is pending until its first sample arrives, as the specificat
 - **A maintained member a watch first reads after its first answer** is pending in the answer the watch reports, and the watch evaluates again when its first sample arrives.
 - **Inside an occurrence's shape,** a maintained member answers its latest sample, or null while pending, and is never waited for.
 
-### Leases
+### Sessions
 
-Every observation a query starts is held under a lease, released when the read succeeds, fails or is canceled, when the watch or the subscription ends, and when an evaluation no longer depends on it. An observation already running for another query is borrowed under a lease of its own, which leaves its lifetime to its other holders.
+Every observation a query starts is reached through a session, which the query disposes when the read succeeds, fails or is canceled, when the watch or the subscription ends, and when an evaluation no longer depends on it. An observation already running for another query is reached through a session of its own, which leaves its lifetime to its other sessions; the last session to be disposed stops it. Equivalent requests share one observation where their type permits it; a request's identity is its type, its target, the arguments its type says belong to it, and the window it belongs to, so two requests that differ in an argument that changes what is observed, such as an intersection's root or margin, never share. A session gives its consumer the change notifications of the observation and, for a maintained observation, its latest sample, until the consumer disposes it. A session whose callback fails is reported and does not keep the others from hearing of a change.
 
 ## Watching and dependencies
 
@@ -41,21 +41,21 @@ A watch keeps a query's answer current: it evaluates the query, reports the answ
 
 ### Accepting partial observation
 
-Accepting partial observation is an option of the watch, chosen when the caller establishes it, beside its schedule; it applies to that watch alone and leaves the query's meaning unchanged. A watch over a partly observable member without it is a validation error naming each such member and the changes its sources miss. A read needs no acceptance, since it keeps nothing current.
+Accepting partial observation is an option of the watch, chosen when the caller establishes it, beside its schedule; it applies to that watch alone and leaves the query's meaning unchanged. A watch over a partly observable member without it is a validation error naming each such member and the changes its observations miss. A read needs no acceptance, since it keeps nothing current.
 
 ### Dependencies
 
-A watch's dependencies are what its last evaluation actually read, recorded as it evaluated: each member applied to its receiver and arguments, with that member's change sources. Dependencies belong to the complete query.
+A watch's dependencies are what its last evaluation actually read, recorded as it evaluated: each member applied to its receiver and arguments, with that member's observations. Dependencies belong to the complete query.
 
-- **Every evaluation records its dependencies afresh,** and the watch subscribes to the sources the new set names and releases the ones it no longer names. What a watch observes therefore follows the document: in `@table.all("tbody tr").max(rect.height)`, the watch depends on what the selector matches within the table, and on the height of each row it matched. A row added starts being observed after the evaluation the addition causes, and a row removed stops being observed.
+- **Every evaluation records its dependencies afresh,** and the watch subscribes to the observations the new set names and releases the ones it no longer names. What a watch observes therefore follows the document: in `@table.all("tbody tr").max(rect.height)`, the watch depends on what the selector matches within the table, and on the height of each row it matched. A row added starts being observed after the evaluation the addition causes, and a row removed stops being observed.
 - **A value argument is a dependency of its own.** `@target.intersects(root: @panel)` depends on the intersection of the target with the panel; `intersects(root: parent)` also depends on which element is the parent, and a new parent is observed after the evaluation its change causes.
 - **An expression argument contributes its dependencies for every item** it was evaluated against.
 - **A path that met null depends on what it read before the null,** so `closest(".row")` finding nothing still depends on the ancestors it searched, and the watch evaluates again when one starts to match.
 - **A watch keeps its bindings.** Binding different values starts the watch afresh.
 
-Invalidation, evaluation and delivery each keep their own schedule. A change source invalidates the watch at once. The watch evaluates at the next animation frame, once however many sources fired, or immediately, in the task that reported the change, where its caller needs a change handled at the moment it is reported, such as at mutation delivery. When the caller receives the answer is the caller's own. Watches that depend on the same target through the same source share one observation.
+Invalidation, evaluation and delivery each keep their own schedule. An observation invalidates the watch at once. The watch evaluates at the next animation frame, once however many observations fired, or immediately, in the task that reported the change, where its caller needs a change handled at the moment it is reported, such as at mutation delivery. When the caller receives the answer is the caller's own. Watches that depend on the same target through the same observation share one observation.
 
-Evaluating the whole query each time is the design. A member may keep its result until its own sources fire, as long as the answer is the one a full evaluation would give.
+Evaluating the whole query each time is the design. A member may keep its result until its own observations fire, as long as the answer is the one a full evaluation would give.
 
 ### Elements that leave the document
 
@@ -124,11 +124,12 @@ Domql.registerModule(new InputRouterDomqlModule(InputRouter));
 
 ### Declarations
 
-A module is created with its members and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The core vocabulary is the module `core`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
+A module is created with its members and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The built-in vocabulary is the module `built-in`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
 
 - **A declaration** names the member's DOMQL name, its builder name and the key of its function in the module's functions, each independent of the others; its kind, one of property, operation, source, action and behavior; the types it applies to; its parameters; its result type; and its observation coverage.
 - **A parameter** is a value or an expression. An expression is evaluated against each item of the list it follows and declares the type it produces. A parameter declares whether it is required, its default where it is not, and whether a null argument propagates, making the call answer null, or is accepted.
 - **A fixed parameter** names something the vocabulary resolves before any evaluation, and declares what it selects: a member, a predicate, an occurrence or a feature.
+- **Observations.** A member that changes observably or partly observably names the observations that cover its changes. An observation is of a type, observes the receiver, the window, the document or an argument of the member, and gives the arguments its type takes; a member that changes in any other way names none. A module declares a type of observation with the function that starts one. A type is either an invalidation observation, which says that an answer may have changed and carries no value, or a maintained observation, which provides a sample a member reads and is pending until its first arrives; a member that reads maintained values names a maintained observation, and no other member does.
 - **Types, events, predicates and features** are contributed by modules as data: structured types with their fields, event types with the type of their occurrences, predicates under `is` or `has` with the types they apply to, and the features `supports` names.
 - **Observation coverage** states how a member changes (constant, observable, partly observable with the changes it misses, unobserved, or derived from its receiver and arguments) and how it reads (fresh, maintained, captured or derived).
 

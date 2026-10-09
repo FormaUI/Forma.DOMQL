@@ -1,4 +1,4 @@
-# DOMQL Specification v1.0.3
+# DOMQL Specification v1.0.5
 
 DOMQL is a small language for querying the DOM: a query names what its caller wants to know about a document and its elements, and evaluating it gives one answer shaped the way it asked. The same query is read once, watched for changes, or evaluated at each occurrence of something that happened in the document, and the actions and behaviors a caller asks the browser for are requests of their own kinds. The language knows how to name values and shape answers; what can be asked about, an element's size, a computed style, whether it matches a selector, comes from a vocabulary beside it, so adding to what can be asked never changes the language.
 
@@ -8,7 +8,7 @@ This specification describes the whole language. An implementation may cover par
 
 ## Terms
 
-A **query** is a value expression whose evaluation produces an **answer**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** an answer holds, each with a value. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **core vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or released; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
+A **query** is a value expression whose evaluation produces an **answer**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** an answer holds, each with a value. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or released; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
 
 ## Syntax
 
@@ -165,7 +165,7 @@ Reading or watching a query never performs an action or configures a behavior: a
 
 ## Occurrences
 
-A path that ends in an occurrence source is listened to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The answer is immutable data, and that answer, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the core vocabulary's native drop event:
+A path that ends in an occurrence source is listened to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The answer is immutable data, and that answer, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the built-in vocabulary's native drop event:
 
 ```
 @zone.events-of "drop" { key: target.closest("[data-drop-target]").attribute-of("data-drop-key") }
@@ -204,9 +204,9 @@ Every member declares how its result changes, for a given receiver and arguments
 | Category | Meaning | In a watch |
 | --- | --- | --- |
 | Constant | The result never changes, as a literal's, or whether the browser supports a feature. | Allowed; it never invalidates. |
-| Observable | The member names change sources that cover every change to its result, such as a resize observation for a size. | Allowed. |
-| Partly observable | The member names the sources it can observe and documents the changes they miss, such as a computed style changed by a rule outside the element. | Allowed when the caller accepts partial observation for that watch; a change the sources miss reaches the watch through an explicit refresh or a local invalidation. |
-| Unobserved | The member can be read but names no change sources. | A validation error. |
+| Observable | The member names observations that cover every change to its result, such as a resize observation for a size. | Allowed. |
+| Partly observable | The member names the observations it can make and documents the changes they miss, such as a computed style changed by a rule outside the element. | Allowed when the caller accepts partial observation for that watch; a change the sources miss reaches the watch through an explicit refresh or a local invalidation. |
+| Unobserved | The member can be read but names no observations. | A validation error. |
 
 A literal is constant, so a watched shape can carry one: `@viewport { kind: "viewport", width: size.width }`.
 
@@ -234,9 +234,9 @@ A member of null is null, so a path that meets null answers null from there on, 
 
 A query is validated before any evaluation, as the section on validation sets out. An evaluation error fails the whole answer, and the caller receives the error in its place.
 
-## Core vocabulary
+## Built-in vocabulary
 
-The core vocabulary exposes properties and operations over familiar browser concepts. Properties use their declared spelling, and operations use kebab-case. Names are case-sensitive. Measurements use CSS pixels unless stated otherwise. Core members expose state or occurrence sources; actions and behaviors come from extensions.
+The built-in vocabulary exposes properties and operations over familiar browser concepts. Properties use their declared spelling, and operations use kebab-case. Names are case-sensitive. Measurements use CSS pixels unless stated otherwise. Built-in members expose state or occurrence sources; actions and behaviors come from extensions.
 
 A property of a structured value, such as a rectangle's `width`, reads data the value holds and is constant for that value. Properties and operations are both members in the grammar; the distinction organizes the vocabulary and adds no syntax.
 
@@ -326,7 +326,7 @@ An occurrence source delivers things that happened. It is listened to, never rea
 }
 ```
 
-This answers the fields `rect`, `clientSize`, `disabled` and `hasChildren`. The current value decides which names resolve, core and extension members alike:
+This answers the fields `rect`, `clientSize`, `disabled` and `hasChildren`. The current value decides which names resolve, built-in and extension members alike:
 
 ```
 {
@@ -348,11 +348,11 @@ This answers the fields `rect`, `clientSize`, `disabled` and `hasChildren`. The 
 
 ## Extensions
 
-An extension adds members under one name of its own, a member of a core type whose value carries the extension's members: `@viewport.scroll(axis: "inline")` is a scroll extension's view of an element along an axis, and `canScrollForward` is one of its members. The name is the extension's namespace, so extensions never collide with each other or with the core, whose member names are reserved.
+An extension adds members under one name of its own, a member of a built-in type whose value carries the extension's members: `@viewport.scroll(axis: "inline")` is a scroll extension's view of an element along an axis, and `canScrollForward` is one of its members. The name is the extension's namespace, so extensions never collide with each other or with the built-in vocabulary, whose member names are reserved.
 
-The core vocabulary declares the native event types its callers need, and an extension can declare more. Listening observes an event as it reaches its target and leaves its course to the page.
+The built-in vocabulary declares the native event types its callers need, and an extension can declare more. Listening observes an event as it reaches its target and leaves its course to the page.
 
-An extension can define types of its own, occurrence sources, actions and behaviors, and follows the core's contract throughout: every member declares its signature, its argument kinds, its result type and how it changes, and evaluating a query stays read-only and synchronous.
+An extension can define types of its own, occurrence sources, actions and behaviors, and follows the built-in vocabulary's contract throughout: every member declares its signature, its argument kinds, its result type and how it changes, and evaluating a query stays read-only and synchronous.
 
 ## Definition
 

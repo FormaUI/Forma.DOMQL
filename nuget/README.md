@@ -306,7 +306,7 @@ Domql.read(Domql.parse('@panel.metrics { childCount }', { panel }));
 // { childCount: 3 }
 ```
 
-The result can change, so it is not declared `constant`. This module supplies no change source and therefore declares `unobserved`: it supports reads, without promising watch support. Register a module once during setup, rather than before each read.
+The result can change, so it is not declared `constant`. This module names no observation and therefore declares `unobserved`: it supports reads, without promising watch support. Register a module once during setup, rather than before each read.
 
 Modules can also declare event types, predicates and supported feature names. Declaring actions, behaviors or sources does not implement the runtime features listed as planned above.
 

@@ -1,6 +1,6 @@
 name: CI
 
-# The gate on every change, on a clean Linux machine: the tests, the tests in a real browser, the bundle, the package project's build with no warnings, and the format check.
+# The gate on every change, on a clean Linux machine of a fixed release, so a new image never changes a result unasked: the tests, the tests in a real browser, the bundle, the package project's build with no warnings, and the format check.
 on:
   push:
     branches: [main]
@@ -22,7 +22,7 @@ env:
 jobs:
   gate:
     name: Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -58,7 +58,7 @@ jobs:
   package:
     name: Package
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

@@ -10,8 +10,8 @@ describe('ModuleRegistry', () => {
         members: [declaration({ name: 'points', on: 'chart' }), declaration({ name: 'charts', on: 'element' })],
     });
 
-    it('registers the core and a module beside it', () => {
-        expect(new ModuleRegistry([Vocabulary.module, own()]).modules).toEqual(['core', 'charts']);
+    it('registers the built-in module and a module beside it', () => {
+        expect(new ModuleRegistry([Vocabulary.module, own()]).modules).toEqual(['built-in', 'charts']);
     });
 
     it('refuses a module registered twice', () => {
@@ -41,5 +41,38 @@ describe('ModuleRegistry', () => {
         const events = new DomqlModule('twice', { eventTypes: [{ name: 'click', payload: 'domEvent' }] });
 
         expect(messageOf(() => new ModuleRegistry([Vocabulary.module, events]))).toContain("'click' is declared already");
+    });
+
+describe('observation types', () => {
+        const types = [{ name: 'ticks', contract: 'invalidation', function: 'startTicks' }, { name: 'sampled', contract: 'maintained', function: 'startSampled' }];
+        const functions = { startTicks: () => ({}), startSampled: () => ({}), zoom: () => 1 };
+        const watching = (overrides, moduleTypes = types) => new DomqlModule('charts', { observationTypes: moduleTypes, members: [declaration({ name: 'charts', changes: 'observable', observations: [{ type: 'ticks', of: 'receiver' }], ...overrides })] }, functions);
+
+        it('are declared by a module, which its members and the members of later modules use', () => {
+            const later = new DomqlModule('later', { members: [declaration({ name: 'later', changes: 'observable', observations: [{ type: 'ticks', of: 'receiver' }] })] });
+
+            expect(() => new ModuleRegistry([watching({}), later])).not.toThrow();
+            expect(new ModuleRegistry([watching({})]).getObservationType('ticks')).toMatchObject({ name: 'ticks', contract: 'invalidation', shared: true });
+        });
+
+        it('are declared once', () => {
+            expect(messageOf(() => new ModuleRegistry([watching({}), new DomqlModule('again', { observationTypes: [types[0]] }, functions)]))).toContain("observation type 'ticks' is declared already");
+        });
+
+        it('are declared by some module for every observation a member names', () => {
+            expect(messageOf(() => new ModuleRegistry([watching({ observations: [{ type: 'unknown', of: 'receiver' }] })]))).toContain("observation type 'unknown' is declared by no module");
+        });
+
+        it('give a member that reads maintained values a maintained observation, and give no other member one', () => {
+            expect(() => new ModuleRegistry([watching({ reads: 'maintained', observations: [{ type: 'sampled', of: 'receiver' }] })])).not.toThrow();
+            expect(messageOf(() => new ModuleRegistry([watching({ reads: 'maintained' })]))).toContain('names a maintained observation');
+            expect(messageOf(() => new ModuleRegistry([watching({ observations: [{ type: 'sampled', of: 'receiver' }] })]))).toContain('reads maintained values');
+        });
+
+        it('start with the function their module supplies', () => {
+            const registry = new ModuleRegistry([watching({})]);
+
+            expect(registry.getFunction(registry.getObservationType('ticks'))).toBe(functions.startTicks);
+        });
     });
 });

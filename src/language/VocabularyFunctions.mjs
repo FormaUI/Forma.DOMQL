@@ -1,5 +1,5 @@
 /**
- * VocabularyFunctions — the functions that carry out the core vocabulary's members and answer its predicates
+ * VocabularyFunctions — the functions that carry out the built-in vocabulary's members and answer its predicates
  */
 
 /** The input types `readonly` applies to. */

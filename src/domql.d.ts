@@ -6,7 +6,7 @@
 export interface ResolveOptions {
     /** Whether the query will be watched. */
     watch?: boolean;
-    /** Whether a watch accepts members whose changes its sources only partly observe. */
+    /** Whether a watch accepts members whose changes its observations only partly cover. */
     acceptPartialObservation?: boolean;
 }
 
@@ -103,6 +103,36 @@ export type ChangeCategory = 'constant' | 'observable' | 'partly-observable' | '
 /** How a member reads. */
 export type ReadingMode = 'fresh' | 'maintained' | 'captured' | 'derived';
 
+/** A reference to the argument a call gives for a parameter of the member. */
+export interface ArgumentReference {
+    argument: string;
+}
+
+/** A value an observation gives: a literal, a list of values, or an argument of the member. */
+export type ObservationValue = string | number | boolean | null | ArgumentReference | ObservationValue[];
+
+/** An observation that covers a member's changes: its type, what it observes, and the arguments its type takes. */
+export interface ObservationDeclaration {
+    /** The name of the type of observation, which a module declares. */
+    type: string;
+    /** What it observes: the receiver, the window, the document, or the argument of the member that names it. */
+    of: 'receiver' | 'window' | 'document' | ArgumentReference;
+    [argument: string]: ObservationValue | undefined;
+}
+
+/** A type of observation: what its observations provide, and the function that starts one. */
+export interface ObservationTypeDeclaration {
+    name: string;
+    /** A signal that an answer may have changed, or a sampled value a member reads. */
+    contract: 'invalidation' | 'maintained';
+    /** The arguments that belong to the identity of an observation, beside its target. */
+    identity?: string[];
+    /** Whether equivalent requests share one observation. */
+    shared?: boolean;
+    /** The key of the function that starts an observation, among the module's functions. */
+    function: string;
+}
+
 /** A parameter of a member. */
 export interface ParameterDeclaration {
     name: string;
@@ -137,8 +167,10 @@ export interface MemberDeclaration {
     result: string;
     changes: ChangeCategory;
     reads: ReadingMode;
-    /** The changes a partly observable member's sources miss. */
+    /** The changes a partly observable member's observations miss. */
     misses?: string;
+    /** The observations that cover its changes, which an observable or partly observable member names and no other does. */
+    observations?: ObservationDeclaration[];
 }
 
 /** A predicate that `is` or `has` reads. */
@@ -150,6 +182,7 @@ export interface PredicateDeclaration {
     changes: ChangeCategory;
     reads: ReadingMode;
     misses?: string;
+    observations?: ObservationDeclaration[];
 }
 
 /** What a module declares. */
@@ -162,6 +195,8 @@ export interface ModuleContents {
     predicates?: PredicateDeclaration[];
     /** The features `supports` names. */
     features?: string[];
+    /** The types of observation it declares. */
+    observationTypes?: ObservationTypeDeclaration[];
 }
 
 /** The functions that carry a module's members and predicates out, by the key each declaration names. */

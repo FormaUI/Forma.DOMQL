@@ -25,7 +25,7 @@ const propertyModule = (name, implementation) => new DomqlModule(name, {
     members: [{ name, builder: name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
 }, implementation === undefined ? null : { [name]: implementation });
 
-/** Reads a query against a registry of its own holding the core vocabulary and the module. */
+/** Reads a query against a registry of its own holding the built-in vocabulary and the module. */
 const readWith = (module, text, bindings) => {
     const registry = new ModuleRegistry([Vocabulary.module, module]);
     const query = Domql.parse(text, bindings);

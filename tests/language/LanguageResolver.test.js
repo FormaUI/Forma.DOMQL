@@ -224,7 +224,7 @@ describe('LanguageResolver', () => {
             const module = new DomqlModule('charts', {
                 types: [{ name: 'chartEvent', fields: { value: 'number' } }],
                 eventTypes: [{ name: 'chart-selected', payload: 'chartEvent' }],
-                predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh' }],
+                predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'constant', reads: 'fresh' }],
             });
 
             const registry = new ModuleRegistry([Vocabulary.module, module]);

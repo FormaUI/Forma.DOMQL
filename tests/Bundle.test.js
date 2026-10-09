@@ -5,7 +5,7 @@ import { beforeAll, describe, it, expect } from 'vitest';
 import { bundle } from '../scripts/bundle.mjs';
 
 /** The bundle's single export, which names Domql. */
-const EXPORT = /export\{(\w+) as Domql\};?\s*$/;
+const EXPORT = /export\{([\w$]+) as Domql\};?\s*$/;
 
 describe('Bundle', () => {
     let text;

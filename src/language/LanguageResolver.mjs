@@ -401,7 +401,7 @@ export class LanguageResolver {
         const unobserved = this.#used.filter(use => use.declaration.changes === 'unobserved');
 
         if (unobserved.length > 0) {
-            this.#fail(`A watch cannot follow ${unobserved.map(use => `'${use.declaration.name}'`).join(', ')}, which name no change sources`, unobserved[0].pointer);
+            this.#fail(`A watch cannot follow ${unobserved.map(use => `'${use.declaration.name}'`).join(', ')}, which name no observations`, unobserved[0].pointer);
         }
 
         const partly = this.#used.filter(use => use.declaration.changes === 'partly-observable');

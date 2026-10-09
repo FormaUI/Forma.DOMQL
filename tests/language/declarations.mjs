@@ -9,7 +9,7 @@ export const declaration = (overrides = {}) => ({
     on: 'element',
     parameters: [],
     result: 'number',
-    changes: 'observable',
+    changes: 'constant',
     reads: 'fresh',
     ...overrides,
 });

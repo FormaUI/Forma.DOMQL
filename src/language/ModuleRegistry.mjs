@@ -24,6 +24,9 @@ export class ModuleRegistry {
     /** @type {Set<string>} */
     #features = new Set();
 
+    /** @type {Map<string, object>} */
+    #observationTypes = new Map();
+
     /** @type {Map<object, string>} */
     #owners = new Map();
 
@@ -70,6 +73,18 @@ export class ModuleRegistry {
             }
         }
 
+        for (const type of module.observationTypes) {
+            if (this.#observationTypes.has(type.name)) {
+                fail(`The observation type '${type.name}' is declared already`, type.name);
+            }
+        }
+
+        const types = new Map([...this.#observationTypes, ...module.observationTypes.map(type => [type.name, type])]);
+
+        for (const declaration of [...module.members, ...module.predicates]) {
+            ModuleRegistry.#validateObservations(declaration, types, fail);
+        }
+
         module.members.forEach((declaration, index) => {
             this.#checkNamespace(module, declaration, ownTypes, fail);
             this.#checkCollision(declaration, [...this.getMembers(declaration.name), ...module.members.slice(0, index).filter(other => other.name === declaration.name)], fail);
@@ -91,6 +106,11 @@ export class ModuleRegistry {
         }
 
         module.features.forEach(feature => this.#features.add(feature));
+
+        for (const type of module.observationTypes) {
+            this.#observationTypes.set(type.name, type);
+            this.#owners.set(type, module.name);
+        }
 
         for (const declaration of module.members) {
             this.#members.set(declaration.name, [...(this.#members.get(declaration.name) ?? []), declaration]);
@@ -125,6 +145,11 @@ export class ModuleRegistry {
         return this.#features.has(name);
     }
 
+    /** The type of observation declared so, or undefined. */
+    getObservationType(name) {
+        return this.#observationTypes.get(name);
+    }
+
     /** The names a verb reads, for a message that lists them. */
     getPredicateNames(verb) {
         return [...this.#predicates.values()].filter(predicate => predicate.verb === verb).map(predicate => predicate.name);
@@ -144,7 +169,7 @@ export class ModuleRegistry {
         return `${verb} ${name}`;
     }
 
-    /** A module outside the core adds members to its own types, and a single member named for itself to any other. */
+    /** A module outside the built-in module adds members to its own types, and a single member named for itself to any other. */
     #checkNamespace(module, declaration, ownTypes, fail) {
         if (module.isBuiltIn) {
             return;
@@ -155,6 +180,25 @@ export class ModuleRegistry {
 
         if (!isOwn && declaration.name !== module.name) {
             fail(`A member outside its module's own types is named for the module, '${module.name}'`, declaration.name);
+        }
+    }
+
+    /** Refuses an observation of a type no module declares, and a member that reads maintained values without a maintained observation, or any other that has one. */
+    static #validateObservations(declaration, types, fail) {
+        let hasMaintained = false;
+
+        for (const observation of declaration.observations) {
+            const type = types.get(observation.type);
+
+            if (type === undefined) {
+                fail(`The observation type '${observation.type}' is declared by no module`, declaration.name);
+            }
+
+            hasMaintained ||= type.contract === 'maintained';
+        }
+
+        if ((declaration.reads === 'maintained') !== hasMaintained) {
+            fail(declaration.reads === 'maintained' ? 'It reads maintained values, so it names a maintained observation' : 'It names a maintained observation, so it reads maintained values', declaration.name);
         }
     }
 

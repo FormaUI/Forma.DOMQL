@@ -32,4 +32,30 @@ describe('Vocabulary', () => {
         expect(registry.getPredicate('has', 'disabled')).toBeUndefined();
         expect(registry.getPredicate('has', 'children')).toBeDefined();
     });
+
+describe('observations', () => {
+        const members = Vocabulary.module.members;
+        const covered = declaration => ['observable', 'partly-observable'].includes(declaration.changes);
+
+        it('are named by every member and predicate whose changes they cover, and by no other', () => {
+            for (const declaration of [...members, ...Vocabulary.module.predicates]) {
+                expect(declaration.observations.length > 0, `${declaration.verb ?? ''} ${declaration.name}`).toBe(covered(declaration));
+            }
+        });
+
+        it('are of types the built-in module declares', () => {
+            const types = new Set(Vocabulary.module.observationTypes.map(type => type.name));
+            const named = [...members, ...Vocabulary.module.predicates].flatMap(declaration => declaration.observations.map(observation => observation.type));
+
+            expect(named.every(type => types.has(type))).toBe(true);
+            expect([...new Set(named)].sort()).toEqual([...types].sort());
+        });
+
+        it('are maintained only for the member that reads maintained values', () => {
+            const maintained = members.filter(declaration => declaration.observations.some(observation => registry.getObservationType(observation.type).contract === 'maintained'));
+
+            expect(maintained.map(declaration => declaration.name)).toEqual(['intersects']);
+            expect(maintained.every(declaration => declaration.reads === 'maintained')).toBe(true);
+        });
+    });
 });

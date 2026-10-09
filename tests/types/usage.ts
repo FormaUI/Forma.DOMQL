@@ -20,8 +20,9 @@ const contents: ModuleContents = {
     types: [{ name: 'childMetrics', fields: { childCount: 'number' } }],
     members: [{ name: 'metrics', builder: 'metrics', function: 'readMetrics', kind: 'property', on: 'element', parameters: [], result: 'childMetrics', changes: 'unobserved', reads: 'fresh' }],
     eventTypes: [{ name: 'chart-selected', payload: 'number' }],
-    predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh' }],
+    predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh', observations: [{ type: 'mutation', of: 'receiver', attributes: true }] }],
     features: ['share'],
+    observationTypes: [{ name: 'charts-changed', contract: 'maintained', identity: ['root'], shared: true, function: 'observeCharts' }],
 };
 const functions: ModuleFunctions = {
     readMetrics: (element: Element) => ({ childCount: element.children.length }),

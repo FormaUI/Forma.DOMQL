@@ -18,14 +18,23 @@ const SELECTION_KINDS = ['member', 'predicate', 'occurrence', 'feature'];
 const PARAMETER_KINDS = ['value', 'expression'];
 const PREDICATE_VERBS = ['is', 'has'];
 
+/** What an observation type provides: a signal that an answer may have changed, or a sampled value a member reads. */
+const OBSERVATION_CONTRACTS = ['invalidation', 'maintained'];
+
+/** The categories whose changes observations cover. */
+const OBSERVED_CATEGORIES = ['observable', 'partly-observable'];
+
+/** What an observation observes, besides a target an argument names. */
+const OBSERVATION_TARGETS = ['receiver', 'window', 'document'];
+
 /** What a fixed parameter can select that carries out the member itself: the predicate or the member its name resolves to. */
 const DELEGATED_SELECTION_KINDS = ['member', 'predicate'];
 
 /** The names of the types DOMQL itself defines, which a module cannot declare again. */
 const RESERVED_TYPE_NAMES = new Set(['number', 'string', 'boolean', 'element', 'window', 'document', 'list', 'occurrence', 'null']);
 
-/** The name that identifies the built-in module, whose members the specification calls the core vocabulary and which stand without a namespace. */
-const BUILTIN_MODULE_NAME = 'core';
+/** The name that identifies the built-in module, whose members stand without a namespace. */
+const BUILTIN_MODULE_NAME = 'built-in';
 
 export class DomqlModule {
     #name;
@@ -34,6 +43,7 @@ export class DomqlModule {
     #eventTypes;
     #predicates;
     #features;
+    #observationTypes;
     #functions;
 
     /** Proves a module is the built-in one, which only its own factory can. */
@@ -47,6 +57,7 @@ export class DomqlModule {
      * @param {object[]} [contents.eventTypes] The event types it declares, each with the type of its occurrences.
      * @param {object[]} [contents.predicates] The predicates `is` and `has` read.
      * @param {string[]} [contents.features] The features `supports` names.
+     * @param {object[]} [contents.observationTypes] The types of observation it declares, each with the function that starts one.
      * @param {Record<string, Function> | null} [functions] The functions that carry the members out, by the key each member names.
      * @param {symbol} [builtInToken] Held by the built-in module alone.
      */
@@ -59,7 +70,7 @@ export class DomqlModule {
             throw DomqlError.module(`'${BUILTIN_MODULE_NAME}' is the built-in module's identity, which no other module takes`, { module: name });
         }
 
-        const { members = [], types = [], eventTypes = [], predicates = [], features = [] } = contents;
+        const { members = [], types = [], eventTypes = [], predicates = [], features = [], observationTypes = [] } = contents;
         const fail = (message, declaration) => { throw DomqlError.module(message, declaration === undefined ? { module: name } : { module: name, declaration }); };
 
         this.#name = name;
@@ -68,9 +79,10 @@ export class DomqlModule {
         this.#eventTypes = DomqlModule.#freezeItems(eventTypes.map(eventType => DomqlModule.#validateEventType(eventType, fail)));
         this.#predicates = DomqlModule.#freezeItems(predicates.map(predicate => DomqlModule.#validatePredicate(predicate, fail)));
         this.#features = DomqlModule.#freezeItems(features.map(feature => DomqlModule.#validateFeatureName(feature, fail)));
+        this.#observationTypes = DomqlModule.#freezeItems(observationTypes.map(type => DomqlModule.#validateObservationType(type, fail)));
 
         if (functions !== null) {
-            for (const declaration of [...this.#members, ...this.#predicates]) {
+            for (const declaration of [...this.#members, ...this.#predicates, ...this.#observationTypes]) {
                 if (declaration.function !== undefined && typeof functions[declaration.function] !== 'function') {
                     fail(`The function '${declaration.function}' it names is not among the module's functions`, declaration.name);
                 }
@@ -80,7 +92,7 @@ export class DomqlModule {
         this.#functions = functions;
     }
 
-    /** The built-in module, which declares the core vocabulary. */
+    /** The built-in module, which declares the built-in vocabulary. */
     static createBuiltIn(contents, functions = null) {
         return new DomqlModule(BUILTIN_MODULE_NAME, contents, functions, DomqlModule.#builtInToken);
     }
@@ -118,6 +130,11 @@ export class DomqlModule {
     /** The features the module declares. */
     get features() {
         return this.#features;
+    }
+
+    /** The types of observation the module declares. */
+    get observationTypes() {
+        return this.#observationTypes;
     }
 
     /** The functions that carry the members out, or null for a module that declares and does not yet implement. */
@@ -187,8 +204,9 @@ export class DomqlModule {
 
         DomqlModule.#validateReceiverTypes(predicate, name, fail);
         DomqlModule.#validateObservation(predicate, name, fail);
+        DomqlModule.#validateObservations(predicate, new Set(), name, fail);
 
-        return structuredClone(predicate);
+        return structuredClone({ observations: [], ...predicate });
     }
 
     static #validateFeatureName(feature, fail) {
@@ -218,6 +236,71 @@ export class DomqlModule {
         }
     }
 
+    /** Validates the observations that cover a declaration's changes: each names its type, what it observes and the arguments its type takes. */
+    static #validateObservations(declaration, parameterNames, name, fail) {
+        const observations = declaration.observations ?? [];
+
+        if (!Array.isArray(observations)) {
+            fail('Its observations are a list', name);
+        }
+
+        if (OBSERVED_CATEGORIES.includes(declaration.changes) && observations.length === 0) {
+            fail(`It changes as ${declaration.changes}, so it names the observations that cover its changes`, name);
+        }
+
+        if (!OBSERVED_CATEGORIES.includes(declaration.changes) && observations.length > 0) {
+            fail(`It changes as ${declaration.changes}, so it names no observations`, name);
+        }
+
+        for (const observation of observations) {
+            if (observation === null || typeof observation !== 'object' || !Names.isName(observation.type)) {
+                fail('An observation names its type as a name is', name);
+            }
+
+            const isTarget = OBSERVATION_TARGETS.includes(observation.of) || DomqlModule.#isArgumentReference(observation.of, parameterNames);
+
+            if (!isTarget) {
+                fail(`The observation '${observation.type}' observes the receiver, the window, the document or an argument of the member, and not '${JSON.stringify(observation.of)}'`, name);
+            }
+
+            for (const [key, value] of Object.entries(observation)) {
+                if (key !== 'type' && key !== 'of' && !DomqlModule.#isObservationValue(value, parameterNames)) {
+                    fail(`The observation '${observation.type}' gives '${key}' a value that is no literal, list of literals or argument of the member`, name);
+                }
+            }
+        }
+    }
+
+    static #isArgumentReference(value, parameterNames) {
+        return value !== null && typeof value === 'object' && Object.keys(value).length === 1 && typeof value.argument === 'string' && parameterNames.has(value.argument);
+    }
+
+    static #isObservationValue(value, parameterNames) {
+        if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+            return true;
+        }
+
+        return Array.isArray(value) ? value.every(item => DomqlModule.#isObservationValue(item, parameterNames)) : DomqlModule.#isArgumentReference(value, parameterNames);
+    }
+
+    static #validateObservationType(type, fail) {
+        const identity = type?.identity ?? [];
+
+        if (!Names.isName(type?.name) || !OBSERVATION_CONTRACTS.includes(type.contract)) {
+            fail(`An observation type is named as a name is and is one of ${OBSERVATION_CONTRACTS.join(', ')}`, String(type?.name));
+        }
+
+        if (!Array.isArray(identity) || !identity.every(argument => DomqlModule.#isIdentifier(argument)) || (type.shared !== undefined && typeof type.shared !== 'boolean')) {
+            fail('It names the arguments that belong to the identity of an observation, as identifiers, and whether observations are shared, as a Boolean', type.name);
+        }
+
+        if (!DomqlModule.#isIdentifier(type.function)) {
+            fail('It names the function that starts it, as an identifier', type.name);
+        }
+
+        return structuredClone({ identity: [], shared: true, ...type });
+    }
+
     static #validateMember(member, fail) {
         const name = member?.name;
 
@@ -241,6 +324,8 @@ export class DomqlModule {
         const parameterNames = new Set();
         let hasOptional = false;
 
+        DomqlModule.#validateObservations(member, new Set((member.parameters ?? []).map(parameter => parameter?.name)), name, fail);
+
         for (const parameter of member.parameters ?? []) {
             DomqlModule.#validateParameter(parameter, name, fail);
 
@@ -257,7 +342,7 @@ export class DomqlModule {
             }
         }
 
-        return structuredClone({ parameters: [], ...member });
+        return structuredClone({ parameters: [], observations: [], ...member });
     }
 
     static #validateParameter(parameter, declaration, fail) {
