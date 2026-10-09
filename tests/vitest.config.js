@@ -7,7 +7,7 @@ const resolved = path => decodeURIComponent(new URL(path, import.meta.url).pathn
 export default defineConfig({
     resolve: {
         alias: [
-            { find: '#domql/', replacement: resolved('../../src/Forma.DOMQL/wwwroot/scripts/') },
+            { find: '#domql/', replacement: resolved('../src/') },
         ],
     },
     test: {

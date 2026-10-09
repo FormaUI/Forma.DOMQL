@@ -1,0 +1,11 @@
+{
+    "name": "forma-domql",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "bundle": "node scripts/bundle.mjs"
+    },
+    "devDependencies": {
+        "esbuild": "^0.25.0"
+    }
+}

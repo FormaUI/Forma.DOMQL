@@ -2,16 +2,16 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { Domql } from '#domql/Domql.js';
+import { Domql } from '#domql/domql.js';
 
 // A path from the repository root, read as text.
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = path => readFileSync(resolve(root, path), 'utf8');
 
 describe('Alignment', () => {
     const specification = read('docs/domql-specification.md');
     const design = read('docs/domql-design.md');
-    const project = read('src/Forma.DOMQL/Forma.DOMQL.csproj');
+    const project = read('nuget/Forma.DOMQL.csproj');
 
     it('has a specification whose version is that of the implementation', () => {
         const [, version] = specification.match(/^# DOMQL Specification v(\d+\.\d+\.\d+)$/m);

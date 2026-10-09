@@ -1,8 +1,8 @@
-# Forma.DOMQL
+# DOMQL
 
-DOMQL, a small query language over the DOM. **ES modules · no build step · .NET 11 Razor class library for packaging · package `formaui-net.DOMQL`.**
+DOMQL, a small query language over the DOM. **A JavaScript library · ES modules in `src/` · bundled to one minified file · published as the NuGet package `formaui-net.DOMQL`.**
 
-The language knows only the DOM. It was designed beside the sibling **Forma** repository (`c:\Users\eyal\Development\Projects\formaui-net`), whose DOM watcher and engine are its first consumer and reference it from a checkout beside their own; nothing here refers back to Forma.
+The language knows only the DOM, and nothing here refers to a consumer of it.
 
 ## Source of truth
 
@@ -13,7 +13,8 @@ The language knows only the DOM. It was designed beside the sibling **Forma** re
 
 ## Structure
 
-- Do keep the language's scripts under `src/Forma.DOMQL/wwwroot/scripts/`: the `Domql.js` entry, composing the modules beside it, and those modules in folders named for what they hold, such as `language/`.
+- Do keep the language's scripts under `src/`: the `domql.js` entry, composing the modules beside it, and those modules in folders named for what they hold, such as `language/`.
+- Do keep the package project, which only carries the bundle to NuGet, in `nuget/`, the tests in `tests/`, and the script that bundles in `scripts/`.
 - Do write each module as one concept expressed as a class, taking its collaborators once in its constructor, with `#`-private mechanics; a family of pure helpers is a class with static members.
 - Do keep the entry composing its modules rather than re-exporting them.
 - Do keep DOMQL free of any consumer: no reference to Forma, a component, Blazor, a watcher or an engine, in code, comments or documents.
@@ -21,7 +22,8 @@ The language knows only the DOM. It was designed beside the sibling **Forma** re
 
 ## Scripts
 
-- Do use only native modern browser APIs, with no external library, polyfill, bundler or build step; a script is an ES module, strict by construction.
+- Do use only native modern browser APIs in `src/`, with no external library or polyfill; a script is an ES module, strict by construction.
+- Do publish DOMQL as one minified file, `nuget/wwwroot/domql.js`, which `scripts/bundle.mjs` makes from `src/` with esbuild, a development dependency that the package never carries; the file is generated, ignored by git, and as small as the sources allow, and a test runs the bundle.
 - Do name a parameter by its role (`text`, `definition`, `bindings`), never its type.
 - Do write the language's name as DOMQL in prose and `Domql` in code, and name a module that exposes a capability through DOMQL `{Capability}DomqlModule`.
 - Do report every failure where it happens, as a `DomqlError` naming where it fails, and never swallow a rejection.
@@ -29,7 +31,7 @@ The language knows only the DOM. It was designed beside the sibling **Forma** re
 
 ## Tests
 
-- Do add or change a test beside every module you add or change, in `tests/Forma.DOMQL.Tests.Scripts/`, laid out as `wwwroot/scripts/` is, and run them with `npm test` from that folder.
+- Do add or change a test for every module you add or change, in `tests/`, and run them with `npm test` from that folder.
 - Do test through the public surface, `Domql` and what it returns, and assert exact definitions, error kinds and locations.
 - Don't wait on the clock for work a test controls.
 
@@ -42,7 +44,7 @@ The language knows only the DOM. It was designed beside the sibling **Forma** re
 
 ## Build and verification
 
-The gate is `./build.ps1`: the build with no warnings, the script tests, and the format check.
+The gate is `./build.ps1`: the tests, the bundle, the package project's build with no warnings, and the format check; `./publish.ps1` runs it and packs the package.
 
 - Do treat every compiler warning as a build failure.
 

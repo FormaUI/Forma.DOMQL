@@ -18,13 +18,15 @@ The language knows how to name values and shape answers; what can be asked about
 ## Layout
 
 ```text
-Forma.DOMQL.slnx
-├── src/Forma.DOMQL                     # the language: its scripts under wwwroot/scripts/, served as _content/Forma.DOMQL
-└── tests/Forma.DOMQL.Tests.Scripts     # the scripts' tests, under Vitest and happy-dom
+src/            # the language: domql.js and the modules it imports
+tests/          # its tests, under Vitest and happy-dom
+scripts/        # bundle.mjs, which makes the single file the package ships
+nuget/          # the package project, which serves the bundle as wwwroot/domql.js
+docs/           # the specification and the design
 ```
 
-The project ships as the package `formaui-net.DOMQL`. Forma, its first consumer, references it from a checkout beside its own.
+DOMQL is a JavaScript library. It is published as the NuGet package `formaui-net.DOMQL`, which carries one minified file, `domql.js`, bundled from `src/` and served from `_content/DOMQL/`.
 
 ## Building
 
-`./build.ps1` is the gate: it builds the solution, runs the script tests and checks the formatting. The script tests also run on their own with `npm test` from their folder.
+`./build.ps1` is the gate: it runs the tests, bundles `src/` into `nuget/wwwroot/domql.js`, builds the package project and checks its formatting. `./publish.ps1` runs the gate and packs the package into `artifacts/`. The tests also run on their own with `npm test` from `tests/`.

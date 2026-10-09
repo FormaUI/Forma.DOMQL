@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Domql } from '#domql/Domql.js';
+import { Domql } from '#domql/domql.js';
 
 /** The error a call throws. */
 const getError = call => {

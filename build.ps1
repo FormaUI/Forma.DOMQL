@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Builds the solution, runs its script tests, and checks its formatting.
+Runs the script tests, bundles DOMQL, builds the package project, and checks its formatting.
 
 .PARAMETER Clean
 Removes every build output first, so the build starts from nothing.
@@ -17,40 +17,57 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-$solution = Join-Path $root 'Forma.DOMQL.slnx'
-$scriptTests = Join-Path $root 'tests/Forma.DOMQL.Tests.Scripts'
+$nuget = Join-Path $root 'nuget'
+$solution = 'Forma.DOMQL.slnx'
+$tests = Join-Path $root 'tests'
 $artifacts = Join-Path $root 'artifacts'
 
 if ($Clean) {
-    # Every bin and obj under the projects goes, and the packed artifacts with them, which dotnet clean alone leaves behind.
+    # The package project's bin and obj, its bundle, and the packed artifacts, which dotnet clean alone leaves behind.
     Write-Host 'Cleaning'
-    Get-ChildItem (Join-Path $root 'src'), (Join-Path $root 'tests') -Directory -Recurse -Include 'bin', 'obj' | Remove-Item -Recurse -Force
+    Get-ChildItem $nuget -Directory -Recurse -Include 'bin', 'obj', 'wwwroot' | Remove-Item -Recurse -Force
     if (Test-Path $artifacts) {
         Remove-Item $artifacts -Recurse -Force
     }
 }
 
-Write-Host 'Building'
-dotnet build $solution -nologo
-if ($LASTEXITCODE -ne 0) {
-    throw 'dotnet build failed.'
-}
-
-Write-Host 'Testing the scripts'
-if (-not (Test-Path (Join-Path $scriptTests 'node_modules'))) {
-    npm ci --prefix $scriptTests --no-audit --no-fund
-    if ($LASTEXITCODE -ne 0) {
-        throw 'npm ci failed for the script tests.'
+foreach ($folder in $root, $tests) {
+    if (-not (Test-Path (Join-Path $folder 'node_modules'))) {
+        Write-Host "Restoring $(Split-Path $folder -Leaf)"
+        npm ci --prefix $folder --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm ci failed for $folder."
+        }
     }
 }
 
-npm test --prefix $scriptTests
+Write-Host 'Testing the scripts'
+npm test --prefix $tests
 if ($LASTEXITCODE -ne 0) {
     throw 'The script tests failed.'
 }
 
-Write-Host 'Checking formatting'
-dotnet format $solution --verify-no-changes
+Write-Host 'Bundling'
+npm run bundle --prefix $root
 if ($LASTEXITCODE -ne 0) {
-    throw 'dotnet format found changes to make; run: dotnet format Forma.DOMQL.slnx'
+    throw 'The bundle failed.'
+}
+
+# dotnet finds global.json from the working directory up, so the SDK it pins applies from the package project's folder.
+Push-Location $nuget
+try {
+    Write-Host 'Building'
+    dotnet build $solution -nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw 'dotnet build failed.'
+    }
+
+    Write-Host 'Checking formatting'
+    dotnet format $solution --verify-no-changes
+    if ($LASTEXITCODE -ne 0) {
+        throw 'dotnet format found changes to make; run: dotnet format Forma.DOMQL.slnx from nuget/'
+    }
+}
+finally {
+    Pop-Location
 }

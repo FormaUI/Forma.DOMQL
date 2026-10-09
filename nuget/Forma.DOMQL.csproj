@@ -5,10 +5,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <StaticWebAssetBasePath>_content/Forma.DOMQL</StaticWebAssetBasePath>
+        <StaticWebAssetBasePath>_content/DOMQL</StaticWebAssetBasePath>
     </PropertyGroup>
 
-    <!-- The package a host references; the assembly and its asset path keep the project's name. -->
+    <!-- The package a host references. It ships DOMQL as the one bundled file wwwroot/domql.js, which scripts/bundle.mjs makes from src/. -->
     <PropertyGroup>
         <IsPackable>true</IsPackable>
         <PackageId>formaui-net.DOMQL</PackageId>
@@ -23,9 +23,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
-        <None Include="..\..\NOTICE" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\NOTICE" Pack="true" PackagePath="\" Visible="false" />
         <None Include="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
+
+    <!-- A package without the bundle would ship nothing, so packing stops until publish.ps1 has made it. -->
+    <Target Name="EnsureBundle" BeforeTargets="Pack">
+        <Error Condition="!Exists('$(MSBuildProjectDirectory)\wwwroot\domql.js')" Text="wwwroot/domql.js is missing; run ./publish.ps1, which bundles DOMQL and packs it." />
+    </Target>
 
 </Project>
