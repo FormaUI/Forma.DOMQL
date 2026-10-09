@@ -1,9 +1,9 @@
 import { beforeEach, describe, it, expect } from 'vitest';
+import { Observations } from '#domql/dom/Observations.mjs';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
-import { DomqlModule } from '#domql/language/DomqlModule.mjs';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { Observations } from '#domql/language/Observations.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { DomqlModule } from '#domql/language/vocabulary/DomqlModule.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 
 /** A module of observation types that start nothing in a browser, and the record of what they did. */
 const createObservationTypes = () => {

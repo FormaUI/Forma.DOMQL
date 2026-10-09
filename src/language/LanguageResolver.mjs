@@ -23,7 +23,7 @@ export class LanguageResolver {
     #used = [];
 
     /**
-     * @param {import('./ModuleRegistry.mjs').ModuleRegistry} registry The vocabulary to resolve against.
+     * @param {import('./vocabulary/ModuleRegistry.mjs').ModuleRegistry} registry The vocabulary to resolve against.
      * @param {import('./ParameterBindings.mjs').ParameterBindings} bindings What the request's parameters are bound to.
      * @param {import('./TextLocations.mjs').TextLocations | null} locations Where in a text each part of the definition came from.
      * @param {{ watch?: boolean, acceptPartialObservation?: boolean }} options How the request will be carried out.

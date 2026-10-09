@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DomqlModule } from '#domql/language/DomqlModule.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { DomqlModule } from '#domql/language/vocabulary/DomqlModule.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 import { declaration, messageOf, parameter } from './declarations.mjs';
 
 describe('DomqlModule', () => {

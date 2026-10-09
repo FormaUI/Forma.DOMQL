@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
-import { DomqlModule } from '#domql/language/DomqlModule.mjs';
+import { DomqlModule } from '#domql/language/vocabulary/DomqlModule.mjs';
 import { LanguageResolver } from '#domql/language/LanguageResolver.mjs';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 
 const panel = document.createElement('div');
 

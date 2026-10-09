@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { QueryEvaluator } from '#domql/dom/QueryEvaluator.mjs';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
-import { DomqlModule } from '#domql/language/DomqlModule.mjs';
+import { DomqlModule } from '#domql/language/vocabulary/DomqlModule.mjs';
 import { LanguageResolver } from '#domql/language/LanguageResolver.mjs';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { QueryEvaluator } from '#domql/language/QueryEvaluator.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 
 /** Gives the element a border box, since the test environment lays nothing out. */
 const lay = (element, { left = 0, top = 0, width = 0, height = 0 }) => {

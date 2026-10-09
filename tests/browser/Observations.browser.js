@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { Observations } from '#domql/language/Observations.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { BrowserModule } from '#domql/dom/BrowserModule.mjs';
+import { Observations } from '#domql/dom/Observations.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 
 /** The observation types of the built-in vocabulary, started in the browser they observe. */
 describe('Observations in a browser', () => {
@@ -11,7 +12,7 @@ describe('Observations in a browser', () => {
 
     beforeEach(() => {
         document.body.style.margin = '0';
-        registry = new ModuleRegistry([Vocabulary.module]);
+        registry = new ModuleRegistry([BrowserModule.create()]);
         observations = new Observations(registry, { window, document });
         sessions = [];
     });

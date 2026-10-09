@@ -1,5 +1,5 @@
 /**
- * DomqlError — a DOMQL text or definition that cannot become a query, and where it fails
+ * DomqlError — a DOMQL failure and its location
  */
 
 /**

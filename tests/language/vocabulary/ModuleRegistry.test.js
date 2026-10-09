@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { DomqlModule } from '#domql/language/DomqlModule.mjs';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { DomqlModule } from '#domql/language/vocabulary/DomqlModule.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 import { declaration, messageOf } from './declarations.mjs';
 
 describe('ModuleRegistry', () => {

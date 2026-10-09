@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
+import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 
 describe('Vocabulary', () => {
     const registry = new ModuleRegistry([Vocabulary.module]);

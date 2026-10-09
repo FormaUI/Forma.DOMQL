@@ -2,18 +2,18 @@
  * Domql — creates DOMQL queries from text and from definitions
  */
 
+import { BrowserModule } from './dom/BrowserModule.mjs';
+import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
 import { DomqlError } from './language/DomqlError.mjs';
-import { DomqlModule } from './language/DomqlModule.mjs';
+import { DomqlModule } from './language/vocabulary/DomqlModule.mjs';
 import { DomqlQuery } from './language/DomqlQuery.mjs';
 import { LanguageResolver } from './language/LanguageResolver.mjs';
-import { ModuleRegistry } from './language/ModuleRegistry.mjs';
+import { ModuleRegistry } from './language/vocabulary/ModuleRegistry.mjs';
 import { ParameterBindings } from './language/ParameterBindings.mjs';
 import { ParsedTexts } from './language/ParsedTexts.mjs';
-import { QueryEvaluator } from './language/QueryEvaluator.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
-import { Vocabulary } from './language/Vocabulary.mjs';
 
 export class Domql {
     /**
@@ -31,7 +31,7 @@ export class Domql {
         return Specification.version;
     }
 
-    static #registry = new ModuleRegistry([Vocabulary.module]);
+    static #registry = new ModuleRegistry([BrowserModule.create()]);
 
     /**
      * The resolutions of each query by the options they were made under, valid for the registry revision they were made at and released with the query.

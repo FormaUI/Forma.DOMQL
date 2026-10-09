@@ -1,8 +1,8 @@
 /**
- * Observations — the observations a window's queries hold, started on first use, shared between equivalent requests and ended when the last holder lets go
+ * Observations — opens sessions on observations, shares one underlying observation between equivalent requests, and stops it when its last session is disposed
  */
 
-import { DomqlError } from './DomqlError.mjs';
+import { DomqlError } from '../language/DomqlError.mjs';
 import { ObservationSession } from './ObservationSession.mjs';
 
 /** The properties of an observation that are not arguments of its type. */
@@ -28,7 +28,7 @@ export class Observations {
     #nextUnshared = 1;
 
     /**
-     * @param {import('./ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary whose observation types start the observations.
+     * @param {import('../language/vocabulary/ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary whose observation types start the observations.
      * @param {{ window: Window, document: Document }} environment The window the observations belong to; observations of two windows never share.
      * @param {{ reportError?: (error: unknown) => void }} [options] Where a failure of a holder's callback, or of stopping an observation, is reported, by default the window's. A failure of the report itself is dropped, so reporting never interrupts what reports.
      */

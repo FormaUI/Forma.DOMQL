@@ -3,8 +3,6 @@
  */
 
 import { DomqlModule } from './DomqlModule.mjs';
-import { BrowserObservers } from './BrowserObservers.mjs';
-import { VocabularyFunctions } from './VocabularyFunctions.mjs';
 
 /** A value parameter, required unless it is given a default. */
 function value(name, type, options = {}) {
@@ -78,8 +76,11 @@ const GEOMETRY = { changes: 'partly-observable', misses: 'transforms and animati
 const STYLE = { changes: 'partly-observable', misses: 'rules matching from elsewhere' };
 
 export class Vocabulary {
-    /** The built-in vocabulary's module. */
-    static get module() {
+    /**
+     * The built-in module: its declarations and, where they are given, the functions that carry them out.
+     * @param {Record<string, Function> | null} [functions] The functions the declarations name.
+     */
+    static createModule(functions = null) {
         return DomqlModule.createBuiltIn({
             types: [
                 { name: 'size', fields: { width: 'number', height: 'number' } },
@@ -166,6 +167,11 @@ export class Vocabulary {
 
                 { ...operation('events-of', ['element', 'document', 'window'], 'occurrence<@selected>', { builder: 'eventsOf', changes: 'constant', reads: 'captured', parameters: [value('type', 'string', { fixed: true, selects: 'occurrence' })] }), kind: 'source' },
             ],
-        }, { ...VocabularyFunctions.functions, ...BrowserObservers.functions });
+        }, functions);
+    }
+
+    /** The built-in module as its declarations alone, which is enough to resolve a query and carries nothing out. */
+    static get module() {
+        return Vocabulary.createModule();
     }
 }

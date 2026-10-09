@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { Observations } from '#domql/language/Observations.mjs';
-import { Vocabulary } from '#domql/language/Vocabulary.mjs';
+import { BrowserModule } from '#domql/dom/BrowserModule.mjs';
+import { Observations } from '#domql/dom/Observations.mjs';
+import { ModuleRegistry } from '#domql/language/vocabulary/ModuleRegistry.mjs';
 
 /** A window whose pixel ratio and media queries the test controls, since a browser's cannot be changed from inside it. */
 const createWindow = devicePixelRatio => {
@@ -32,7 +32,7 @@ const createWindow = devicePixelRatio => {
 describe('BrowserObservers', () => {
     describe('pixel-ratio', () => {
         const watch = fake => {
-            const observations = new Observations(new ModuleRegistry([Vocabulary.module]), { window: fake, document });
+            const observations = new Observations(new ModuleRegistry([BrowserModule.create()]), { window: fake, document });
             const changes = [];
             const session = observations.acquire(observations.resolve({ type: 'pixel-ratio', of: 'window' }, { receiver: fake, args: {} }), () => changes.push(fake.devicePixelRatio));
 

@@ -2,9 +2,9 @@
  * DomqlModule — a vocabulary's members as data, and the functions that carry them out
  */
 
-import { DomqlError } from './DomqlError.mjs';
-import { Names } from './Names.mjs';
-import { Type } from './Type.mjs';
+import { DomqlError } from '../DomqlError.mjs';
+import { Names } from '../Names.mjs';
+import { Type } from '../Type.mjs';
 
 const MEMBER_KINDS = ['property', 'operation', 'source', 'action', 'behavior'];
 

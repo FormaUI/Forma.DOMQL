@@ -2,9 +2,9 @@
  * QueryEvaluator — reads a resolved query once, answering detached data
  */
 
-import { DomqlError } from './DomqlError.mjs';
-import { Names } from './Names.mjs';
-import { Type } from './Type.mjs';
+import { DomqlError } from '../language/DomqlError.mjs';
+import { Names } from '../language/Names.mjs';
+import { Type } from '../language/Type.mjs';
 
 /** @typedef {{ window: Window, document: Document }} Environment */
 
@@ -16,11 +16,11 @@ export class QueryEvaluator {
     #locations;
 
     /**
-     * @param {import('./ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary the request was resolved against.
-     * @param {import('./ResolvedDefinition.mjs').ResolvedDefinition} resolvedDefinition The resolved definition to read.
-     * @param {import('./ParameterBindings.mjs').ParameterBindings} parameterBindings What the request's parameters are bound to.
+     * @param {import('../language/vocabulary/ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary the request was resolved against.
+     * @param {import('../language/ResolvedDefinition.mjs').ResolvedDefinition} resolvedDefinition The resolved definition to read.
+     * @param {import('../language/ParameterBindings.mjs').ParameterBindings} parameterBindings What the request's parameters are bound to.
      * @param {Environment} environment The window and the document the roots stand for.
-     * @param {import('./TextLocations.mjs').TextLocations | null} locations Where in a text each part of the definition came from.
+     * @param {import('../language/TextLocations.mjs').TextLocations | null} locations Where in a text each part of the definition came from.
      */
     constructor(moduleRegistry, resolvedDefinition, parameterBindings, environment, locations) {
         this.#moduleRegistry = moduleRegistry;

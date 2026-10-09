@@ -2,8 +2,8 @@
  * ModuleRegistry — the declarations of every module registered for a document, which requests resolve against
  */
 
-import { DomqlError } from './DomqlError.mjs';
-import { Type } from './Type.mjs';
+import { DomqlError } from '../DomqlError.mjs';
+import { Type } from '../Type.mjs';
 
 export class ModuleRegistry {
     /** @type {Map<string, import('./DomqlModule.mjs').DomqlModule>} */
