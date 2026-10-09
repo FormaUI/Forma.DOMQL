@@ -72,7 +72,7 @@ export class Domql {
      * @param {DomqlQuery} query The query to read.
      * @param {{ window?: Window }} [options] The window `@window` stands for, and whose document `@document` stands for.
      */
-    static readSync(query, { window = globalThis.window } = {}) {
+    static read(query, { window = globalThis.window } = {}) {
         if (!window?.document) {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }

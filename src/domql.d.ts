@@ -232,7 +232,7 @@ export declare class Domql {
     static resolve(query: DomqlQuery, options?: ResolveOptions): ResolvedDefinition;
 
     /** Reads a query once, answering immutable data that holds nothing of the document. */
-    static readSync<T = unknown>(query: DomqlQuery, options?: ReadOptions): T;
+    static read<T = unknown>(query: DomqlQuery, options?: ReadOptions): T;
 
     /** Creates a module from the vocabulary it declares and the functions that carry the declarations out. */
     static createModule(name: string, contents: ModuleContents, functions?: ModuleFunctions | null): DomqlModule;

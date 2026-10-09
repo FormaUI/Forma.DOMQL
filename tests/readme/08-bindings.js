@@ -8,5 +8,5 @@ const optional = Domql.parse(`
     ids: Domql.bind([], 'list<number>')
 });
 
-Domql.readSync(optional);
+Domql.read(optional);
 // { panel: null, ids: [] }

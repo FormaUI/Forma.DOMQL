@@ -381,12 +381,12 @@ describe('Domql reads', () => {
     describe('the environment', () => {
         it('is reported when there is no browser window', () => {
             const query = Domql.parse('@window.devicePixelRatio');
-            const error = getError(() => Domql.readSync(query, { window: null }));
+            const error = getError(() => Domql.read(query, { window: null }));
 
             expect(error).toBeInstanceOf(DomqlError);
             expect(error.kind).toBe('evaluation');
             expect(error.message).toContain('without a browser window');
-            expect(getError(() => Domql.readSync(query, { window: {} })).kind).toBe('evaluation');
+            expect(getError(() => Domql.read(query, { window: {} })).kind).toBe('evaluation');
         });
 
         it('leaves parsing and resolving to work without one', () => {
@@ -399,11 +399,11 @@ describe('Domql reads', () => {
             const query = Domql.parse('@panel.children.count', { panel });
 
             expect(Domql.resolve(query)).toBe(Domql.resolve(query));
-            expect(Domql.readSync(query)).toBe(3);
+            expect(Domql.read(query)).toBe(3);
 
             panel.append(document.createElement('i'));
 
-            expect(Domql.readSync(query)).toBe(4);
+            expect(Domql.read(query)).toBe(4);
         });
 
         it('is made again for other options and for other bindings', () => {

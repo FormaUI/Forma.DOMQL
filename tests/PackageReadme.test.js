@@ -70,7 +70,7 @@ describe('the package README', () => {
 
         // The examples call Domql as the README writes it, and every read it answers is kept.
         const Domql = new Proxy(real, {
-            get: (target, key) => key === 'readSync' ? (...args) => { const answer = target.readSync(...args); reads.push(answer); return answer; } : target[key],
+            get: (target, key) => key === 'read' ? (...args) => { const answer = target.read(...args); reads.push(answer); return answer; } : target[key],
         });
 
         document.body.innerHTML = fixture('document.html');
@@ -147,6 +147,6 @@ describe('the repository README', () => {
 
         expect(blocks(repositoryReadme, 'text')[0]).toBe(query);
         expect(blocks(repositoryReadme, 'json')[0]).toBe(answer);
-        expect(Domql.readSync(Domql.parse(query, { panel: document.getElementById('panel') }))).toEqual(JSON.parse(answer));
+        expect(Domql.read(Domql.parse(query, { panel: document.getElementById('panel') }))).toEqual(JSON.parse(answer));
     });
 });

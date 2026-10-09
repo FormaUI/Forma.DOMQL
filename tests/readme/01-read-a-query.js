@@ -10,7 +10,7 @@ const query = Domql.parse(`
     }
 `, { panel });
 
-const snapshot = Domql.readSync(query);
+const snapshot = Domql.read(query);
 // {
 //   count: 3,
 //   items: [

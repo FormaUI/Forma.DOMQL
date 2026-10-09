@@ -34,14 +34,15 @@ State: **done.** Built in its recommended form by step 1.
 
 The design has a read wait for the first sample of every maintained member it reads, and a wait cannot be synchronous.
 
-- **Chosen: `read` answers a promise, `readSync` answers the answer.** `Domql.read(query, { signal, window })` answers a promise, waits for the samples of every maintained member the query reads, and can be canceled. `Domql.readSync(query, options)` answers the data itself and fails with an evaluation error for a query that reads a maintained member, naming the member. The pair is named as Node names its own: `readFile` and `readFileSync`. The rule holds for every API: where an operation can wait, its plain name answers a promise and a synchronous form, where one exists, takes the suffix `Sync`. An operation that never waits, such as `parse`, `create`, `bind` and `resolve`, keeps its plain name and answers directly.
-- **Guarantees of `read`.**
+- **Chosen: `read` stays synchronous and `readAsync` waits.** `Domql.read(query, options)` answers the data itself and fails with an evaluation error for a query that reads a maintained member, naming the member. `Domql.readAsync(query, { signal, window })` answers a promise, waits for the samples of every maintained member the query reads, can be canceled, and also reads a query with no maintained member, so a caller can use it for every query.
+- **The name follows the exception.** Almost every operation DOMQL has answers directly, so the plain name is the synchronous one and the suffix `Async` names the operation that waits. Where another operation can wait, its waiting form takes the same suffix.
+- **Guarantees of `readAsync`.**
   - Cancellation and failure dispose every session the read opened.
   - Waiting evaluates again as samples arrive and as dependencies change. It never answers while a maintained member the answer reads is still pending, including one that a later evaluation introduced.
   - The answer uses fresh reads and the samples available when the last evaluation ran. It does not promise that every measurement was taken at the same instant.
-- **Alternative:** `read` stays synchronous and a separate `readAsync` waits. It leaves the short name on the form that cannot read every query.
+- **Alternative:** `read` answers a promise and `readSync` answers the data, as Node names `readFile` and `readFileSync`. It gives the short name to the form that reads every query, and puts the suffix on the greater part of the operations.
 
-The specification, the design, the declarations, the READMEs and the tests change to these names with step 2. State: **accepted.** Needed by step 2.
+State: **accepted.** Needed by step 2.
 
 ### D3. The public API of a watch and a listener
 
@@ -84,10 +85,10 @@ Name the observations a declaration carries (D1), and build the layer that start
 
 ### 2. Dependencies and maintained members
 
-Record what an evaluation read, member by member and item by item, with each member's observations. Read maintained members from their observation's latest sample, pending until the first arrives, and build the waiting `read`, and rename the synchronous one `readSync`.
+Record what an evaluation read, member by member and item by item, with each member's observations. Read maintained members from their observation's latest sample, pending until the first arrives, and build the waiting `readAsync`.
 
 - **Needs:** step 1, D2.
-- **Done when:** a query's dependencies are the ones the design lists, including those of expression arguments, of a path that met null and of a detached element; `intersects` reads in a real browser; `read` waits for the first sample, evaluates again for a member a later evaluation introduces, and disposes its sessions on cancellation and on failure.
+- **Done when:** a query's dependencies are the ones the design lists, including those of expression arguments, of a path that met null and of a detached element; `intersects` reads in a real browser; `readAsync` waits for the first sample, evaluates again for a member a later evaluation introduces, and disposes its sessions on cancellation and on failure.
 - **State:** not started.
 
 ### 3. Watches

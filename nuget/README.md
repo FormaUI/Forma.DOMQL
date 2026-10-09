@@ -43,7 +43,7 @@ The package serves `domql.d.ts` beside `domql.js`, so a TypeScript project that 
 ```ts
 import { Domql } from '/_content/domql/domql.js';
 
-const count = Domql.readSync<number>(Domql.parse('@panel.children.count', { panel }));
+const count = Domql.read<number>(Domql.parse('@panel.children.count', { panel }));
 ```
 
 ## Read a query
@@ -73,7 +73,7 @@ const query = Domql.parse(`
     }
 `, { panel });
 
-const snapshot = Domql.readSync(query);
+const snapshot = Domql.read(query);
 // {
 //   count: 3,
 //   items: [
@@ -84,7 +84,7 @@ const snapshot = Domql.readSync(query);
 // }
 ```
 
-`@panel` refers to the supplied binding; it is not an ID lookup. `parse` constructs the query without reading the DOM. `readSync` resolves it as needed and returns the current answer synchronously. The snapshot is immutable and contains no live element references.
+`@panel` refers to the supplied binding; it is not an ID lookup. `parse` constructs the query without reading the DOM. `read` resolves it as needed and returns the current answer synchronously. The snapshot is immutable and contains no live element references.
 
 ## Read again or bind another target
 
@@ -93,13 +93,13 @@ Reuse a query for repeated reads. Resolution is cached when compatible; DOM valu
 ```js
 const countQuery = Domql.parse('@panel.children.count', { panel });
 
-Domql.readSync(countQuery);
+Domql.read(countQuery);
 // 3
 
 const emptyPanel = document.createElement('div');
 const rebound = Domql.create(countQuery.definition, { panel: emptyPanel });
 
-Domql.readSync(rebound);
+Domql.read(rebound);
 // 0
 ```
 
@@ -112,13 +112,13 @@ The definition contains the query structure without bound values. `create` reuse
 Paths follow members with a dot. Properties retain their declared spelling, such as `clientSize`. Operations use their declared lowercase names, such as `attribute-of`, `computedstyle-of` and `matches-media`. All DOMQL names are case-sensitive.
 
 ```js
-Domql.readSync(Domql.parse('@panel.children.count', { panel }));
+Domql.read(Domql.parse('@panel.children.count', { panel }));
 // 3
 
-Domql.readSync(Domql.parse('@panel.get "children.count"', { panel }));
+Domql.read(Domql.parse('@panel.get "children.count"', { panel }));
 // 3
 
-Domql.readSync(Domql.parse('@panel.is "attached"', { panel }));
+Domql.read(Domql.parse('@panel.is "attached"', { panel }));
 // true
 ```
 
@@ -139,7 +139,7 @@ Multiple bare arguments are separated by whitespace. Named arguments and express
 A shape chooses output fields. An explicit alias controls the output name. Without an alias, the field uses the final member name; `get`, `is` and `has` infer the final segment of the name they select.
 
 ```js
-Domql.readSync(Domql.parse(`
+Domql.read(Domql.parse(`
     @panel {
         count: children.count,
         is "attached",
@@ -154,7 +154,7 @@ Trailing commas, `//` line comments and `/* */` block comments are supported.
 A shape following a list projects each item:
 
 ```js
-Domql.readSync(Domql.parse(`
+Domql.read(Domql.parse(`
     @panel.all("[data-key]") {
         key: attribute-of "data-key",
         selected: matches "[aria-selected=true]"
@@ -170,14 +170,14 @@ Domql.readSync(Domql.parse(`
 A member following a list operates on the list itself. Use `count`, `first`, `last` and `at(index)` to inspect it, or `where`, `max`, `min` and `sum` with expressions evaluated against each item:
 
 ```js
-Domql.readSync(Domql.parse(`
+Domql.read(Domql.parse(`
     @panel.all("[data-key]")
         .where(matches "[aria-selected=true]")
         .count
 `, { panel }));
 // 1
 
-Domql.readSync(Domql.parse('@panel.all("[data-key]").max(rect.height)', { panel }));
+Domql.read(Domql.parse('@panel.all("[data-key]").max(rect.height)', { panel }));
 // 64
 ```
 
@@ -188,7 +188,7 @@ Domql.readSync(Domql.parse('@panel.all("[data-key]").max(rect.height)', { panel 
 Null represents a missing or unavailable value; it does not hide an invalid query. A path or targeted shape whose receiver is null returns null.
 
 ```js
-Domql.readSync(Domql.parse(
+Domql.read(Domql.parse(
     '@panel.first(".missing").attribute-of "data-key"',
     { panel }
 ));
@@ -212,7 +212,7 @@ const optional = Domql.parse(`
     ids: Domql.bind([], 'list<number>')
 });
 
-Domql.readSync(optional);
+Domql.read(optional);
 // { panel: null, ids: [] }
 ```
 
@@ -227,7 +227,7 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `query.definition` | Access the immutable definition without its bound values. |
 | `Domql.bind(value, type)` | Declare a binding's type explicitly. |
 | `Domql.resolve(query, options)` | Check names and types without evaluating the query. |
-| `Domql.readSync(query, options)` | Read once, optionally using an explicitly supplied `window`. |
+| `Domql.read(query, options)` | Read once, optionally using an explicitly supplied `window`. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 
@@ -254,7 +254,7 @@ Failures report a `DomqlError` with a `kind`, `message` and structured `location
 
 ```js
 try {
-    Domql.readSync(Domql.parse('@panel.attribute-of 200', { panel }));
+    Domql.read(Domql.parse('@panel.attribute-of 200', { panel }));
 } catch (error) {
     if (error?.name !== 'DomqlError') {
         throw error;
@@ -271,7 +271,7 @@ A misspelled operation is an error and a missing selector match is null. Raw ele
 
 ## Environments
 
-In a browser, DOMQL uses the default window and its document. To read against another supported DOM environment, pass its window to `Domql.readSync(query, { window: suppliedWindow })`. Both `@window` and `@document` then refer to that environment. Node.js can run parsing and resolution; document reads require a supplied DOM environment, and reading without one fails with an `evaluation` error. DOM emulators do not provide full browser layout behavior.
+In a browser, DOMQL uses the default window and its document. To read against another supported DOM environment, pass its window to `Domql.read(query, { window: suppliedWindow })`. Both `@window` and `@document` then refer to that environment. Node.js can run parsing and resolution; document reads require a supplied DOM environment, and reading without one fails with an `evaluation` error. DOM emulators do not provide full browser layout behavior.
 
 ## Extend the vocabulary
 
@@ -302,7 +302,7 @@ const metricsModule = Domql.createModule('metrics', {
 
 Domql.registerModule(metricsModule);
 
-Domql.readSync(Domql.parse('@panel.metrics { childCount }', { panel }));
+Domql.read(Domql.parse('@panel.metrics { childCount }', { panel }));
 // { childCount: 3 }
 ```
 
