@@ -1,4 +1,4 @@
-Domql.read(Domql.parse(`
+Domql.readSync(Domql.parse(`
     @panel.all("[data-key]") {
         key: attribute-of "data-key",
         selected: matches "[aria-selected=true]"

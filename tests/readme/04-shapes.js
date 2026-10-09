@@ -1,4 +1,4 @@
-Domql.read(Domql.parse(`
+Domql.readSync(Domql.parse(`
     @panel {
         count: children.count,
         is "attached",

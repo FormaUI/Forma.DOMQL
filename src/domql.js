@@ -70,9 +70,9 @@ export class Domql {
     /**
      * Reads a query once, answering immutable data that holds nothing of the document.
      * @param {DomqlQuery} query The query to read.
-     * @param {Window} window The window `@window` stands for, and whose document `@document` stands for.
+     * @param {{ window?: Window }} [options] The window `@window` stands for, and whose document `@document` stands for.
      */
-    static read(query, window = globalThis.window) {
+    static readSync(query, { window = globalThis.window } = {}) {
         if (!window?.document) {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }

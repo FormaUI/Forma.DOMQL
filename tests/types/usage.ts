@@ -8,9 +8,9 @@ const query = Domql.parse('@panel { count: children.count }', { panel });
 const optional = Domql.parse('@panel { size }', { panel: Domql.bind(null, 'element?'), ids: Domql.bind([], 'list<number>') });
 const created = Domql.create(query.definition, { panel });
 
-const answer = Domql.read<{ count: number }>(query);
+const answer = Domql.readSync<{ count: number }>(query);
 const count: number = answer.count;
-const anything: unknown = Domql.read(optional, window);
+const anything: unknown = Domql.readSync(optional, { window });
 
 const resolved: ResolvedDefinition = Domql.resolve(created, { watch: true, acceptPartialObservation: true });
 const kind: 'query' | 'subscription' | 'action' | 'behavior' = resolved.kind;
@@ -33,7 +33,7 @@ const module: DomqlModule = Domql.createModule('metrics', contents, functions);
 Domql.registerModule(module);
 
 try {
-    Domql.read(Domql.parse('@panel.nonsense', { panel }));
+    Domql.readSync(Domql.parse('@panel.nonsense', { panel }));
 } catch (error) {
     if ((error as Error).name === 'DomqlError') {
         const failure = error as DomqlError;
@@ -45,7 +45,7 @@ try {
 }
 
 // @ts-expect-error A query is read, not a string.
-Domql.read('@panel.children.count');
+Domql.readSync('@panel.children.count');
 
 // @ts-expect-error A query's text is a string.
 Domql.parse(42);

@@ -10,6 +10,12 @@ export interface ResolveOptions {
     acceptPartialObservation?: boolean;
 }
 
+/** What a read uses. */
+export interface ReadOptions {
+    /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
+    window?: Window;
+}
+
 /** A DOMQL definition: the JSON document that records a query's meaning, without the values its parameters are bound to. */
 export interface Definition {
     readonly version: number;
@@ -226,7 +232,7 @@ export declare class Domql {
     static resolve(query: DomqlQuery, options?: ResolveOptions): ResolvedDefinition;
 
     /** Reads a query once, answering immutable data that holds nothing of the document. */
-    static read<T = unknown>(query: DomqlQuery, window?: Window): T;
+    static readSync<T = unknown>(query: DomqlQuery, options?: ReadOptions): T;
 
     /** Creates a module from the vocabulary it declares and the functions that carry the declarations out. */
     static createModule(name: string, contents: ModuleContents, functions?: ModuleFunctions | null): DomqlModule;

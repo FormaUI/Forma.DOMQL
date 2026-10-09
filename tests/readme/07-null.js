@@ -1,4 +1,4 @@
-Domql.read(Domql.parse(
+Domql.readSync(Domql.parse(
     '@panel.first(".missing").attribute-of "data-key"',
     { panel }
 ));

@@ -18,7 +18,7 @@ const unlay = element => {
     element.getClientRects = () => [];
 };
 
-const read = (text, bindings = {}) => Domql.read(Domql.parse(text, bindings));
+const read = (text, bindings = {}) => Domql.readSync(Domql.parse(text, bindings));
 
 /** A module of one number property named for itself, answered by the function. */
 const propertyModule = (name, implementation) => new DomqlModule(name, {
@@ -299,7 +299,7 @@ describe('QueryEvaluator', () => {
         it('reads the window it is given', () => {
             const query = Domql.parse('@window.devicePixelRatio');
 
-            expect(Domql.read(query, { document, devicePixelRatio: 3 })).toBe(3);
+            expect(Domql.readSync(query, { window: { document, devicePixelRatio: 3 } })).toBe(3);
         });
     });
 
@@ -317,7 +317,7 @@ describe('QueryEvaluator', () => {
             const parsed = Domql.parse('@panel { count: children.count, keys: children { key: attribute-of "data-key" } }', { panel });
             const created = Domql.create(parsed.definition, { panel });
 
-            expect(Domql.read(created)).toEqual(Domql.read(parsed));
+            expect(Domql.readSync(created)).toEqual(Domql.readSync(parsed));
         });
 
         it('are immutable data that shares nothing with the bindings', () => {
