@@ -1,99 +1,241 @@
 # DOMQL
 
-> **Preview, not yet published.** DOMQL is on neither NuGet nor npm yet. Build it from this repository to try it; see [Development](#development).
+DOMQL is a small, extensible query language for reading DOM state as plain data. Describe what you need from elements, collections and the browser, and receive an immutable snapshot shaped by your query.
 
-DOMQL is a small, extensible query language for reading DOM state as plain data. Describe what you need, and receive a snapshot shaped by your query.
+Combine measurements, attributes, selection state and collection summaries in one query. Reuse that query as the document changes, or bind it to different elements.
 
-```text
-@panel {
-    count: children.count,
-    selected: first("[aria-selected=true]").attribute-of "data-key"
+## From the DOM to a snapshot
+
+Suppose a panel contains three items:
+
+```html
+<div id="panel">
+    <div data-key="a1" style="height: 48px"></div>
+    <div data-key="a2" style="height: 64px" aria-selected="true"></div>
+    <div data-key="a3" style="height: 48px"></div>
+</div>
+```
+
+You want the panel’s item count, each item’s height and selection state, the selected items, and the tallest item.
+
+Describe that answer in DOMQL:
+
+```js
+import { Domql } from './src/domql.js';
+
+const panel = document.getElementById('panel');
+
+const query = Domql.parse(`
+    @panel {
+        count: children.count,
+
+        items: all("[data-key]") {
+            key: attribute-of "data-key",
+            height: rect.height,
+            selected: matches "[aria-selected=true]"
+        },
+
+        selected: all("[data-key]")
+            .where(matches "[aria-selected=true]") {
+                key: attribute-of "data-key"
+            },
+
+        tallest: all("[data-key]").max(rect.height)
+    }
+`, { panel });
+
+const snapshot = Domql.read(query);
+```
+
+With the markup above rendered without additional styling, the result is:
+
+```json
+{
+    "count": 3,
+    "items": [
+        { "key": "a1", "height": 48, "selected": false },
+        { "key": "a2", "height": 64, "selected": true },
+        { "key": "a3", "height": 48, "selected": false }
+    ],
+    "selected": [
+        { "key": "a2" }
+    ],
+    "tallest": 64
 }
 ```
 
-```json
-{ "count": 3, "selected": "a2" }
+The query describes the answer directly:
+
+- `@panel` refers to the element supplied in the bindings.
+- Paths such as `rect.height` read members.
+- Shapes choose fields and their output names.
+- A shape after a list projects each item.
+- `where` filters items, and `max` evaluates an expression across them.
+
+The result contains data, not live DOM references. You can retain it, serialize it or pass it to another part of your application.
+
+## Write once, read again
+
+Parsing constructs the query without reading the document. Each read produces a new snapshot of the state it asks for.
+
+```js
+panel.children[0].setAttribute('aria-selected', 'true');
+
+const next = Domql.read(query);
+
+console.log(next.selected);
+// [{ key: 'a1' }, { key: 'a2' }]
+
+console.log(snapshot.selected);
+// [{ key: 'a2' }]
 ```
 
-DOMQL brings member lookup, argument validation, null handling and result shaping into one reusable model. Its vocabulary is extensible: modules add concepts without changing the grammar. It is designed for use by libraries and applications and is not tied to a particular UI component framework.
+Earlier snapshots remain unchanged. Compatible name and type resolutions are reused between reads; DOM values are read again.
 
-DOMQL is a JavaScript library. It is packaged as the NuGet package `formaui-net.DOMQL`, which carries one minified file, `domql.js`, bundled from `src/` and served from `_content/domql/`, and its TypeScript declarations, `domql.d.ts`, beside it. To use it, start with the [package README](nuget/README.md): how to load it, the language by example, the API and how to extend the vocabulary.
+The same definition can also be bound to another target:
 
-## Current scope
+```js
+const anotherQuery = Domql.create(query.definition, {
+    panel: anotherPanel
+});
 
-The current implementation supports **reads and watches through the JavaScript API**. The broader design includes projecting events, actions, behaviors and change sets; those capabilities are not yet executable.
-
-| Available | Planned |
-| --- | --- |
-| Parse text or create a query from a JSON definition | Deliver state changes as change sets |
-| Validate definitions, bindings and vocabulary usage | Listen to occurrence sources such as `events-of` |
-| Resolve names and types without reading the DOM | Execute actions and establish behaviors |
-| Read DOM members, including values the browser keeps such as `intersects`, and return immutable data | Occurrence delivery |
-| Watch a query and receive an immutable snapshot each time its result changes | Fluent construction and the C# half |
-| Extend the vocabulary through modules | |
-
-A declaration can describe a capability before its runtime support exists. Successful resolution does not by itself mean a request can execute in the current release or host.
-
-## Documents
-
-- The [package README](nuget/README.md) teaches the library: loading it, reading queries, the language by example, the API, errors and extending the vocabulary.
-- The [specification](docs/domql-specification.md) defines the language: syntax, types, null behavior, vocabulary contracts and the JSON definition.
-- The [design](docs/domql-design.md) sets out how it runs: construction, resolution, execution, caching, modules and observation sessions and planned occurrence delivery.
-- The [implementation plan](docs/domql-implementation-plan.md) records the steps that build what is planned, their state and the decisions that shape them.
-
-The specification and design describe the complete intended system; use the status table above to tell those contracts from the runtime features available today.
-
-## Development
-
-### Repository layout
-
-| Path | Purpose |
-| --- | --- |
-| `src/` | JavaScript source, including the `domql.js` entry point and its TypeScript declarations, `domql.d.ts` |
-| `tests/` | Vitest tests and happy-dom test environment |
-| `scripts/` | Bundling scripts |
-| `nuget/` | Package project, the package README and the generated `wwwroot/domql.js` bundle |
-| `docs/` | Language specification and runtime design |
-
-### Build and test
-
-Use Node.js/npm, the .NET SDK and PowerShell versions required by the repository's package and SDK configuration. Install the test dependencies before the first run:
-
-```sh
-cd tests
-npm install
-npm test
+const anotherSnapshot = Domql.read(anotherQuery);
 ```
 
-From the repository root:
+## Keep a query current
+
+Reading again by hand is not always what you want. Watch the query, and DOMQL evaluates it again whenever something it depends on changes:
+
+```js
+const watch = Domql.watch(query, {
+    acceptPartialObservation: true,
+    onChange: snapshot => render(snapshot)
+});
+```
+
+Members such as `all`, `rect` and `matches` can miss some changes, such as pointer state or a transform, so a watch over them says it accepts that. Without it, DOMQL refuses the watch and names each member and what it misses.
+
+`onChange` receives the first snapshot right after `watch` returns, then a new one each time the result changes, evaluated at most once per animation frame. A snapshot that did not change is not delivered, and a new one shares every part that did not change with the one before it.
+
+A watch follows the document rather than a fixed set of elements: it observes what the query reads now, so an item added to the panel is watched from the next evaluation on.
+
+```js
+panel.children[0].setAttribute('aria-selected', 'true');
+// render receives a snapshot whose `selected` holds a1 and a2.
+```
+
+Pass `onError` to hear of a failed evaluation or a failing callback; the watch keeps running. `watch.status` and `watch.lastSnapshot` say where it stands, `await watch.refreshAsync()` evaluates now, and `dispose()` ends it and releases its observations:
+
+```js
+watch.dispose();
+```
+
+## Read across targets
+
+A query can combine independent targets and browser state into one answer:
+
+```js
+const surroundings = Domql.parse(`
+    {
+        panel: @panel {
+            size,
+            hasFocus: matches ":focus-within"
+        },
+
+        window: @window {
+            size,
+            dark: matches-media "(prefers-color-scheme: dark)"
+        },
+
+        visible: @document.is "visible"
+    }
+`, { panel });
+
+const snapshot = Domql.read(surroundings);
+```
+
+Use this to assemble the state a component needs without maintaining a separate JavaScript function for every result shape.
+
+## Read now or wait for an observation
+
+`read` returns synchronously for queries that read fresh values.
+
+Some values, such as an observed intersection, require a browser observation to provide its first sample. Use `readAsync` for these queries:
+
+```js
+const sentinel = document.getElementById('sentinel');
+const controller = new AbortController();
+
+const query = Domql.parse(`
+    @sentinel.intersects(root: @panel, margin: 200)
+`, { sentinel, panel });
+
+const nearEnd = await Domql.readAsync(query, {
+    signal: controller.signal
+});
+```
+
+`readAsync` also supports queries containing only fresh values. It releases its observation sessions when the read completes, fails or is canceled.
+
+## Extend the vocabulary
+
+DOMQL separates the language from the concepts it can read.
+
+Modules declare their members, types and arguments, and supply the functions that implement them. A module can expose an application’s own state or integrate a browser capability without adding syntax to the language.
+
+Queries are checked against those declarations. Unknown members and incompatible arguments are errors; unavailable values are represented by null.
+
+DOMQL is independent of any UI library and can be used by other libraries and applications.
+
+See the [library guide](nuget/README.md) for module registration, binding types, null behavior and the complete public API.
+
+## Status
+
+DOMQL is in preview and is not yet published to npm or NuGet.
+
+Available today:
+
+- Text queries and JSON definitions.
+- Binding, name and type validation.
+- Synchronous reads and asynchronous reads of maintained values.
+- Watching a query, with a snapshot each time its result changes.
+- Immutable snapshots.
+- Extensible vocabulary and observation types.
+- TypeScript declarations.
+
+Change sets, occurrence delivery, actions, behaviors, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
+
+## Build and try it
+
+Clone the repository and run:
 
 ```powershell
 ./build.ps1
 ```
 
-The happy-dom tests lay nothing out. The tests of geometry and of state the browser decides, such as which elements are disabled, run in headless Chromium through Playwright, and `./build.ps1 -Browser` runs them after installing the browser; `npm run test:browser` from `tests/` runs them on their own.
+To include the real-browser tests:
 
-The build gate runs tests, bundles the source into `nuget/wwwroot/domql.js`, builds the package project and checks formatting. To run the gate and create the NuGet package in `artifacts/`, which is how to get the package until it is published:
+```powershell
+./build.ps1 -Browser
+```
+
+To build the NuGet package locally:
 
 ```powershell
 ./publish.ps1
 ```
 
-The documented role of `publish.ps1` is local package creation. Uploading a package to a feed is a separate release step. To try the package locally, add `artifacts/` as a NuGet source.
+The package is written to `artifacts/`. It supplies the JavaScript bundle at `_content/domql/domql.js`, with its TypeScript declarations alongside it.
 
-### Where to work
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidance.
 
-The main flow is text or JSON definition → validation and resolution → evaluation → immutable result.
+## Documentation
 
-| Component | Responsibility |
-| --- | --- |
-| `Vocabulary` | Built-in type and member declarations |
-| `DomqlModule` | A module's declarations and functions |
-| `ModuleRegistry` | Registered modules and declaration lookup |
-| `ParameterBindings` | Named values and their inferred or declared types |
-| `LanguageResolver` | Resolve a definition and validate its vocabulary usage |
-| `ResolvedDefinition` | The definition, resulting type and recorded resolutions |
-| `QueryEvaluator` | Evaluate a resolved query and produce data |
-| `DomqlError` | Structured failures and locations |
+- [Library guide](nuget/README.md) — loading DOMQL, using its API and extending it.
+- [Language specification](docs/domql-specification.md) — syntax, types and vocabulary contracts.
+- [Runtime design](docs/domql-design.md) — resolution, evaluation, watching and observation sessions.
+- [Implementation plan](docs/domql-implementation-plan.md) — completed work and upcoming capabilities.
 
-Change the source files, then regenerate the bundle through the build. The repository's [working rules](CLAUDE.md) set out how a change is made and checked.
+## License
+
+[Apache-2.0](LICENSE).

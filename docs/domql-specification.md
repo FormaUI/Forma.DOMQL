@@ -4,7 +4,7 @@ DOMQL is a small language for querying the DOM: a query names what its caller wa
 
 This specification defines the language: its syntax, what each request means, the contracts of its vocabulary and the definition every request has. The [DOMQL design](domql-design.md) sets out how requests are built, prepared and carried out.
 
-This specification describes the whole language. An implementation may cover part of it; the [README](../README.md#current-scope) states what this one implements.
+This specification describes the whole language. An implementation may cover part of it; the [README](../README.md#status) states what this one implements.
 
 ## Terms
 

@@ -135,18 +135,60 @@ describe('the package README', () => {
 });
 
 describe('the repository README', () => {
-    it('shows the query and the answer it gives, read from the document the package README shows', async () => {
+    const [firstExample, secondExample, , watchExample, changeExample, disposeExample] = blocks(repositoryReadme, 'js');
+
+    it('shows the document its examples query', () => {
+        expect(blocks(repositoryReadme, 'html')[0]).toBe(fixture('document.html'));
+    });
+
+    it('gives the result it shows, and the results of reading again, from that document', async () => {
         vi.resetModules();
 
         const { Domql } = await import('#domql/domql.js');
+        const logged = [];
 
         document.body.innerHTML = fixture('document.html');
+        layOut(document);
 
-        const query = fixture('repository-query.domql');
-        const answer = fixture('repository-answer.json');
+        // The first two examples share one scope, as they are shown: the second reads the first one's query again.
+        const code = `${firstExample.replace(/^import .*\n/, '')}\n${secondExample}\nreturn snapshot;`;
+        const snapshot = new Function('Domql', 'document', 'console', code)(Domql, document, { log: value => logged.push(value) });
+        const comments = secondExample.split('\n').filter(line => line.startsWith('// ')).map(line => valueOf([line.slice(3)]));
 
-        expect(blocks(repositoryReadme, 'text')[0]).toBe(query);
-        expect(blocks(repositoryReadme, 'json')[0]).toBe(answer);
-        expect(Domql.read(Domql.parse(query, { panel: document.getElementById('panel') }))).toEqual(JSON.parse(answer));
+        expect(snapshot).toEqual(JSON.parse(blocks(repositoryReadme, 'json')[0]));
+        expect(logged).toEqual(comments);
+    });
+
+    it('delivers the snapshots its watch examples promise', async () => {
+        vi.resetModules();
+
+        const { Domql } = await import('#domql/domql.js');
+        const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+        const rendered = [];
+        const frames = [];
+        const settle = () => new Promise(resolve => setTimeout(resolve));
+
+        document.body.innerHTML = fixture('document.html');
+        layOut(document);
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => frames.push(callback));
+
+        // The examples share one scope in the order they are shown, and the test waits for what each promises between them.
+        const code = [
+            firstExample.replace(/^import .*\n/, ''),
+            watchExample,
+            'await settle();',
+            changeExample,
+            'await settle();',
+            'frames.splice(0).forEach(run => run());',
+            disposeExample,
+            'return watch;',
+        ].join('\n');
+        const watch = await new AsyncFunction('Domql', 'document', 'render', 'settle', 'frames', code)(Domql, document, snapshot => rendered.push(snapshot), settle, frames);
+
+        expect(rendered).toHaveLength(2);
+        expect(rendered[0]).toEqual(JSON.parse(blocks(repositoryReadme, 'json')[0]));
+        expect(rendered[1].selected).toEqual([{ key: 'a1' }, { key: 'a2' }]);
+        expect(rendered[1].items[2]).toBe(rendered[0].items[2]);
+        expect(watch.status).toBe('disposed');
     });
 });
