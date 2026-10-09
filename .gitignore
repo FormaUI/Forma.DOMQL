@@ -9,6 +9,9 @@ artifacts/
 # The bundle that publish.ps1 makes from src/.
 nuget/wwwroot/
 
+# The browser CI installs for the browser tests.
+.playwright/
+
 # Work that belongs to a person: experiments, spikes and notes.
 .local/
 
