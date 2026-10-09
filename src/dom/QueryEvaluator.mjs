@@ -5,6 +5,7 @@
 import { DomqlError } from '../language/DomqlError.mjs';
 import { Names } from '../language/Names.mjs';
 import { Type } from '../language/Type.mjs';
+import { Evaluation } from './Evaluation.mjs';
 
 /** @typedef {{ window: Window, document: Document }} Environment */
 
@@ -14,6 +15,9 @@ export class QueryEvaluator {
     #parameterBindings;
     #environment;
     #locations;
+
+    /** What the evaluation in progress records, or null where none does. @type {{ observations: import('./Observations.mjs').Observations, onChange: () => void, holdsAll: boolean, dependencies: object[], sessions: object[], unheld: object[], isPending: boolean } | null} */
+    #recording = null;
 
     /**
      * @param {import('../language/vocabulary/ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary the request was resolved against.
@@ -30,8 +34,52 @@ export class QueryEvaluator {
         this.#locations = locations;
     }
 
-    /** The answer the query reads: immutable data holding no reference to the document. */
+    /** The answer the query reads once: immutable data holding no reference to the document. A member maintained by an observation fails it, since its first sample cannot arrive during a synchronous read. */
     read() {
+        return this.#answer();
+    }
+
+    /**
+     * Evaluates the query and records what the evaluation depended on, holding each dependency's observations through sessions that call `onChange` when something may have changed.
+     * A maintained member whose first sample has not arrived is pending and answers null, and the evaluation is pending with it. A failure ends the evaluation without throwing, keeping the dependencies it recorded before failing.
+     * The caller disposes the evaluation, which it does after it has the next one, so an observation both need keeps running.
+     * The observations that keep a maintained member's sample are always held. The others are held where the caller keeps the answer current, and otherwise only while the evaluation is pending, since an answer that is complete needs nothing more observed.
+     * @param {object} recording Where the dependencies are observed.
+     * @param {import('./Observations.mjs').Observations} recording.observations The observations of the window the query is evaluated in.
+     * @param {() => void} recording.onChange Called, synchronously, when something the answer depends on may have changed.
+     * @param {boolean} [recording.holdsAll] Whether every dependency's observation is held, as a watch holds them, rather than those a pending evaluation waits on.
+     */
+    evaluate({ observations, onChange, holdsAll = false }) {
+        const recording = { observations, onChange, holdsAll, dependencies: [], sessions: [], unheld: [], isPending: false };
+        let value = null;
+        let error = null;
+
+        this.#recording = recording;
+
+        try {
+            value = this.#answer();
+        } catch (failure) {
+            // A member read through a pending one saw null where a sample will be, so its failure says nothing until the sample arrives.
+            error = recording.isPending ? null : failure;
+        } finally {
+            this.#recording = null;
+        }
+
+        if (recording.isPending) {
+            try {
+                // The pending answer waits on whatever changes the evaluation depended on, so it holds them now.
+                for (const request of recording.unheld) {
+                    recording.sessions.push(observations.acquire(request, onChange));
+                }
+            } catch (failure) {
+                error = failure;
+            }
+        }
+
+        return new Evaluation({ value: recording.isPending ? null : value, isPending: recording.isPending, dependencies: recording.dependencies, sessions: recording.sessions, error });
+    }
+
+    #answer() {
         if (this.#resolvedDefinition.kind !== 'query') {
             this.#fail(`A ${this.#resolvedDefinition.kind} request is not read`, '/query');
         }
@@ -143,10 +191,16 @@ export class QueryEvaluator {
             this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
         }
 
+        const samples = this.#observe(declaration, receiver, args, pointer);
+
+        if (samples === null) {
+            return null;
+        }
+
         let value;
 
         try {
-            value = implementation(receiver, args, this.#environment);
+            value = implementation(receiver, args, this.#environment, samples);
         } catch (error) {
             throw DomqlError.evaluation(`The member '${declaration.name}' failed: ${error.message}`, this.#locate(pointer), { cause: error });
         }
@@ -155,7 +209,87 @@ export class QueryEvaluator {
             this.#fail(`The member '${declaration.name}' answered ${QueryEvaluator.#describe(value)}, and it declares ${type}`, pointer);
         }
 
+        this.#observeDetached(declaration, receiver, value, pointer);
+
         return value;
+    }
+
+    /**
+     * Records what the call depends on and holds its observations, answering the samples of its maintained observations, in the order the declaration names them.
+     * Answers null where a sample is still pending, which makes the member answer null and the evaluation pending.
+     */
+    #observe(declaration, receiver, args, pointer) {
+        if (this.#recording === null) {
+            if (declaration.reads === 'maintained') {
+                this.#fail(`The member '${declaration.name}' is maintained by an observation, and reading it waits for the first sample, which a synchronous evaluation cannot`, pointer);
+            }
+
+            return [];
+        }
+
+        const { observations, dependencies } = this.#recording;
+        const requests = [];
+        const samples = [];
+        let isPending = false;
+
+        for (const observation of declaration.observations ?? []) {
+            const request = observations.resolve(observation, { receiver, args });
+
+            if (request === null) {
+                continue;
+            }
+
+            requests.push(request);
+
+            const session = this.#hold(request);
+
+            if (session?.contract === 'maintained') {
+                const sample = session.sample();
+
+                isPending ||= sample.pending;
+                samples.push(sample.value);
+            }
+        }
+
+        dependencies.push({ member: declaration.name, pointer, observations: requests });
+
+        if (isPending) {
+            this.#recording.isPending = true;
+
+            return null;
+        }
+
+        return samples;
+    }
+
+    /** A member that answered null because its element is detached depends on whether the element is attached, so it is read again when the element returns. */
+    #observeDetached(declaration, receiver, value, pointer) {
+        if (this.#recording === null || value !== null || receiver?.nodeType !== 1 || receiver.isConnected || this.#moduleRegistry.getObservationType('attachment') === undefined) {
+            return;
+        }
+
+        const request = this.#recording.observations.resolve({ type: 'attachment', of: 'receiver' }, { receiver, args: {} });
+
+        this.#hold(request);
+        this.#recording.dependencies.push({ member: declaration.name, pointer, observations: [request] });
+    }
+
+    /** Holds the observation of the request, answering its session, or leaves it unheld where only a pending evaluation needs it and answers null. */
+    #hold(request) {
+        const { observations, onChange, holdsAll, sessions, unheld } = this.#recording;
+        const type = this.#moduleRegistry.getObservationType(request.type);
+
+        if (type !== undefined && type.contract === 'invalidation' && !holdsAll) {
+            unheld.push(request);
+
+            return null;
+        }
+
+        const session = observations.acquire(request, onChange);
+
+        sessions.push(session);
+
+        return session;
     }
 
     #shape(node, pointer, current) {

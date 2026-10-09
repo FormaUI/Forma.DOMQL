@@ -467,3 +467,154 @@ describe('Domql modules', () => {
         expect(getError(() => Domql.resolve(Domql.parse('@panel.zoom', { panel: document.createElement('div') }))).kind).toBe('validation');
     });
 });
+
+describe('Domql readAsync', () => {
+    // Each test loads its own copy of Domql, with a registry of its own.
+    let isolated;
+    let panel;
+    let gauges;
+
+    /** Lets the observations deliver and the reads that wait on them evaluate again. */
+    const settle = () => new Promise(resolve => setTimeout(resolve));
+
+    beforeEach(async () => {
+        vi.resetModules();
+        ({ Domql: isolated } = await import('#domql/domql.js'));
+        document.body.innerHTML = '<div id="panel"><b></b><b></b><b></b></div>';
+        panel = document.getElementById('panel');
+        gauges = new Map();
+
+        // A member kept by an observation whose samples the test supplies, one gauge for each element.
+        isolated.registerModule(isolated.createModule('level', {
+            observationTypes: [{ name: 'level', contract: 'maintained', function: 'observeLevel' }],
+            members: [
+                {
+                    name: 'level', builder: 'level', function: 'level', kind: 'property', on: 'element', parameters: [], result: 'number?',
+                    changes: 'observable', reads: 'maintained', observations: [{ type: 'level', of: 'receiver' }],
+                },
+            ],
+        }, {
+            observeLevel: ({ target }, notify) => {
+                const gauge = { sample: { pending: true, value: null }, started: 0, stopped: 0, notify };
+
+                gauges.set(target, gauge);
+                gauge.started++;
+
+                return { stop: () => gauge.stopped++, sample: () => gauge.sample };
+            },
+            level: (_receiver, _args, _environment, [sample]) => sample,
+        }));
+        isolated.registerModule(isolated.createModule('boom', {
+            members: [{ name: 'boom', builder: 'boom', function: 'boom', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+        }, { boom: () => { throw new Error('no'); } }));
+    });
+
+    /** Gives the gauge of the element its first or next sample. */
+    const sample = (element, value) => {
+        const gauge = gauges.get(element);
+
+        gauge.sample = { pending: false, value };
+        gauge.notify();
+    };
+
+    it('answers what read answers for a query that reads nothing maintained', async () => {
+        const query = isolated.parse('@panel { count: children.count, id: attribute-of "id" }', { panel });
+
+        expect(await isolated.readAsync(query)).toEqual(isolated.read(query));
+        expect(Object.isFrozen(await isolated.readAsync(query))).toBe(true);
+    });
+
+    it('waits for the first sample of a maintained member, and read does not', async () => {
+        const query = isolated.parse('@item.level', { item: panel.children[0] });
+        let answer;
+
+        expect(getError(() => isolated.read(query)).message).toContain("The member 'level' is maintained by an observation");
+
+        const reading = isolated.readAsync(query).then(value => { answer = value; });
+
+        await settle();
+
+        expect(answer).toBeUndefined();
+
+        sample(panel.children[0], 7);
+        await reading;
+
+        expect(answer).toBe(7);
+    });
+
+    it('evaluates again for a maintained member that a later evaluation introduces', async () => {
+        const [first, second, third] = panel.children;
+        const query = isolated.parse('@panel.children.at(@first.level).level', { panel, first });
+        let answer;
+
+        const reading = isolated.readAsync(query).then(value => { answer = value; });
+
+        await settle();
+        sample(first, 2);
+        await settle();
+
+        // The sample picked the third child, whose gauge the answer waits for in turn.
+        expect(answer).toBeUndefined();
+        expect(gauges.has(third)).toBe(true);
+        expect(gauges.has(second)).toBe(false);
+
+        sample(third, 9);
+        await reading;
+
+        expect(answer).toBe(9);
+    });
+
+    it('lets go of every observation it started when it answers', async () => {
+        const query = isolated.parse('{ a: @a.level, b: @b.level }', { a: panel.children[0], b: panel.children[1] });
+        const reading = isolated.readAsync(query);
+
+        await settle();
+        sample(panel.children[0], 1);
+        sample(panel.children[1], 2);
+
+        expect(await reading).toEqual({ a: 1, b: 2 });
+        expect([...gauges.values()].map(gauge => [gauge.started, gauge.stopped])).toEqual([[1, 1], [1, 1]]);
+    });
+
+    it('is canceled by its signal, fails with its reason and lets go of what it started', async () => {
+        const controller = new AbortController();
+        const reading = isolated.readAsync(isolated.parse('@item.level', { item: panel.children[0] }), { signal: controller.signal });
+        const failure = reading.catch(error => error);
+
+        await settle();
+        controller.abort(new Error('not needed'));
+
+        expect((await failure).message).toBe('not needed');
+        expect(gauges.get(panel.children[0]).stopped).toBe(1);
+    });
+
+    it('fails at once for a signal that is already aborted, starting nothing', async () => {
+        const controller = new AbortController();
+
+        controller.abort();
+
+        await expect(isolated.readAsync(isolated.parse('@item.level', { item: panel.children[0] }), { signal: controller.signal })).rejects.toThrow();
+        expect(gauges.size).toBe(0);
+    });
+
+    it('fails with the error of an evaluation and lets go of what it started', async () => {
+        const item = panel.children[0];
+        const failure = isolated.readAsync(isolated.parse('{ a: @item.level, b: @item.boom }', { item })).catch(error => error);
+
+        await settle();
+        sample(item, 1);
+
+        const error = await failure;
+
+        expect(error.name).toBe('DomqlError');
+        expect(error.message).toContain("The member 'boom' failed");
+        expect(gauges.get(item).stopped).toBe(1);
+    });
+
+    it('fails without a browser window', async () => {
+        const error = await isolated.readAsync(isolated.parse('@window.devicePixelRatio'), { window: null }).catch(failure => failure);
+
+        expect(error.name).toBe('DomqlError');
+        expect(error.kind).toBe('evaluation');
+    });
+});

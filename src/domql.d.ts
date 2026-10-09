@@ -16,6 +16,12 @@ export interface ReadOptions {
     window?: Window;
 }
 
+/** What a read that waits uses. */
+export interface ReadAsyncOptions extends ReadOptions {
+    /** Cancels the read, which then fails with the signal's reason. */
+    signal?: AbortSignal;
+}
+
 /** A DOMQL definition: the JSON document that records a query's meaning, without the values its parameters are bound to. */
 export interface Definition {
     readonly version: number;
@@ -205,8 +211,8 @@ export interface ModuleContents {
     observationTypes?: ObservationTypeDeclaration[];
 }
 
-/** The functions that carry a module's members and predicates out, by the key each declaration names. */
-export type ModuleFunctions = Record<string, (receiver: any, args: Record<string, any>, environment: { window: Window; document: Document }) => unknown>;
+/** The functions that carry a module's members and predicates out, by the key each declaration names. A member that reads maintained values is also given their samples, in the order its declaration names the observations. */
+export type ModuleFunctions = Record<string, (receiver: any, args: Record<string, any>, environment: { window: Window; document: Document }, samples: readonly unknown[]) => unknown>;
 
 /** A vocabulary's members as data, and the functions that carry them out. */
 export interface DomqlModule {
@@ -231,8 +237,11 @@ export declare class Domql {
     /** Resolves a query against the registered vocabulary and types it, without evaluating anything. */
     static resolve(query: DomqlQuery, options?: ResolveOptions): ResolvedDefinition;
 
-    /** Reads a query once, answering immutable data that holds nothing of the document. */
+    /** Reads a query once, answering immutable data that holds nothing of the document. A member maintained by an observation fails it. */
     static read<T = unknown>(query: DomqlQuery, options?: ReadOptions): T;
+
+    /** Reads a query once, waiting for the first sample of every maintained member it reads, and answers immutable data that holds nothing of the document. */
+    static readAsync<T = unknown>(query: DomqlQuery, options?: ReadAsyncOptions): Promise<T>;
 
     /** Creates a module from the vocabulary it declares and the functions that carry the declarations out. */
     static createModule(name: string, contents: ModuleContents, functions?: ModuleFunctions | null): DomqlModule;

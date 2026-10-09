@@ -11,6 +11,7 @@ const created = Domql.create(query.definition, { panel });
 const answer = Domql.read<{ count: number }>(query);
 const count: number = answer.count;
 const anything: unknown = Domql.read(optional, { window });
+const waited: Promise<{ count: number }> = Domql.readAsync<{ count: number }>(query, { window, signal: new AbortController().signal });
 
 const resolved: ResolvedDefinition = Domql.resolve(created, { watch: true, acceptPartialObservation: true });
 const kind: 'query' | 'subscription' | 'action' | 'behavior' = resolved.kind;

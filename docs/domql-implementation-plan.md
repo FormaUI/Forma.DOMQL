@@ -9,11 +9,11 @@ Each item is what exists and what checks it.
 - **The language.** Parsing text and creating queries from their definition, with the position of every mistake. Checked by the tests of parsing and of the definition.
 - **The vocabulary.** The built-in vocabulary declared as module data, and modules that extend it. Checked by the tests of modules, the registry and the vocabulary.
 - **Resolution.** Resolving a definition against the vocabulary and typing its answer, without a browser; the resolution is kept for its query. Checked by the resolver tests and the tests of `Domql.resolve`.
-- **Reading once.** Synchronous reads of every built-in member except `intersects`, which is maintained, and `events-of`, which is an occurrence source; both fail a read with an evaluation error that says so. A read answers detached, immutable data. Checked by the evaluator tests, in a simulated DOM, and by the browser tests, in Chromium, for geometry and for state the browser decides.
+- **Reading.** `read` reads every built-in member except `intersects`, which is maintained, and `events-of`, which is an occurrence source; both fail it with an evaluation error that says so. `readAsync` waits for the first sample of a maintained member, evaluates again as samples arrive and as what the query depends on changes, and lets go of its observations when it answers, fails or is canceled. Each evaluation records its dependencies. A read answers detached, immutable data. Checked by the evaluator tests, in a simulated DOM, and by the browser tests, in Chromium, for geometry, for state the browser decides and for the reads that wait.
 - **Observations.** The built-in vocabulary names the observations that cover its members' changes, as types a module declares, and observations are started, shared and ended through sessions. There is no public API for them yet. Checked by the tests of declarations, of the sessions and of the browser observers, and in Chromium by a test of each type of observation reporting a change.
 - **The package.** The bundle, with its TypeScript declarations checked against `Domql` and against a TypeScript caller; the READMEs' examples run as tests.
 
-What is not built: dependency recording, reading members kept by an observation, watching, occurrence sources, actions and behaviors, the fluent builder, the C# half and editor tooling.
+What is not built: watching, occurrence sources, actions and behaviors, the fluent builder, the C# half and editor tooling.
 
 ## Decisions
 
@@ -42,7 +42,7 @@ The design has a read wait for the first sample of every maintained member it re
   - The answer uses fresh reads and the samples available when the last evaluation ran. It does not promise that every measurement was taken at the same instant.
 - **Alternative:** `read` answers a promise and `readSync` answers the data, as Node names `readFile` and `readFileSync`. It gives the short name to the form that reads every query, and puts the suffix on the greater part of the operations.
 
-State: **accepted.** Needed by step 2.
+State: **done.** Built in its chosen form by step 2.
 
 ### D3. The public API of a watch and a listener
 
@@ -89,7 +89,7 @@ Record what an evaluation read, member by member and item by item, with each mem
 
 - **Needs:** step 1, D2.
 - **Done when:** a query's dependencies are the ones the design lists, including those of expression arguments, of a path that met null and of a detached element; `intersects` reads in a real browser; `readAsync` waits for the first sample, evaluates again for a member a later evaluation introduces, and disposes its sessions on cancellation and on failure.
-- **State:** not started.
+- **State:** done. Where it departs from the design: a member that answered null for a detached element records the element's attachment in the evaluator, once for every member, instead of each declaration naming it; an evaluation that fails while a maintained member is pending reports nothing and waits, since the failure may come from the null the pending member answered; a read holds the observations of a maintained member always, and the others only while it waits, since an answer that is complete needs nothing more observed, where a watch holds them all; and the reads in one window share one set of observations.
 
 ### 3. Watches
 

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { BrowserModule } from '#domql/dom/BrowserModule.mjs';
+import { Observations } from '#domql/dom/Observations.mjs';
 import { QueryEvaluator } from '#domql/dom/QueryEvaluator.mjs';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
@@ -346,7 +348,7 @@ describe('QueryEvaluator', () => {
         });
 
         it('refuse a member maintained by an observation', () => {
-            expect(failure('@item.intersects', { item: items[0] }).message).toContain("The member 'intersects' failed");
+            expect(failure('@item.intersects', { item: items[0] }).message).toContain("The member 'intersects' is maintained by an observation");
         });
 
         it('refuse a request that is not a query', () => {
@@ -369,6 +371,163 @@ describe('QueryEvaluator', () => {
 
         it('report a module that declares and does not implement', () => {
             expect(failureWith(propertyModule('declared'), '@panel.declared', { panel }).message).toContain("The module 'declared' supplies no function for 'declared'");
+        });
+    });
+});
+
+describe('QueryEvaluator evaluation', () => {
+    let panel;
+    let rows;
+    let observations;
+    let evaluations;
+    let changes;
+
+    beforeEach(() => {
+        document.body.innerHTML = '<div id="panel"><i></i><i></i><i></i></div>';
+        panel = document.getElementById('panel');
+        rows = [...panel.children];
+        evaluations = [];
+        changes = 0;
+    });
+
+    afterEach(() => {
+        evaluations.forEach(evaluation => evaluation.dispose());
+        document.body.innerHTML = '';
+    });
+
+    /** Evaluates the query against the registry, holding its observations in `observations`. */
+    const evaluate = (text, bindings = {}, modules = [], holdsAll = false) => {
+        const registry = new ModuleRegistry([BrowserModule.create(), ...modules]);
+        const query = Domql.parse(text, bindings);
+        const resolved = new LanguageResolver(registry, query.bindings, null, { watch: true, acceptPartialObservation: true }).resolveDefinition(query.definition);
+        const evaluator = new QueryEvaluator(registry, resolved, query.bindings, { window, document }, null);
+
+        observations = new Observations(registry, { window, document });
+
+        const evaluation = evaluator.evaluate({ observations, onChange: () => changes++, holdsAll });
+
+        evaluations.push(evaluation);
+
+        return evaluation;
+    };
+
+    const membersOf = evaluation => evaluation.dependencies.map(dependency => dependency.member);
+
+    describe('dependencies', () => {
+        it('are each member applied to its receiver and arguments, with the observations that cover it', () => {
+            const evaluation = evaluate('@panel.attribute-of "id"', { panel });
+
+            expect(evaluation.value).toBe('panel');
+            expect(evaluation.dependencies).toEqual([{
+                member: 'attribute-of',
+                pointer: '/query',
+                observations: [{ type: 'mutation', target: panel, arguments: { attributes: ['id'] } }],
+            }]);
+        });
+
+        it('follow the document: the members read for each item the selector matched', () => {
+            const evaluation = evaluate('@panel.all("i").max(rect.height)', { panel });
+            const measured = evaluation.dependencies.filter(dependency => dependency.member === 'rect');
+
+            expect(membersOf(evaluation).slice(0, 2)).toEqual(['all', 'max']);
+            expect(measured.map(dependency => dependency.observations[0].target)).toEqual(rows);
+            expect(measured.every(dependency => dependency.observations[0].type === 'resize')).toBe(true);
+        });
+
+        it('include those of an argument that is a value of its own', () => {
+            const evaluation = evaluate('@row.overlaps(@panel.parent)', { row: rows[0], panel });
+            const overlaps = evaluation.dependencies.find(dependency => dependency.member === 'overlaps');
+
+            expect(membersOf(evaluation)).toContain('parent');
+            expect(overlaps.observations.some(observation => observation.type === 'resize' && observation.target === panel.parentElement)).toBe(true);
+        });
+
+        it('include what a path read before it met null, and nothing after', () => {
+            const evaluation = evaluate('@panel.closest(".none").attribute-of "id"', { panel });
+
+            expect(evaluation.value).toBeNull();
+            expect(membersOf(evaluation)).toEqual(['closest']);
+            expect(evaluation.dependencies[0].observations.length).toBeGreaterThan(0);
+        });
+
+        it('include the attachment of an element that answered null because it is detached', () => {
+            const detached = document.createElement('div');
+            const evaluation = evaluate('@element.rect', { element: detached });
+            const attachments = evaluation.dependencies.flatMap(dependency => dependency.observations).filter(observation => observation.type === 'attachment');
+
+            expect(evaluation.value).toBeNull();
+            expect(attachments).toEqual([{ type: 'attachment', target: detached, arguments: {} }]);
+        });
+
+        it('leave the attachment out for an element that is attached', () => {
+            const evaluation = evaluate('@element.attribute-of "id"', { element: panel });
+
+            expect(evaluation.dependencies.flatMap(dependency => dependency.observations).some(observation => observation.type === 'attachment')).toBe(false);
+        });
+
+        it('are kept with the failure of an evaluation that recorded them before it failed', () => {
+            const evaluation = evaluate('{ id: @panel.attribute-of "id", boom: @panel.boom }', { panel }, [propertyModule('boom', () => { throw new Error('no'); })]);
+
+            expect(evaluation.error).toBeInstanceOf(DomqlError);
+            expect(evaluation.error.message).toContain("The member 'boom' failed");
+            expect(evaluation.value).toBeNull();
+            expect(membersOf(evaluation)).toEqual(['attribute-of', 'boom']);
+        });
+    });
+
+    /** A member kept by an observation that never samples, so an evaluation that reads it stays pending. */
+    const waitingModule = () => new DomqlModule('level', {
+        observationTypes: [{ name: 'level', contract: 'maintained', function: 'observeLevel' }],
+        members: [{
+            name: 'level', builder: 'level', function: 'level', kind: 'property', on: 'element', parameters: [], result: 'number?',
+            changes: 'observable', reads: 'maintained', observations: [{ type: 'level', of: 'receiver' }],
+        }],
+    }, {
+        observeLevel: () => ({ stop: () => {}, sample: () => ({ pending: true, value: null }) }),
+        level: (_receiver, _args, _environment, [sample]) => sample,
+    });
+
+    describe('observations', () => {
+        it('are not held for an answer that is complete, which needs nothing more observed', () => {
+            const evaluation = evaluate('@panel.attribute-of "id"', { panel });
+
+            expect(evaluation.isPending).toBe(false);
+            expect(evaluation.dependencies.length).toBe(1);
+            expect(observations.running).toBe(0);
+        });
+
+        it('are all held for a pending answer, which waits on any of them changing', () => {
+            const evaluation = evaluate('{ id: @panel.attribute-of "id", level: @panel.level }', { panel }, [waitingModule()]);
+
+            expect(evaluation.isPending).toBe(true);
+            expect(evaluation.value).toBeNull();
+            expect(observations.running).toBe(2);
+        });
+
+        it('are all held where the caller keeps the answer current', () => {
+            evaluate('@panel.attribute-of "id"', { panel }, [], true);
+
+            expect(observations.running).toBe(1);
+        });
+
+        it('are held while the evaluation is, and let go when it is disposed', () => {
+            const evaluation = evaluate('@panel.attribute-of "id"', { panel }, [], true);
+
+            expect(observations.running).toBe(1);
+
+            evaluation.dispose();
+
+            expect(observations.running).toBe(0);
+            expect(evaluation.isDisposed).toBe(true);
+        });
+
+        it('call the evaluation back when something it depends on changes', async () => {
+            evaluate('@panel.attribute-of "id"', { panel }, [], true);
+            panel.setAttribute('id', 'renamed');
+
+            await new Promise(resolve => setTimeout(resolve));
+
+            expect(changes).toBe(1);
         });
     });
 });

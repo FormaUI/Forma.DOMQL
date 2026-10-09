@@ -227,7 +227,8 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `query.definition` | Access the immutable definition without its bound values. |
 | `Domql.bind(value, type)` | Declare a binding's type explicitly. |
 | `Domql.resolve(query, options)` | Check names and types without evaluating the query. |
-| `Domql.read(query, options)` | Read once, optionally using an explicitly supplied `window`. |
+| `Domql.read(query, options)` | Read once, optionally using an explicitly supplied `window`. A member kept by an observation, such as `intersects`, fails it. |
+| `Domql.readAsync(query, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 

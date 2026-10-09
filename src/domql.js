@@ -3,6 +3,7 @@
  */
 
 import { BrowserModule } from './dom/BrowserModule.mjs';
+import { Observations } from './dom/Observations.mjs';
 import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
 import { DomqlError } from './language/DomqlError.mjs';
@@ -68,18 +69,96 @@ export class Domql {
     }
 
     /**
+     * The observations of each window, so queries read in one window share the observations they have in common.
+     * @type {WeakMap<Window, Observations>}
+     */
+    static #observations = new WeakMap();
+
+    /**
      * Reads a query once, answering immutable data that holds nothing of the document.
+     * A member maintained by an observation fails the read, since its first sample cannot arrive during it; `readAsync` waits for it.
      * @param {DomqlQuery} query The query to read.
      * @param {{ window?: Window }} [options] The window `@window` stands for, and whose document `@document` stands for.
      */
     static read(query, { window = globalThis.window } = {}) {
+        return Domql.#evaluatorOf(query, window).read();
+    }
+
+    /**
+     * Reads a query once, waiting for the first sample of every maintained member it reads, and answers a promise of immutable data that holds nothing of the document.
+     * The query is evaluated again as samples arrive and as what it depends on changes, until an evaluation reads no pending member; every observation it started is let go when the read answers, fails or is canceled.
+     * @param {DomqlQuery} query The query to read.
+     * @param {{ window?: Window, signal?: AbortSignal }} [options] The window `@window` stands for, and whose document `@document` stands for, and a signal that cancels the read, which then fails with the signal's reason.
+     */
+    static async readAsync(query, { window = globalThis.window, signal } = {}) {
+        signal?.throwIfAborted();
+
+        const evaluator = Domql.#evaluatorOf(query, window);
+        const observations = Domql.#observationsOf(window);
+
+        return new Promise((resolve, reject) => {
+            let evaluation = null;
+            let isScheduled = false;
+            let isSettled = false;
+
+            const settle = outcome => {
+                isSettled = true;
+                signal?.removeEventListener('abort', cancel);
+                evaluation?.dispose();
+                outcome();
+            };
+            const cancel = () => settle(() => reject(signal.reason));
+            const evaluate = () => {
+                isScheduled = false;
+
+                if (isSettled) {
+                    return;
+                }
+
+                const next = evaluator.evaluate({ observations, onChange: schedule });
+
+                // The next evaluation holds its observations before the last lets go of its own, so one both need keeps running.
+                evaluation?.dispose();
+                evaluation = next;
+
+                if (next.error !== null) {
+                    settle(() => reject(next.error));
+                } else if (!next.isPending) {
+                    settle(() => resolve(next.value));
+                }
+            };
+            // An observation reports a change inside its own delivery, so the evaluation that follows waits for it to end.
+            const schedule = () => {
+                if (!isSettled && !isScheduled) {
+                    isScheduled = true;
+                    queueMicrotask(evaluate);
+                }
+            };
+
+            signal?.addEventListener('abort', cancel, { once: true });
+            evaluate();
+        });
+    }
+
+    static #evaluatorOf(query, window) {
         if (!window?.document) {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }
 
         const resolved = Domql.resolve(query);
 
-        return new QueryEvaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
+        return new QueryEvaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition));
+    }
+
+    static #observationsOf(window) {
+        let observations = Domql.#observations.get(window);
+
+        if (observations === undefined) {
+            observations = new Observations(Domql.#registry, { window, document: window.document });
+            Domql.#observations.set(window, observations);
+        }
+
+        return observations;
     }
 
     /**

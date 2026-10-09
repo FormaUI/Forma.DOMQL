@@ -51,7 +51,7 @@ export class VocabularyFunctions {
 
                 return value === '' ? null : value;
             },
-            intersects: () => VocabularyFunctions.#unavailable('it is maintained by an observation, and reading it waits for the first sample, which a synchronous evaluation cannot'),
+            intersects: (_receiver, _args, _environment, [isIntersecting]) => isIntersecting,
             overlaps: (element, { other, margin }) => VocabularyFunctions.#overlaps(element, other, margin),
             matches: (element, { selector }) => element.matches(selector),
             closest: (element, { selector }) => element.closest(selector),
