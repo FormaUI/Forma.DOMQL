@@ -2,15 +2,15 @@
  * Domql — creates DOMQL queries from text and from definitions
  */
 
-import { Bindings } from './language/Bindings.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
 import { DomqlError } from './language/DomqlError.mjs';
 import { DomqlModule } from './language/DomqlModule.mjs';
 import { DomqlQuery } from './language/DomqlQuery.mjs';
-import { Evaluator } from './language/Evaluator.mjs';
 import { LanguageResolver } from './language/LanguageResolver.mjs';
 import { ModuleRegistry } from './language/ModuleRegistry.mjs';
+import { ParameterBindings } from './language/ParameterBindings.mjs';
 import { ParsedTexts } from './language/ParsedTexts.mjs';
+import { QueryEvaluator } from './language/QueryEvaluator.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
 import { Vocabulary } from './language/Vocabulary.mjs';
@@ -79,7 +79,7 @@ export class Domql {
 
         const resolved = Domql.resolve(query);
 
-        return new Evaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
+        return new QueryEvaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
     }
 
     /**
@@ -101,7 +101,7 @@ export class Domql {
             throw new TypeError('A query text is a string');
         }
 
-        return new DomqlQuery(ParsedTexts.parse(text), new Bindings(bindings));
+        return new DomqlQuery(ParsedTexts.parse(text), new ParameterBindings(bindings));
     }
 
     /**
@@ -110,6 +110,6 @@ export class Domql {
      * @param {Record<string, unknown>} bindings Each parameter's name and the value it is bound to.
      */
     static create(definition, bindings = {}) {
-        return new DomqlQuery(new DefinitionValidator().validate(definition), new Bindings(bindings));
+        return new DomqlQuery(new DefinitionValidator().validate(definition), new ParameterBindings(bindings));
     }
 }

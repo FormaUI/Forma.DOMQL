@@ -2,7 +2,7 @@
  * DomqlQuery — a DOMQL query: its definition and the values its parameters are bound to
  */
 
-/** @typedef {import('./Bindings.mjs').Bindings} Bindings */
+/** @typedef {import('./ParameterBindings.mjs').ParameterBindings} ParameterBindings */
 
 export class DomqlQuery {
     #definition;
@@ -10,7 +10,7 @@ export class DomqlQuery {
 
     /**
      * @param {object} definition The query's validated, frozen definition.
-     * @param {Bindings} bindings The values its parameters are bound to.
+     * @param {ParameterBindings} bindings The values its parameters are bound to.
      */
     constructor(definition, bindings) {
         this.#definition = definition;

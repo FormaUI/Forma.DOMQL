@@ -1,5 +1,5 @@
 /**
- * Bindings — the values a query's parameters are bound to, by name
+ * ParameterBindings — the values a query's parameters are bound to, by name
  */
 
 import { DomqlError } from './DomqlError.mjs';
@@ -10,20 +10,20 @@ import { TypedBinding } from './TypedBinding.mjs';
 /** The roots, predefined parameters no binding takes. */
 const ROOTS = new Set(['document', 'window']);
 
-export class Bindings {
+export class ParameterBindings {
     /** @type {Map<string, unknown>} */
     #values = new Map();
 
     /** @type {Map<string, import('./TypeNotation.mjs').Type>} */
     #types = new Map();
 
-    /** @param {Record<string, unknown>} bindings Each parameter's name and the value it is bound to, or a typed binding of one. */
-    constructor(bindings = {}) {
-        if (!Bindings.#isPlainObject(bindings)) {
+    /** @param {Record<string, unknown>} parameters Each parameter's name and the value it is bound to, or a typed binding of one. */
+    constructor(parameters = {}) {
+        if (!ParameterBindings.#isPlainObject(parameters)) {
             throw DomqlError.structure('Bindings are a plain object of names and the values bound to them', {});
         }
 
-        for (const [name, binding] of Object.entries(bindings)) {
+        for (const [name, binding] of Object.entries(parameters)) {
             const isTyped = binding instanceof TypedBinding;
             const value = isTyped ? binding.value : binding;
 
@@ -35,11 +35,11 @@ export class Bindings {
                 throw DomqlError.structure(`'${name}' names a root, which no binding takes`, { binding: name });
             }
 
-            if (!Bindings.#isBindable(value, new Set())) {
+            if (!ParameterBindings.#isBindable(value, new Set())) {
                 throw DomqlError.structure('A binding is an element, or data: a number, a string, a Boolean, null, a list or an object', { binding: name });
             }
 
-            this.#types.set(name, Bindings.#getType(name, value, isTyped ? binding.type : null));
+            this.#types.set(name, ParameterBindings.#getType(name, value, isTyped ? binding.type : null));
             this.#values.set(name, value);
         }
     }
@@ -99,7 +99,7 @@ export class Bindings {
             return true;
         }
 
-        return Bindings.#isData(value, ancestors);
+        return ParameterBindings.#isData(value, ancestors);
     }
 
     static #isData(value, ancestors) {
@@ -115,12 +115,12 @@ export class Bindings {
             return false;
         }
 
-        if (!Array.isArray(value) && !Bindings.#isPlainObject(value)) {
+        if (!Array.isArray(value) && !ParameterBindings.#isPlainObject(value)) {
             return false;
         }
 
         ancestors.add(value);
-        const isData = Object.values(value).every(item => Bindings.#isBindable(item, ancestors));
+        const isData = Object.values(value).every(item => ParameterBindings.#isBindable(item, ancestors));
         ancestors.delete(value);
 
         return isData;

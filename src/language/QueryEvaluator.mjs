@@ -1,5 +1,5 @@
 /**
- * Evaluator — reads a resolved query once, answering detached data
+ * QueryEvaluator — reads a resolved query once, answering detached data
  */
 
 import { DomqlError } from './DomqlError.mjs';
@@ -8,35 +8,35 @@ import { Type } from './Type.mjs';
 
 /** @typedef {{ window: Window, document: Document }} Environment */
 
-export class Evaluator {
-    #registry;
-    #resolved;
-    #bindings;
+export class QueryEvaluator {
+    #moduleRegistry;
+    #resolvedDefinition;
+    #parameterBindings;
     #environment;
     #locations;
 
     /**
-     * @param {import('./ModuleRegistry.mjs').ModuleRegistry} registry The vocabulary the request was resolved against.
-     * @param {import('./ResolvedDefinition.mjs').ResolvedDefinition} resolved The resolved definition to read.
-     * @param {import('./Bindings.mjs').Bindings} bindings What the request's parameters are bound to.
+     * @param {import('./ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary the request was resolved against.
+     * @param {import('./ResolvedDefinition.mjs').ResolvedDefinition} resolvedDefinition The resolved definition to read.
+     * @param {import('./ParameterBindings.mjs').ParameterBindings} parameterBindings What the request's parameters are bound to.
      * @param {Environment} environment The window and the document the roots stand for.
      * @param {import('./TextLocations.mjs').TextLocations | null} locations Where in a text each part of the definition came from.
      */
-    constructor(registry, resolved, bindings, environment, locations) {
-        this.#registry = registry;
-        this.#resolved = resolved;
-        this.#bindings = bindings;
+    constructor(moduleRegistry, resolvedDefinition, parameterBindings, environment, locations) {
+        this.#moduleRegistry = moduleRegistry;
+        this.#resolvedDefinition = resolvedDefinition;
+        this.#parameterBindings = parameterBindings;
         this.#environment = environment;
         this.#locations = locations;
     }
 
     /** The answer the query reads: immutable data holding no reference to the document. */
     read() {
-        if (this.#resolved.kind !== 'query') {
-            this.#fail(`A ${this.#resolved.kind} request is not read`, '/query');
+        if (this.#resolvedDefinition.kind !== 'query') {
+            this.#fail(`A ${this.#resolvedDefinition.kind} request is not read`, '/query');
         }
 
-        return Evaluator.#detach(this.#evaluate(this.#resolved.definition.query, '/query', null));
+        return QueryEvaluator.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null));
     }
 
     #evaluate(node, pointer, current) {
@@ -59,7 +59,7 @@ export class Evaluator {
             case 'document':
                 return this.#environment.document;
             default:
-                return this.#bindings.get(node.name);
+                return this.#parameterBindings.get(node.name);
         }
     }
 
@@ -70,7 +70,7 @@ export class Evaluator {
             return null;
         }
 
-        const resolution = this.#resolved.getResolution(pointer);
+        const resolution = this.#resolvedDefinition.getResolution(pointer);
 
         if (resolution.kind === 'field') {
             return receiver[node.name] ?? null;
@@ -137,10 +137,10 @@ export class Evaluator {
 
     /** Carries out a declaration's function, or a predicate's, checking that its answer is of the declared type. */
     #invoke(declaration, receiver, args, type, pointer) {
-        const implementation = this.#registry.getFunction(declaration);
+        const implementation = this.#moduleRegistry.getFunction(declaration);
 
         if (implementation === undefined) {
-            this.#fail(`The module '${this.#registry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
+            this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
         }
 
         let value;
@@ -152,7 +152,7 @@ export class Evaluator {
         }
 
         if (!this.#conforms(value, type)) {
-            this.#fail(`The member '${declaration.name}' answered ${Evaluator.#describe(value)}, and it declares ${type}`, pointer);
+            this.#fail(`The member '${declaration.name}' answered ${QueryEvaluator.#describe(value)}, and it declares ${type}`, pointer);
         }
 
         return value;
@@ -184,7 +184,7 @@ export class Evaluator {
             case 'list':
                 return Array.isArray(value) && value.every(item => this.#conforms(item, type.item));
             case 'shape':
-                return Evaluator.#isRecord(value) && [...type.fields].every(([name, field]) => this.#conforms(value[name], field));
+                return QueryEvaluator.#isRecord(value) && [...type.fields].every(([name, field]) => this.#conforms(value[name], field));
             default:
                 return this.#conformsNamed(value, type.name);
         }
@@ -205,9 +205,9 @@ export class Evaluator {
             case 'window':
                 return value?.window === value;
             default: {
-                const structure = this.#registry.getType(name);
+                const structure = this.#moduleRegistry.getType(name);
 
-                return structure !== undefined && Evaluator.#isRecord(value) && Object.entries(structure.fields).every(([field, text]) => this.#conforms(value[field], Type.parse(text)));
+                return structure !== undefined && QueryEvaluator.#isRecord(value) && Object.entries(structure.fields).every(([field, text]) => this.#conforms(value[field], Type.parse(text)));
             }
         }
     }
@@ -244,11 +244,11 @@ export class Evaluator {
     /** A copy of the data sharing no structure with the original, frozen. */
     static #detach(value) {
         if (Array.isArray(value)) {
-            return Object.freeze(value.map(item => Evaluator.#detach(item)));
+            return Object.freeze(value.map(item => QueryEvaluator.#detach(item)));
         }
 
-        if (Evaluator.#isRecord(value)) {
-            return Object.freeze(Object.fromEntries(Object.entries(value).map(([name, field]) => [name, Evaluator.#detach(field)])));
+        if (QueryEvaluator.#isRecord(value)) {
+            return Object.freeze(Object.fromEntries(Object.entries(value).map(([name, field]) => [name, QueryEvaluator.#detach(field)])));
         }
 
         return value;

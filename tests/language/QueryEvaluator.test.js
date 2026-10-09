@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { DomqlModule } from '#domql/language/DomqlModule.mjs';
-import { Evaluator } from '#domql/language/Evaluator.mjs';
 import { LanguageResolver } from '#domql/language/LanguageResolver.mjs';
 import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
+import { QueryEvaluator } from '#domql/language/QueryEvaluator.mjs';
 import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
 /** Gives the element a border box, since the test environment lays nothing out. */
@@ -31,7 +31,7 @@ const readWith = (module, text, bindings) => {
     const query = Domql.parse(text, bindings);
     const resolved = new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
 
-    return new Evaluator(registry, resolved, query.bindings, { window, document }, null).read();
+    return new QueryEvaluator(registry, resolved, query.bindings, { window, document }, null).read();
 };
 
 const failureWith = (module, text, bindings) => {
@@ -60,7 +60,7 @@ const failure = (text, bindings = {}) => {
     throw new Error('The query was read');
 };
 
-describe('Evaluator', () => {
+describe('QueryEvaluator', () => {
     let panel;
     let items;
 
