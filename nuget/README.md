@@ -38,9 +38,9 @@ Given this markup, which the examples below use throughout:
 
 ```html
 <div id="panel">
-    <div data-key="a1"></div>
-    <div data-key="a2" aria-selected="true"></div>
-    <div data-key="a3"></div>
+    <div data-key="a1" style="height: 48px"></div>
+    <div data-key="a2" style="height: 64px" aria-selected="true"></div>
+    <div data-key="a3" style="height: 48px"></div>
 </div>
 ```
 
@@ -164,10 +164,10 @@ Domql.read(Domql.parse(`
 // 1
 
 Domql.read(Domql.parse('@panel.all("[data-key]").max(rect.height)', { panel }));
-// The tallest measurable item's height in CSS pixels, or null if none.
+// 64
 ```
 
-`where` keeps items whose expression is true. Aggregates skip null expression results. With no numeric results, `max` and `min` return null, while `sum` returns zero.
+`where` keeps items whose expression is true. `rect.height` is the height in CSS pixels of an element's border box, so the tallest item above is the 64px one. Aggregates skip null expression results. With no numeric results, `max` and `min` return null, while `sum` returns zero.
 
 ### Null and unavailable values
 

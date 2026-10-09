@@ -1,0 +1,4 @@
+@panel {
+    count: children.count,
+    selected: first("[aria-selected=true]").attribute-of "data-key"
+}
