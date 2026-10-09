@@ -1,4 +1,4 @@
-# DOMQL Specification v1.0.1
+# DOMQL Specification v1.0.2
 
 DOMQL is a small language for querying the DOM: a query names what its caller wants to know about a document and its elements, and evaluating it gives one answer shaped the way it asked. The same query is read once, watched for changes, or evaluated at each occurrence of something that happened in the document, and the actions and behaviors a caller asks the browser for are requests of their own kinds. The language knows how to name values and shape answers; what can be asked about, an element's size, a computed style, whether it matches a selector, comes from a vocabulary beside it, so adding to what can be asked never changes the language.
 
@@ -193,7 +193,7 @@ A member whose answer depends on what happened before, as well as on the documen
 
 ### Elements that leave the document
 
-An element is a value whether or not it is in the document. While it is detached, a member that needs its layout answers null, and its attributes and structure still read.
+An element is a value whether or not it is in the document. A member that needs an element's layout answers null while the element has no layout box: while it is detached, and while the browser generates no box for it, as when it or an ancestor is `display: none` or it is `display: contents`. An element with a layout box whose dimensions are zero has actual measurements of zero, and one hidden visually that keeps its box measures as it is. Its attributes and structure still read, and `is "attached"` says whether it is attached, whatever its layout.
 
 ## How a member changes
 

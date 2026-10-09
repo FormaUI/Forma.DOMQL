@@ -30,8 +30,8 @@ export class VocabularyFunctions {
 
                 return rect === null ? null : { width: rect.width, height: rect.height };
             },
-            clientSize: element => element.isConnected ? { width: element.clientWidth, height: element.clientHeight } : null,
-            grid: element => element.isConnected ? { columns: VocabularyFunctions.#columns(element) } : null,
+            clientSize: element => VocabularyFunctions.#hasBox(element) ? { width: element.clientWidth, height: element.clientHeight } : null,
+            grid: element => VocabularyFunctions.#hasBox(element) ? { columns: VocabularyFunctions.#columns(element) } : null,
             selection: element => VocabularyFunctions.#selection(element),
             children: element => [...element.children],
             parent: element => element.parentElement,
@@ -81,9 +81,14 @@ export class VocabularyFunctions {
         throw new Error(reason);
     }
 
-    /** The element's border box, or null where it has no layout because it is detached. */
+    /** Whether the element has a layout box: it is attached and the browser generates a box for it, which it does not for `display: none` or `display: contents`. A box of no size is still a box. */
+    static #hasBox(element) {
+        return element.isConnected && element.getClientRects().length > 0;
+    }
+
+    /** The element's border box, or null where it has no layout box. */
     static #box(element) {
-        return element.isConnected ? element.getBoundingClientRect() : null;
+        return VocabularyFunctions.#hasBox(element) ? element.getBoundingClientRect() : null;
     }
 
     static #rect(element, relativeTo) {

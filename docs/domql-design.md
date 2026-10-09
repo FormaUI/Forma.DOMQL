@@ -1,4 +1,4 @@
-# DOMQL Design v1.0.1
+# DOMQL Design v1.0.2
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how answers and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
@@ -19,7 +19,7 @@ An extension a request names is loaded when the request is prepared, before it i
 
 ### Reading
 
-A read prepares the query, then evaluates it once against the document in a single synchronous pass, following the preparation's resolutions rather than looking names up again. The answer is a detached copy, frozen, that holds nothing of the document. A member whose function answers a type other than the one it declares has broken its contract, and the read fails with an evaluation error naming the member and where it stands in the query; so does a member whose function throws, with the thrown error as its cause. A member a module declares and does not implement fails the read the same way. A member maintained by an observation, or an occurrence source, cannot be read in a single synchronous pass and fails it.
+A read resolves the query, then evaluates it once against the document in a single synchronous pass, following the resolution rather than looking names up again. A resolution is kept for its query, for the options it was made under and for the vocabulary it was made against, and is released with the query, so an unchanged query is resolved once however often it is read; what a read evaluates is always the document as it is. A read needs a browser window, the one it is given or the one the environment holds, and fails with an evaluation error where there is none, while parsing, creating and resolving need none. The answer is a detached copy, frozen, that holds nothing of the document. A member whose function answers a type other than the one it declares has broken its contract, and the read fails with an evaluation error naming the member and where it stands in the query; so does a member whose function throws, with the thrown error as its cause. A member a module declares and does not implement fails the read the same way. A member maintained by an observation, or an occurrence source, cannot be read in a single synchronous pass and fails it.
 
 ### Waiting for maintained members
 

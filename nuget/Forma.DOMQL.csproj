@@ -12,7 +12,7 @@
     <PropertyGroup>
         <IsPackable>true</IsPackable>
         <PackageId>formaui-net.DOMQL</PackageId>
-        <Version>1.0.0-preview.1</Version>
+        <Version>1.0.0-preview.2</Version>
         <Authors>Eyal Alon</Authors>
         <Description>DOMQL is an extensible language for querying browser state and events. Read state once, watch for changes, or project event data through a unified query model.</Description>
         <PackageTags>domql;dom;query;language;csharp;javascript;dotnet;browser;forma;formaui</PackageTags>

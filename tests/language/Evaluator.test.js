@@ -5,6 +5,12 @@ import { DomqlError } from '#domql/language/DomqlError.mjs';
 /** Gives the element a border box, since the test environment lays nothing out. */
 const lay = (element, { left = 0, top = 0, width = 0, height = 0 }) => {
     element.getBoundingClientRect = () => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top });
+    element.getClientRects = () => [element.getBoundingClientRect()];
+};
+
+/** Takes the element's layout box away, as `display: none` does. */
+const unlay = element => {
+    element.getClientRects = () => [];
 };
 
 const read = (text, bindings = {}) => Domql.read(Domql.parse(text, bindings));
@@ -224,6 +230,25 @@ describe('Evaluator', () => {
             expect(read('@item.rect(relativeTo: @none)', { item: items[0], none: Domql.bind(null, 'element?') })).toBeNull();
         });
 
+        it('answers null for an attached element without a layout box and the actual zero of one with a box of no size', () => {
+            const hidden = document.createElement('div');
+            document.body.append(hidden);
+            lay(hidden, {});
+
+            expect(read('@hidden.size', { hidden })).toEqual({ width: 0, height: 0 });
+            expect(read('@hidden.rect.width', { hidden })).toBe(0);
+
+            unlay(hidden);
+
+            expect(read('@hidden.size', { hidden })).toBeNull();
+            expect(read('@hidden.rect', { hidden })).toBeNull();
+            expect(read('@hidden.clientSize', { hidden })).toBeNull();
+            expect(read('@hidden.grid.columns', { hidden })).toBeNull();
+            expect(read('@hidden.is "attached"', { hidden })).toBe(true);
+            expect(read('@item.rect(relativeTo: @hidden)', { item: items[0], hidden })).toBeNull();
+            expect(read('@hidden.overlaps @item', { hidden, item: items[0] })).toBeNull();
+        });
+
         it('compares two boxes', () => {
             expect(read('@a.overlaps @b', { a: items[0], b: items[1] })).toBe(false);
             expect(read('@a.overlaps(@b, margin: 10)', { a: items[0], b: items[1] })).toBe(true);
@@ -243,6 +268,65 @@ describe('Evaluator', () => {
             const query = Domql.parse('@window.devicePixelRatio');
 
             expect(Domql.read(query, { document, devicePixelRatio: 3 })).toBe(3);
+        });
+    });
+
+    describe('the environment', () => {
+        it('is reported when there is no browser window', () => {
+            const query = Domql.parse('@window.devicePixelRatio');
+            const error = (() => {
+                try {
+                    Domql.read(query, null);
+                } catch (failed) {
+                    return failed;
+                }
+
+                return null;
+            })();
+
+            expect(error).toBeInstanceOf(DomqlError);
+            expect(error.kind).toBe('evaluation');
+            expect(error.message).toContain('without a browser window');
+            expect(() => Domql.read(query, {})).toThrow(expect.objectContaining({ kind: 'evaluation' }));
+        });
+
+        it('leaves parsing and resolving to work without one', () => {
+            const query = Domql.parse('@window.size');
+
+            expect(Domql.resolve(query).type.toString()).toBe('size');
+        });
+    });
+
+    describe('resolution', () => {
+        it('is kept for a query and used by every read of it', () => {
+            const query = Domql.parse('@panel.children.count', { panel });
+
+            expect(Domql.resolve(query)).toBe(Domql.resolve(query));
+            expect(Domql.read(query)).toBe(3);
+
+            panel.append(document.createElement('div'));
+
+            expect(Domql.read(query)).toBe(4);
+        });
+
+        it('is made again for other options, for other bindings and for a changed vocabulary', () => {
+            const query = Domql.parse('@panel.size', { panel });
+            const rebound = Domql.parse('@panel.size', { panel });
+            const before = Domql.resolve(query);
+
+            expect(Domql.resolve(query, { watch: true })).not.toBe(before);
+            expect(Domql.resolve(rebound)).not.toBe(before);
+
+            Domql.registerModule(Domql.createModule('resolution', { members: [{ name: 'resolution', builder: 'resolution', function: 'resolution', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }] }));
+
+            expect(Domql.resolve(query)).not.toBe(before);
+        });
+
+        it('is not kept for a query that fails to resolve', () => {
+            const query = Domql.parse('@panel.nonsense', { panel });
+
+            expect(() => Domql.resolve(query)).toThrow();
+            expect(() => Domql.resolve(query)).toThrow();
         });
     });
 
