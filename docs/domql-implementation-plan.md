@@ -51,7 +51,7 @@ State: **done.** Built in its chosen form by step 2.
 - **The first answer.** It is delivered through the same callback as every later one, as the baseline, so a caller has one path for all of them.
 - **`refresh()`.** It answers a promise that settles when the evaluation it caused has completed and the delivery it produced, if any, has been handed to the callback and the callback has returned. A refresh pending when the handle is disposed settles without delivering.
 - **A failing callback.** A callback that throws, or whose promise rejects, leaves the state it was handed accepted, as the design says, and the failure is reported to the failure callback; it does not stop the watch.
-- **`dispose()`.** It cancels scheduled evaluation, releases every lease, and guarantees that no callback runs after it returns.
+- **`dispose()`.** It cancels scheduled evaluation, disposes every session, and guarantees that no callback runs after it returns.
 - **Delivery kinds.** A snapshot is immutable and never changes once delivered. A change set is relative to the state it was computed against. Live state is one object with a stable identity, updated in place, so it is chosen explicitly and is never a snapshot.
 - **A listener.** It delivers each occurrence's answer through its callback, with the same failure and disposal rules.
 

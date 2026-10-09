@@ -111,7 +111,7 @@ A maintained member in an occurrence's shape reads its latest sample, or null wh
 }
 ```
 
-The subscription holds the leases its shapes acquire. After each successful evaluation it keeps the leases that evaluation read and releases the rest, so an observation one occurrence started serves the next: the first occurrence reports null for a member still pending, and a later one reads the sample that arrived meanwhile. A failed evaluation delivers no answer and reports its failure; the subscription keeps the leases it held before it and releases those the failed attempt acquired. Releasing the subscription releases every lease it holds, and an observation another holder still leases runs on.
+The subscription holds the sessions its shapes acquire. After each successful evaluation it keeps the sessions that evaluation read and disposes the rest, so an observation one occurrence started serves the next: the first occurrence reports null for a member still pending, and a later one reads the sample that arrived meanwhile. A failed evaluation delivers no answer and reports its failure; the subscription keeps the sessions it held before it and disposes those the failed attempt acquired. Ending the subscription disposes every session it holds, and an observation another holder still has a session on runs on.
 
 ## Modules
 
