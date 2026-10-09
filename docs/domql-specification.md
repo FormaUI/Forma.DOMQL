@@ -366,9 +366,32 @@ A query is validated in two stages, both before any evaluation.
 
 A failure in either stage names where it is: its position in the text, or its node's location in the definition, as a JSON Pointer.
 
+## What a query runs against
+
+A query is evaluated against a document, with each parameter it names bound to something in that document or to plain data. `@panel` is not found by the query: it stands for the element the caller bound under the name `panel`, which is how a query reaches a particular element without a selector for it. A query that names `@panel` and `@sentinel` is given those two elements, and fails to prepare when either is not bound. The roots `@document` and `@page` need no binding, since they are always the document being queried and its window.
+
+Conceptually, a caller supplies the query's text and the bindings, and gets back an answer shaped like the query:
+
+```text
+answer = evaluate(query, bindings: { panel: <the list panel>, sentinel: <the end marker> })
+```
+
+A caller can take that answer once, keep it current as the document changes, or take one at each occurrence of an event the query listens to; how it asks for each is the [design](domql-design.md)'s to say. The query itself is the same in all three.
+
 ## A complete query
 
-A list panel asks, in one query, how it is laid out, what it holds, what is in view and what the page around it is doing:
+A list panel asks, in one query, how it is laid out, what it holds, what is in view and what the page around it is doing. The document it is asked of holds a panel of three items, the second selected, and an end marker below them, bound as `panel` and `sentinel`:
+
+```html
+<div id="panel" style="display: grid; grid-template-columns: repeat(3, 1fr)">
+    <div data-key="a1">…</div>
+    <div data-key="a2" aria-selected="true">…</div>
+    <div data-key="a3">…</div>
+</div>
+<div id="sentinel"></div>
+```
+
+The query reads it:
 
 ```
 /* A list panel, its items and the page around it. */
