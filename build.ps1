@@ -5,12 +5,19 @@ Runs the script tests, bundles DOMQL, builds the package project, and checks its
 .PARAMETER Clean
 Removes every build output first, so the build starts from nothing.
 
+.PARAMETER Browser
+Also runs the tests that need a real browser's layout, in headless Chromium, which is installed first if it is not.
+
 .EXAMPLE
 ./build.ps1 -Clean
+
+.EXAMPLE
+./build.ps1 -Browser
 #>
 [CmdletBinding()]
 param(
-    [switch] $Clean
+    [switch] $Clean,
+    [switch] $Browser
 )
 
 Set-StrictMode -Version Latest
@@ -45,6 +52,19 @@ Write-Host 'Testing the scripts'
 npm test --prefix $tests
 if ($LASTEXITCODE -ne 0) {
     throw 'The script tests failed.'
+}
+
+if ($Browser) {
+    Write-Host 'Testing in a browser'
+    npx --prefix $tests playwright install chromium
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Installing the browser failed.'
+    }
+
+    npm run test:browser --prefix $tests
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The browser tests failed.'
+    }
 }
 
 Write-Host 'Bundling'
