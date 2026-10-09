@@ -24,7 +24,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 ## Scripts
 
 - Do use only native modern browser APIs in `src/`, with no external library or polyfill; a script is an ES module, strict by construction.
-- Do publish DOMQL as one minified file, `nuget/wwwroot/domql.js`, which `scripts/bundle.mjs` makes from `src/` with esbuild, a development dependency that the package never carries; the file is generated, ignored by git, and as small as the sources allow, and a test runs the bundle.
+- Do publish DOMQL as one minified file, `nuget/wwwroot/domql.js`, which `scripts/bundle.mjs` makes from `src/` with esbuild, a development dependency that the package never carries; the file is generated, ignored by git, and as small as the sources allow, and a test runs the bundle. Ship its types beside it as `domql.d.ts`, written by hand in `src/` and copied by the same script; a test compiles a TypeScript caller against it and fails when it and `Domql` disagree.
 - Do name a parameter by its role (`text`, `definition`, `bindings`), never its type.
 - Do write the language's name as DOMQL in prose and `Domql` in code, and name a module that exposes a capability through DOMQL `{Capability}DomqlModule`.
 - Do report every failure where it happens, as a `DomqlError` naming where it fails, and never swallow a rejection.
@@ -33,6 +33,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 ## Tests
 
 - Do add or change a test for every module you add or change, in `tests/`, and run them with `npm test` from that folder.
+- Do test layout, geometry and state the browser decides in `tests/browser/`, which runs in headless Chromium with `npm run test:browser` or `./build.ps1 -Browser`; the happy-dom tests lay nothing out.
 - Do test through the public surface, `Domql` and what it returns, and assert exact definitions, error kinds and locations.
 - Don't wait on the clock for work a test controls.
 
