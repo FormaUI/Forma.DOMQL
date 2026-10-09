@@ -32,6 +32,11 @@ export class Registry {
         modules.forEach(module => this.register(module));
     }
 
+    /** The number of modules registered, which changes whenever the vocabulary does. */
+    get revision() {
+        return this.#modules.size;
+    }
+
     /** The modules registered, by name. */
     get modules() {
         return [...this.#modules.keys()];

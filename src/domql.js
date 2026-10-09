@@ -4,6 +4,7 @@
 
 import { Bindings } from './language/Bindings.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
+import { DomqlError } from './language/DomqlError.mjs';
 import { DomqlModule } from './language/DomqlModule.mjs';
 import { DomqlQuery } from './language/DomqlQuery.mjs';
 import { Evaluator } from './language/Evaluator.mjs';
@@ -32,18 +33,38 @@ export class Domql {
 
     static #registry = new Registry([Vocabulary.module]);
 
+    /**
+     * The resolutions of each query by the options they were made under, valid for the registry revision they were made at and released with the query.
+     * @type {WeakMap<DomqlQuery, { revision: number, byOptions: Map<string, import('./language/ResolvedRequest.mjs').ResolvedRequest> }>}
+     */
+    static #resolutions = new WeakMap();
+
     /** Registers a module's vocabulary, which every query resolved afterwards may use. */
     static registerModule(module) {
         Domql.#registry.register(module);
     }
 
     /**
-     * Resolves a query against the registered vocabulary and types it, without evaluating anything.
+     * Resolves a query against the registered vocabulary and types it, without evaluating anything. A query resolved again under the same options and vocabulary answers the resolution it already has.
      * @param {DomqlQuery} query The query to resolve.
      * @param {{ watch?: boolean, acceptPartialObservation?: boolean }} options How the query will be carried out.
      */
     static resolve(query, options = {}) {
-        return new RequestResolver(Domql.#registry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolve(query.definition);
+        const revision = Domql.#registry.revision;
+        let kept = Domql.#resolutions.get(query);
+
+        if (kept === undefined || kept.revision !== revision) {
+            kept = { revision, byOptions: new Map() };
+            Domql.#resolutions.set(query, kept);
+        }
+
+        const key = `${options.watch === true}|${options.acceptPartialObservation === true}`;
+
+        if (!kept.byOptions.has(key)) {
+            kept.byOptions.set(key, new RequestResolver(Domql.#registry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolve(query.definition));
+        }
+
+        return kept.byOptions.get(key);
     }
 
     /**
@@ -52,6 +73,10 @@ export class Domql {
      * @param {Window} window The window `@window` stands for, and whose document `@document` stands for.
      */
     static read(query, window = globalThis.window) {
+        if (!window?.document) {
+            throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
+        }
+
         const request = Domql.resolve(query);
 
         return new Evaluator(Domql.#registry, request, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
