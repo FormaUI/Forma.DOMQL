@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { DomqlModule } from '#domql/language/DomqlModule.mjs';
+import { Registry } from '#domql/language/Registry.mjs';
+import { RequestResolver } from '#domql/language/RequestResolver.mjs';
+import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
 const panel = document.createElement('div');
 
@@ -224,11 +227,15 @@ describe('RequestResolver', () => {
                 predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh' }],
             });
 
-            Domql.registerModule(module);
-
+            const registry = new Registry([Vocabulary.module, module]);
             const element = document.createElement('div');
-            const events = Domql.resolve(Domql.parse('@panel.events-of "chart-selected" { value }', { panel: element }));
-            const predicate = Domql.resolve(Domql.parse('@panel.is "plotted"', { panel: element }));
+            const resolveWith = text => {
+                const query = Domql.parse(text, { panel: element });
+
+                return new RequestResolver(registry, query.bindings, null, {}).resolve(query.definition);
+            };
+            const events = resolveWith('@panel.events-of "chart-selected" { value }');
+            const predicate = resolveWith('@panel.is "plotted"');
 
             expect(events.type.toString()).toBe('occurrence<{ value: number }>');
             expect(predicate.type.toString()).toBe('boolean');

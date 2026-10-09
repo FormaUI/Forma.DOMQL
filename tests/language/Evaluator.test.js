@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
+import { DomqlModule } from '#domql/language/DomqlModule.mjs';
+import { Evaluator } from '#domql/language/Evaluator.mjs';
+import { Registry } from '#domql/language/Registry.mjs';
+import { RequestResolver } from '#domql/language/RequestResolver.mjs';
+import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
 /** Gives the element a border box, since the test environment lays nothing out. */
 const lay = (element, { left = 0, top = 0, width = 0, height = 0 }) => {
@@ -14,6 +19,33 @@ const unlay = element => {
 };
 
 const read = (text, bindings = {}) => Domql.read(Domql.parse(text, bindings));
+
+/** A module of one number property named for itself, answered by the function. */
+const propertyModule = (name, implementation) => new DomqlModule(name, {
+    members: [{ name, builder: name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+}, implementation === undefined ? null : { [name]: implementation });
+
+/** Reads a query against a registry of its own holding the core vocabulary and the module. */
+const readWith = (module, text, bindings) => {
+    const registry = new Registry([Vocabulary.module, module]);
+    const query = Domql.parse(text, bindings);
+    const request = new RequestResolver(registry, query.bindings, null, {}).resolve(query.definition);
+
+    return new Evaluator(registry, request, query.bindings, { window, document }, null).read();
+};
+
+const failureWith = (module, text, bindings) => {
+    try {
+        readWith(module, text, bindings);
+    } catch (error) {
+        expect(error).toBeInstanceOf(DomqlError);
+        expect(error.kind).toBe('evaluation');
+
+        return error;
+    }
+
+    throw new Error('The query was read');
+};
 
 const failure = (text, bindings = {}) => {
     try {
@@ -271,65 +303,6 @@ describe('Evaluator', () => {
         });
     });
 
-    describe('the environment', () => {
-        it('is reported when there is no browser window', () => {
-            const query = Domql.parse('@window.devicePixelRatio');
-            const error = (() => {
-                try {
-                    Domql.read(query, null);
-                } catch (failed) {
-                    return failed;
-                }
-
-                return null;
-            })();
-
-            expect(error).toBeInstanceOf(DomqlError);
-            expect(error.kind).toBe('evaluation');
-            expect(error.message).toContain('without a browser window');
-            expect(() => Domql.read(query, {})).toThrow(expect.objectContaining({ kind: 'evaluation' }));
-        });
-
-        it('leaves parsing and resolving to work without one', () => {
-            const query = Domql.parse('@window.size');
-
-            expect(Domql.resolve(query).type.toString()).toBe('size');
-        });
-    });
-
-    describe('resolution', () => {
-        it('is kept for a query and used by every read of it', () => {
-            const query = Domql.parse('@panel.children.count', { panel });
-
-            expect(Domql.resolve(query)).toBe(Domql.resolve(query));
-            expect(Domql.read(query)).toBe(3);
-
-            panel.append(document.createElement('div'));
-
-            expect(Domql.read(query)).toBe(4);
-        });
-
-        it('is made again for other options, for other bindings and for a changed vocabulary', () => {
-            const query = Domql.parse('@panel.size', { panel });
-            const rebound = Domql.parse('@panel.size', { panel });
-            const before = Domql.resolve(query);
-
-            expect(Domql.resolve(query, { watch: true })).not.toBe(before);
-            expect(Domql.resolve(rebound)).not.toBe(before);
-
-            Domql.registerModule(Domql.createModule('resolution', { members: [{ name: 'resolution', builder: 'resolution', function: 'resolution', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }] }));
-
-            expect(Domql.resolve(query)).not.toBe(before);
-        });
-
-        it('is not kept for a query that fails to resolve', () => {
-            const query = Domql.parse('@panel.nonsense', { panel });
-
-            expect(() => Domql.resolve(query)).toThrow();
-            expect(() => Domql.resolve(query)).toThrow();
-        });
-    });
-
     describe('computed style', () => {
         it('reads a custom property and answers null for one that is not set', () => {
             panel.style.setProperty('--tier', 'medium');
@@ -385,29 +358,17 @@ describe('Evaluator', () => {
         });
 
         it('report a module that answers a type other than the one it declares', () => {
-            Domql.registerModule(Domql.createModule('broken', {
-                members: [{ name: 'broken', builder: 'broken', function: 'broken', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
-            }, { broken: () => 'seven' }));
+            const error = failureWith(propertyModule('broken', () => 'seven'), '@panel.broken', { panel });
 
-            const error = failure('@panel.broken', { panel });
-
-            expect(error.message).toContain("answered \"seven\", and it declares number");
+            expect(error.message).toContain('answered "seven", and it declares number');
         });
 
         it('name an element a module answers where a number is declared', () => {
-            Domql.registerModule(Domql.createModule('leaking', {
-                members: [{ name: 'leaking', builder: 'leaking', function: 'leaking', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
-            }, { leaking: element => element }));
-
-            expect(failure('@panel.leaking', { panel }).message).toContain('answered an element, and it declares number');
+            expect(failureWith(propertyModule('leaking', element => element), '@panel.leaking', { panel }).message).toContain('answered an element, and it declares number');
         });
 
         it('report a module that declares and does not implement', () => {
-            Domql.registerModule(Domql.createModule('declared', {
-                members: [{ name: 'declared', builder: 'declared', function: 'declared', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
-            }));
-
-            expect(failure('@panel.declared', { panel }).message).toContain("The module 'declared' supplies no function for 'declared'");
+            expect(failureWith(propertyModule('declared'), '@panel.declared', { panel }).message).toContain("The module 'declared' supplies no function for 'declared'");
         });
     });
 });

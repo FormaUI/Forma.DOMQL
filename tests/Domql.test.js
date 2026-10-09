@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { Domql } from '#domql/domql.js';
+import { DomqlError } from '#domql/language/DomqlError.mjs';
 
 /** The error a call throws. */
 const getError = call => {
@@ -366,5 +367,103 @@ describe('Domql', () => {
         ])('rejects bindings given as %s', (_, bindings) => {
             expect(getError(() => Domql.parse('@target { size }', bindings)).kind).toBe('structure');
         });
+    });
+});
+
+describe('Domql reads', () => {
+    let panel;
+
+    beforeEach(() => {
+        document.body.innerHTML = '<div id="panel"><i></i><i></i><i></i></div>';
+        panel = document.getElementById('panel');
+    });
+
+    describe('the environment', () => {
+        it('is reported when there is no browser window', () => {
+            const query = Domql.parse('@window.devicePixelRatio');
+            const error = getError(() => Domql.read(query, null));
+
+            expect(error).toBeInstanceOf(DomqlError);
+            expect(error.kind).toBe('evaluation');
+            expect(error.message).toContain('without a browser window');
+            expect(getError(() => Domql.read(query, {})).kind).toBe('evaluation');
+        });
+
+        it('leaves parsing and resolving to work without one', () => {
+            expect(Domql.resolve(Domql.parse('@window.size')).type.toString()).toBe('size');
+        });
+    });
+
+    describe('resolution', () => {
+        it('is kept for a query and used by every read of it', () => {
+            const query = Domql.parse('@panel.children.count', { panel });
+
+            expect(Domql.resolve(query)).toBe(Domql.resolve(query));
+            expect(Domql.read(query)).toBe(3);
+
+            panel.append(document.createElement('i'));
+
+            expect(Domql.read(query)).toBe(4);
+        });
+
+        it('is made again for other options and for other bindings', () => {
+            const query = Domql.parse('@panel.size', { panel });
+            const before = Domql.resolve(query);
+
+            expect(Domql.resolve(query, { watch: true })).not.toBe(before);
+            expect(Domql.resolve(Domql.parse('@panel.size', { panel }))).not.toBe(before);
+        });
+
+        it('is not kept for a query that fails to resolve', () => {
+            const query = Domql.parse('@panel.nonsense', { panel });
+
+            expect(getError(() => Domql.resolve(query)).kind).toBe('validation');
+            expect(getError(() => Domql.resolve(query)).kind).toBe('validation');
+        });
+    });
+});
+
+describe('Domql modules', () => {
+    // Each test loads its own copy of Domql, with a registry of its own.
+    let isolated;
+
+    beforeEach(async () => {
+        vi.resetModules();
+        ({ Domql: isolated } = await import('#domql/domql.js'));
+    });
+
+    const module = name => isolated.createModule(name, {
+        members: [{ name, builder: name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+    }, { [name]: () => 7 });
+
+    it('make the members they declare available to the queries resolved afterwards', () => {
+        const element = document.createElement('div');
+
+        expect(getError(() => isolated.resolve(isolated.parse('@panel.zoom', { panel: element }))).kind).toBe('validation');
+
+        isolated.registerModule(module('zoom'));
+
+        expect(isolated.resolve(isolated.parse('@panel.zoom', { panel: element })).type.toString()).toBe('number');
+    });
+
+    it('replace the resolutions made against the vocabulary before them', () => {
+        const query = isolated.parse('@panel.children.count', { panel: document.createElement('div') });
+        const before = isolated.resolve(query);
+
+        isolated.registerModule(module('zoom'));
+
+        expect(isolated.resolve(query)).not.toBe(before);
+    });
+
+    it('are registered once under a name', () => {
+        isolated.registerModule(module('zoom'));
+
+        expect(getError(() => isolated.registerModule(module('zoom'))).kind).toBe('module');
+    });
+
+    it('leave the registry of another copy of Domql alone', () => {
+        isolated.registerModule(module('zoom'));
+
+        expect(getError(() => Domql.resolve(Domql.parse('@panel.zoom', { panel: document.createElement('div') }))).kind).toBe('validation');
     });
 });
