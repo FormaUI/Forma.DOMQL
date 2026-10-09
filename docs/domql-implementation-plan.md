@@ -28,7 +28,7 @@ A declaration states how a member changes as a category. A watch needs the obser
 - **Identity.** Equivalent observation requests share an underlying observation where their type permits it. A request's identity is its type, its target, the arguments that change what is observed, such as an intersection's root and margin or the attributes an observation filters on, and the DOM environment it belongs to. A type states which of its arguments belong to the identity and whether sharing is permitted at all.
 - **Alternative: a function per member.** A member supplies a function that subscribes and returns its release. It is the most flexible and leaves nothing for a tool to read.
 
-State: **accepted** in its recommended form.
+State: **done.** Built in its recommended form by step 1.
 
 ### D2. How a read waits
 
