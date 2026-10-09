@@ -9,17 +9,19 @@
  * @property {number} [line] The failing text's line, from 1.
  * @property {number} [column] The failing text's column, from 1.
  * @property {string} [binding] The failing binding's name.
+ * @property {string} [module] The failing module's name.
+ * @property {string} [declaration] The failing declaration's name.
  */
 
 export class DomqlError extends Error {
-    /** @type {'syntax' | 'structure'} */
+    /** @type {'syntax' | 'structure' | 'validation' | 'module'} */
     kind;
 
     /** @type {Location} */
     location;
 
     /**
-     * @param {'syntax' | 'structure'} kind The stage the query failed in.
+     * @param {'syntax' | 'structure' | 'validation' | 'module'} kind The stage the request failed in.
      * @param {string} message What is wrong.
      * @param {Location} location Where it is wrong.
      */
@@ -39,6 +41,16 @@ export class DomqlError extends Error {
     /** A definition, or a binding, that does not follow the structure, failing at the location. */
     static structure(message, location) {
         return new DomqlError('structure', message, location);
+    }
+
+    /** A request that does not follow the vocabulary, failing at the location. */
+    static validation(message, location) {
+        return new DomqlError('validation', message, location);
+    }
+
+    /** A module whose declarations do not follow the declaration contract, failing at the location. */
+    static module(message, location) {
+        return new DomqlError('module', message, location);
     }
 
     /** The offset's line and column in the text. */
@@ -67,6 +79,14 @@ export class DomqlError extends Error {
 
         if (location.binding !== undefined) {
             parts.push(`in the binding '${location.binding}'`);
+        }
+
+        if (location.module !== undefined) {
+            parts.push(`in the module '${location.module}'`);
+        }
+
+        if (location.declaration !== undefined) {
+            parts.push(`in the declaration '${location.declaration}'`);
         }
 
         return parts.join(', ');
