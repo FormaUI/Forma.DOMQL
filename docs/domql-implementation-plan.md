@@ -34,14 +34,14 @@ State: **done.** Built in its recommended form by step 1.
 
 The design has a read wait for the first sample of every maintained member it reads, and a wait cannot be synchronous.
 
-- **Recommended:** `Domql.read` stays synchronous and fails with an evaluation error for a query that reads a maintained member, as it does today, naming the member. `Domql.readAsync(query, { signal, window })` answers a promise, waits for samples, and can be canceled; it also reads a query with no maintained member, so a caller can use it for every query.
-- **Guarantees of `readAsync`.**
+- **Chosen: `read` answers a promise, `readSync` answers the answer.** `Domql.read(query, { signal, window })` answers a promise, waits for the samples of every maintained member the query reads, and can be canceled. `Domql.readSync(query, options)` answers the data itself and fails with an evaluation error for a query that reads a maintained member, naming the member. The pair is named as Node names its own: `readFile` and `readFileSync`. The rule holds for every API: where an operation can wait, its plain name answers a promise and a synchronous form, where one exists, takes the suffix `Sync`. An operation that never waits, such as `parse`, `create`, `bind` and `resolve`, keeps its plain name and answers directly.
+- **Guarantees of `read`.**
   - Cancellation and failure dispose every session the read opened.
   - Waiting evaluates again as samples arrive and as dependencies change. It never answers while a maintained member the answer reads is still pending, including one that a later evaluation introduced.
   - The answer uses fresh reads and the samples available when the last evaluation ran. It does not promise that every measurement was taken at the same instant.
-- **Alternative:** `read` answers a promise for every query.
+- **Alternative:** `read` stays synchronous and a separate `readAsync` waits. It leaves the short name on the form that cannot read every query.
 
-The design's wording changes to the chosen names when this is settled. State: open. Needed by step 2.
+The specification, the design, the declarations, the READMEs and the tests change to these names with step 2. State: **accepted.** Needed by step 2.
 
 ### D3. The public API of a watch and a listener
 
@@ -84,10 +84,10 @@ Name the observations a declaration carries (D1), and build the layer that start
 
 ### 2. Dependencies and maintained members
 
-Record what an evaluation read, member by member and item by item, with each member's observations. Read maintained members from their observation's latest sample, pending until the first arrives, and build the waiting read.
+Record what an evaluation read, member by member and item by item, with each member's observations. Read maintained members from their observation's latest sample, pending until the first arrives, and build the waiting `read`, and rename the synchronous one `readSync`.
 
 - **Needs:** step 1, D2.
-- **Done when:** a query's dependencies are the ones the design lists, including those of expression arguments, of a path that met null and of a detached element; `intersects` reads in a real browser; `readAsync` waits for the first sample, evaluates again for a member a later evaluation introduces, and disposes its sessions on cancellation and on failure.
+- **Done when:** a query's dependencies are the ones the design lists, including those of expression arguments, of a path that met null and of a detached element; `intersects` reads in a real browser; `read` waits for the first sample, evaluates again for a member a later evaluation introduces, and disposes its sessions on cancellation and on failure.
 - **State:** not started.
 
 ### 3. Watches
