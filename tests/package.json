@@ -3,10 +3,14 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "test": "vitest run"
+        "test": "vitest run",
+        "test:browser": "vitest run --config vitest.browser.config.js"
     },
     "devDependencies": {
+        "@vitest/browser": "^3.2.7",
         "happy-dom": "^20.11.6",
+        "playwright": "^1.64.0",
+        "typescript": "^5.9.3",
         "vitest": "^3.2.4"
     }
 }
