@@ -1,0 +1,42 @@
+<Project>
+
+    <!--
+        DOMQL Build Targets
+
+        Runs after each project's own properties, so a condition here can read what a project set.
+    -->
+
+    <!-- Where a package comes from, as the feed shows it. -->
+    <PropertyGroup>
+        <Authors>Eyal Alon</Authors>
+        <Company>FormaUI</Company>
+        <PackageProjectUrl>https://github.com/FormaUI/Forma.DOMQL</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/FormaUI/Forma.DOMQL</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+
+    <!-- A package is named under the reserved prefix for its project without the product's own, formaui-net.DOMQL for Forma.DOMQL; the assembly, its namespace and its asset path keep the plain name. -->
+    <PropertyGroup Condition="'$(PackageId)' == '' and '$(IsPackable)' != 'false' and $(MSBuildProjectName.StartsWith('Forma.'))">
+        <PackageId>formaui-net.$(MSBuildProjectName.Substring(6))</PackageId>
+    </PropertyGroup>
+
+    <!-- Every project is licensed under Apache 2.0 and ships the root license and notice if it gets packed. -->
+    <PropertyGroup>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="$(MSBuildThisFileDirectory)NOTICE" Pack="true" PackagePath="\" Visible="false" />
+    </ItemGroup>
+
+    <!-- A project with a README beside it ships that as its package readme, unless it named a different one first. -->
+    <PropertyGroup Condition="'$(PackageReadmeFile)' == '' and Exists('$(MSBuildProjectDirectory)\README.md')">
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\README.md')">
+        <None Update="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+</Project>

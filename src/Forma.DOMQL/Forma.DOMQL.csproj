@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <StaticWebAssetBasePath>_content/Forma.DOMQL</StaticWebAssetBasePath>
+    </PropertyGroup>
+
+</Project>
