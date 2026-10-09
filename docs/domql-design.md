@@ -116,6 +116,18 @@ Domql.registerModule(new VirtualizerDomqlModule(Virtualizer));
 Domql.registerModule(new InputRouterDomqlModule(InputRouter));
 ```
 
+### Declarations
+
+A module is created with its declarations and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The core vocabulary is the module `core`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
+
+- **A declaration** names the member's DOMQL name, its builder name and the key of its function in the module's functions, each independent of the others; its kind, one of property, operation, source, action and behavior; the types it applies to; its parameters; its result type; and its observation coverage.
+- **A parameter** is a value or an expression. An expression is evaluated against each item of the list it follows and declares the type it produces. A parameter declares whether it is required, its default where it is not, and whether a null argument propagates, making the call answer null, or is accepted.
+- **A fixed parameter** names something the vocabulary resolves before any evaluation, and declares what it selects: a member, a predicate, an occurrence or a feature.
+- **Types, events, predicates and features** are contributed by modules as data: structured types with their fields, event types with the type of their occurrences, predicates under `is` or `has` with the types they apply to, and the features `supports` names.
+- **Observation coverage** states how a member changes (constant, observable, partly observable with the changes it misses, unobserved, or derived from its receiver and arguments) and how it reads (fresh, maintained, captured or derived).
+
+A request is prepared with `Domql.prepare`, which resolves every member against the registry, types the answer and records what each member resolved to, without a browser and without evaluating anything. A watch over a member that is unobserved is refused, and one over a partly observable member is refused unless it accepts partial observation.
+
 A module is given the capability it exposes, never an instance of it, since instances belong to the callers that establish them. A module exposes a capability through DOMQL without the capability depending on DOMQL: the capability keeps an API of its own, and its module lives beside it or in an integration package for it.
 
 - **The registry holds definitions.** One registry per document holds every registered module's declarations, shared by all its callers. The instances behaviors create, the subscriptions listening to them and the state of whoever established them are scoped to their callers, never to the registry.

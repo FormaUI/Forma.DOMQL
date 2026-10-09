@@ -13,6 +13,14 @@ export class ParsedTexts {
     /** Each kept text's definition, the least recently parsed first. @type {Map<string, object>} */
     static #definitions = new Map();
 
+    /** @type {WeakMap<object, TextLocations>} */
+    static #locations = new WeakMap();
+
+    /** Where in its text each part of the parsed definition came from, or null for a definition not parsed from text. */
+    static locationsOf(definition) {
+        return ParsedTexts.#locations.get(definition) ?? null;
+    }
+
     /** The validated, frozen definition the text parses into, kept for the next parse of the same text. */
     static parse(text) {
         const kept = ParsedTexts.#definitions.get(text);
@@ -25,7 +33,10 @@ export class ParsedTexts {
         }
 
         const { definition, spans } = new Parser(text).parse();
-        const validated = new DefinitionValidator(new TextLocations(text, definition, spans)).validate(definition);
+        const locations = new TextLocations(text, definition, spans);
+        const validated = new DefinitionValidator(locations).validate(definition);
+
+        ParsedTexts.#locations.set(validated, locations);
 
         ParsedTexts.#definitions.set(text, validated);
 

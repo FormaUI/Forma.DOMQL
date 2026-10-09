@@ -27,7 +27,7 @@ describe('Bundle', () => {
 
     it('is less than half the size of the sources it bundles', async () => {
         const sources = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'src');
-        const files = [join(sources, 'domql.js'), ...(await readdir(join(sources, 'language'))).map(name => join(sources, 'language', name))];
+        const files = (await readdir(sources, { recursive: true, withFileTypes: true })).filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name));
         const size = (await Promise.all(files.map(file => readFile(file, 'utf8')))).reduce((total, source) => total + source.length, 0);
 
         expect(text.length).toBeLessThan(size / 2);
