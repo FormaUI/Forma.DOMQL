@@ -36,6 +36,7 @@ The language knows only the DOM. It was designed beside the sibling **Forma** re
 ## Documentation
 
 - Do state in the specification what the language means, with examples that make the contract precise, and in the design how it runs; neither restates the other.
+- Do version the specification as major.minor.revision: raise the revision with every change to it, the minor when the language gains something compatible and the major when it breaks one; the design's title, `Specification.mjs` and the package's version follow in the same change, and the alignment test fails when they disagree. The package is `major.minor.0-preview.revision` while it is a preview, and `major.minor.patch` once it is not.
 - Do keep every example in the documents a valid query, parsed by the implementation.
 - Do say what a thing is in a comment or summary, never how or why.
 

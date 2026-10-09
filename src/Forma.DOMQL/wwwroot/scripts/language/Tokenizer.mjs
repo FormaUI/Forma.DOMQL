@@ -14,7 +14,7 @@ import { DomqlError } from './DomqlError.mjs';
 
 const PUNCTUATION = new Set(['@', '.', ',', ':', '(', ')', '{', '}']);
 const KEYWORDS = new Map([['true', true], ['false', false], ['null', null]]);
-const NAME = /[A-Za-z][A-Za-z0-9]*/y;
+const NAME = /[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*/y;
 const NUMBER = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
 const SPACE = /\s/;
 

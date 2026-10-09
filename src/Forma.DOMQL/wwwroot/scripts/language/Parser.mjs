@@ -3,6 +3,7 @@
  */
 
 import { DomqlError } from './DomqlError.mjs';
+import { Specification } from './Specification.mjs';
 import { Tokenizer } from './Tokenizer.mjs';
 
 /** @typedef {import('./Tokenizer.mjs').Token} Token */
@@ -33,7 +34,7 @@ export class Parser {
         const query = this.#parseValue();
         this.#expect('end');
 
-        return { definition: { version: 1, query }, spans: this.#spans };
+        return { definition: { version: Specification.definitionVersion, query }, spans: this.#spans };
     }
 
     #parseValue() {
@@ -75,6 +76,20 @@ export class Parser {
         }
     }
 
+    /** Reads a literal or a parameter reference, which takes no member after it: a dot continues from the call. */
+    #parseSimple() {
+        const token = this.#token;
+        this.#advance();
+
+        if (token.type === 'literal') {
+            return this.#span({ kind: 'literal', value: token.value }, token.start);
+        }
+
+        const name = this.#expect('name');
+
+        return this.#span({ kind: 'parameter', name: name.value }, token.start);
+    }
+
     #parseMember(target, start) {
         const name = this.#expect('name');
         const node = target ? { kind: 'member', target, name: name.value, arguments: [] } : { kind: 'member', name: name.value, arguments: [] };
@@ -82,12 +97,12 @@ export class Parser {
         if (this.#token.type === '(') {
             this.#advance();
             this.#parseList(')', () => node.arguments.push(this.#parseEntry()));
-        } else if (this.#token.type === 'literal') {
-            const literal = this.#token;
-            this.#advance();
-
-            const value = this.#span({ kind: 'literal', value: literal.value }, literal.start);
-            node.arguments.push(this.#span({ value }, literal.start));
+        } else {
+            // Arguments given without parentheses are literals and parameters alone, so where they end is decided by the text.
+            while (this.#token.type === 'literal' || this.#token.type === '@') {
+                const start = this.#token.start;
+                node.arguments.push(this.#span({ value: this.#parseSimple() }, start));
+            }
         }
 
         return this.#span(node, start);

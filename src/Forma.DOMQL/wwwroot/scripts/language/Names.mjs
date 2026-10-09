@@ -1,24 +1,20 @@
 /**
- * Names — DOMQL's names: how one is spelled, how two are compared, and the name a field infers
+ * Names — DOMQL's names: how one is spelled, and the name a field infers
  */
 
-const PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
+/** A letter followed by letters and digits, with single hyphens between them. */
+const PATTERN = /^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*$/;
 
-/** The literal tokens no name can be, in any case. */
+/** The literal tokens no name can be. */
 const RESERVED = new Set(['true', 'false', 'null']);
 
 /** The members that read a name from a string, whose field takes the name's last segment. */
 const READS = new Set(['get', 'is', 'has']);
 
 export class Names {
-    /** Whether the text is a name: a letter followed by letters and digits, and no reserved literal in any case. */
+    /** Whether the text is a name: a letter followed by letters and digits, with single hyphens between them, and no reserved literal. */
     static isName(text) {
-        return typeof text === 'string' && PATTERN.test(text) && !RESERVED.has(Names.fold(text));
-    }
-
-    /** The name in the one case names are compared in, folding ASCII letters alone. */
-    static fold(name) {
-        return name.replace(/[A-Z]/g, letter => letter.toLowerCase());
+        return typeof text === 'string' && PATTERN.test(text) && !RESERVED.has(text);
     }
 
     /** The name a field holding the value infers, as the definition spells it, or null where it infers none. */
@@ -31,7 +27,7 @@ export class Names {
             return null;
         }
 
-        return READS.has(Names.fold(value.name)) ? Names.#inferRead(value) : value.name;
+        return READS.has(value.name) ? Names.#inferRead(value) : value.name;
     }
 
     /** The last segment of the name a `get`, `is` or `has` reads by a literal; a bound name infers nothing. */

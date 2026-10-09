@@ -4,6 +4,8 @@
 
 import { DomqlError } from './DomqlError.mjs';
 import { Names } from './Names.mjs';
+import { TypeNotation } from './TypeNotation.mjs';
+import { TypedBinding } from './TypedBinding.mjs';
 
 /** The roots, predefined parameters no binding takes. */
 const ROOTS = new Set(['document', 'window']);
@@ -12,43 +14,74 @@ export class Bindings {
     /** @type {Map<string, unknown>} */
     #values = new Map();
 
-    /** @param {Record<string, unknown>} bindings Each parameter's name and the value it is bound to. */
+    /** @type {Map<string, import('./TypeNotation.mjs').Type>} */
+    #types = new Map();
+
+    /** @param {Record<string, unknown>} bindings Each parameter's name and the value it is bound to, or a typed binding of one. */
     constructor(bindings = {}) {
         if (!Bindings.#isPlainObject(bindings)) {
             throw DomqlError.structure('Bindings are a plain object of names and the values bound to them', {});
         }
 
-        for (const [name, value] of Object.entries(bindings)) {
+        for (const [name, binding] of Object.entries(bindings)) {
+            const isTyped = binding instanceof TypedBinding;
+            const value = isTyped ? binding.value : binding;
+
             if (!Names.isName(name)) {
-                throw DomqlError.structure('A binding is named as a parameter is, a letter followed by letters and digits, and never true, false or null in any case', { binding: name });
+                throw DomqlError.structure('A binding is named as a parameter is, a letter followed by letters and digits, with single hyphens between them, and never true, false or null', { binding: name });
             }
 
-            const folded = Names.fold(name);
-
-            if (ROOTS.has(folded)) {
+            if (ROOTS.has(name)) {
                 throw DomqlError.structure(`'${name}' names a root, which no binding takes`, { binding: name });
-            }
-
-            if (this.#values.has(folded)) {
-                throw DomqlError.structure(`Two bindings are named '${name}', differing at most in case`, { binding: name });
             }
 
             if (!Bindings.#isBindable(value, new Set())) {
                 throw DomqlError.structure('A binding is an element, or data: a number, a string, a Boolean, null, a list or an object', { binding: name });
             }
 
-            this.#values.set(folded, value);
+            this.#types.set(name, Bindings.#getType(name, value, isTyped ? binding.type : null));
+            this.#values.set(name, value);
         }
     }
 
-    /** Whether a value is bound to the name, matching regardless of case. */
+    /** Whether a value is bound to the name. */
     has(name) {
-        return this.#values.has(Names.fold(name));
+        return this.#values.has(name);
     }
 
-    /** The value bound to the name, matching regardless of case. */
+    /** The value bound to the name. */
     get(name) {
-        return this.#values.get(Names.fold(name));
+        return this.#values.get(name);
+    }
+
+    /** The type of the value bound to the name, which the value reveals or its binding declared. */
+    typeOf(name) {
+        return this.#types.get(name);
+    }
+
+    /** The value's type: the declared one where it fits every part of the value, else the one the value reveals. */
+    static #getType(name, value, declared) {
+        if (declared === null) {
+            const revealed = TypeNotation.infer(value);
+
+            if (revealed === null) {
+                throw DomqlError.structure('This value reveals no type, being null, an empty list or holding one; bind it with the type it has. A list of items of different types has none to declare, since DOMQL has no union types', { binding: name });
+            }
+
+            return revealed;
+        }
+
+        const type = TypeNotation.parse(declared);
+
+        if (type === null) {
+            throw DomqlError.structure(`'${declared}' is not a type a binding can declare: number, string, boolean, element, list<T> or { field: type }, each with an optional ?`, { binding: name });
+        }
+
+        if (!TypeNotation.fits(value, type)) {
+            throw DomqlError.structure(`The value does not fit the declared type '${declared}' in every part`, { binding: name });
+        }
+
+        return type;
     }
 
     static #isPlainObject(value) {
@@ -87,7 +120,7 @@ export class Bindings {
         }
 
         ancestors.add(value);
-        const isData = Object.values(value).every(item => Bindings.#isData(item, ancestors));
+        const isData = Object.values(value).every(item => Bindings.#isBindable(item, ancestors));
         ancestors.delete(value);
 
         return isData;

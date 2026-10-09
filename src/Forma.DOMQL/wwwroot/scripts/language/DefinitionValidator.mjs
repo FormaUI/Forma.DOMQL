@@ -4,6 +4,7 @@
 
 import { DomqlError } from './DomqlError.mjs';
 import { Names } from './Names.mjs';
+import { Specification } from './Specification.mjs';
 
 /** @typedef {import('./TextLocations.mjs').TextLocations} TextLocations */
 
@@ -32,11 +33,11 @@ export class DefinitionValidator {
     validate(definition) {
         this.#requireProperties(definition, '', { properties: ['version', 'query'], required: ['version', 'query'] });
 
-        if (definition.version !== 1) {
-            this.#fail('/version', 'A definition is of version 1');
+        if (definition.version !== Specification.definitionVersion) {
+            this.#fail('/version', `A definition is of version ${Specification.definitionVersion}`);
         }
 
-        return Object.freeze({ version: 1, query: this.#validateNode(definition.query, '/query', Scope.absent) });
+        return Object.freeze({ version: Specification.definitionVersion, query: this.#validateNode(definition.query, '/query', Scope.absent) });
     }
 
     #validateNode(node, pointer, scope) {
@@ -83,8 +84,8 @@ export class DefinitionValidator {
 
         let isNamed = false;
 
-        /** @type {Map<string, string>} */
-        const argumentNames = new Map();
+        /** @type {Set<string>} */
+        const argumentNames = new Set();
 
         const entries = node.arguments.map((argument, index) => {
             const argumentPointer = `${pointer}/arguments/${index}`;
@@ -94,13 +95,11 @@ export class DefinitionValidator {
                 this.#requireName(argument.name, `${argumentPointer}/name`);
                 isNamed = true;
 
-                const folded = Names.fold(argument.name);
-
-                if (argumentNames.has(folded)) {
-                    this.#fail(argumentPointer, `Two arguments of one call are named '${argumentNames.get(folded)}' and '${argument.name}', which differ at most in case`);
+                if (argumentNames.has(argument.name)) {
+                    this.#fail(argumentPointer, `Two arguments of one call are named '${argument.name}'`);
                 }
 
-                argumentNames.set(folded, argument.name);
+                argumentNames.add(argument.name);
             } else if (isNamed) {
                 this.#fail(argumentPointer, 'Arguments given by position come before those given by name');
             }
@@ -126,8 +125,8 @@ export class DefinitionValidator {
 
         const fieldScope = target === undefined ? scope : Scope.present;
 
-        /** @type {Map<string, string>} */
-        const names = new Map();
+        /** @type {Set<string>} */
+        const names = new Set();
 
         const fields = node.fields.map((field, index) => {
             const fieldPointer = `${pointer}/fields/${index}`;
@@ -144,13 +143,11 @@ export class DefinitionValidator {
                 this.#fail(fieldPointer, 'This field infers no name and takes one of its own: a parameter, a literal or a shape alone names nothing, and nor does a get, is or has of a bound name');
             }
 
-            const folded = Names.fold(name);
-
-            if (names.has(folded)) {
-                this.#fail(fieldPointer, `Two fields of one shape are named '${names.get(folded)}' and '${name}', which differ at most in case`);
+            if (names.has(name)) {
+                this.#fail(fieldPointer, `Two fields of one shape are named '${name}'`);
             }
 
-            names.set(folded, name);
+            names.add(name);
 
             return Object.freeze(field.name === undefined ? { value } : { name: field.name, value });
         });
@@ -186,7 +183,7 @@ export class DefinitionValidator {
 
     #requireName(value, pointer) {
         if (!Names.isName(value)) {
-            this.#fail(pointer, 'A name is a letter followed by letters and digits, and never true, false or null in any case');
+            this.#fail(pointer, 'A name is a letter followed by letters and digits, with single hyphens between them, and never true, false or null');
         }
     }
 
