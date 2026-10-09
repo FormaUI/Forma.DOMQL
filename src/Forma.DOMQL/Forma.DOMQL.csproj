@@ -1,7 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
         <StaticWebAssetBasePath>_content/Forma.DOMQL</StaticWebAssetBasePath>
     </PropertyGroup>
+
+    <!-- The package a host references; the assembly and its asset path keep the project's name. -->
+    <PropertyGroup>
+        <IsPackable>true</IsPackable>
+        <PackageId>formaui-net.DOMQL</PackageId>
+        <Version>1.0.0-preview.1</Version>
+        <Authors>Eyal Alon</Authors>
+        <Description>DOMQL is an extensible language for querying browser state and events. Read state once, watch for changes, or project event data through a unified query model.</Description>
+        <PackageTags>domql;dom;query;language;csharp;javascript;dotnet;browser;forma;formaui</PackageTags>
+        <PackageProjectUrl>https://github.com/FormaUI/Forma.DOMQL</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/FormaUI/Forma.DOMQL</RepositoryUrl>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="..\..\NOTICE" Pack="true" PackagePath="\" Visible="false" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
 </Project>
