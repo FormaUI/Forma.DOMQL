@@ -6,7 +6,7 @@ import { DomqlError } from './DomqlError.mjs';
 import { Names } from './Names.mjs';
 
 /** The roots, predefined parameters no binding takes. */
-const ROOTS = new Set(['document', 'page']);
+const ROOTS = new Set(['document', 'window']);
 
 export class Bindings {
     /** @type {Map<string, unknown>} */

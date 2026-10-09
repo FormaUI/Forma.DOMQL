@@ -7,6 +7,9 @@ const PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
 /** The literal tokens no name can be, in any case. */
 const RESERVED = new Set(['true', 'false', 'null']);
 
+/** The members that read a name from a string, whose field takes the name's last segment. */
+const READS = new Set(['get', 'is', 'has']);
+
 export class Names {
     /** Whether the text is a name: a letter followed by letters and digits, and no reserved literal in any case. */
     static isName(text) {
@@ -28,10 +31,10 @@ export class Names {
             return null;
         }
 
-        return Names.fold(value.name) === 'get' ? Names.#inferRead(value) : value.name;
+        return READS.has(Names.fold(value.name)) ? Names.#inferRead(value) : value.name;
     }
 
-    /** The last member of the path a `get` reads by a literal name; a bound name infers nothing. */
+    /** The last segment of the name a `get`, `is` or `has` reads by a literal; a bound name infers nothing. */
     static #inferRead(read) {
         const [argument] = read.arguments;
 

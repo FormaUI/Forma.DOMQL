@@ -154,7 +154,11 @@ describe('Domql', () => {
             ['a field holding a parameter alone', '{ @panel }', '/query/fields/0'],
             ['a field holding a literal alone', '@panel { "list" }', '/query/fields/0'],
             ['a field ending in a get of a bound name', '@target { get(@name) }', '/query/fields/0'],
+            ['a field ending in an is of a bound name', '@target { is(@name) }', '/query/fields/0'],
+            ['a field ending in a has of a bound name', '@target { has(@name) }', '/query/fields/0'],
+            ['a predicate inferring the name another field is written with', '@target { disabled: size, is "disabled" }', '/query/fields/1'],
             ['a positional argument after a named one', '@target.rect(relativeTo: @other, 1)', '/query/arguments/1'],
+            ['two named arguments differing only in case', '@sentinel.intersects(root: @panel, ROOT: @other)', '/query/arguments/1'],
             ['a path at the top level starting with a member', 'rect.width', '/query/target'],
             ['a field of a top-level shape starting with a member', '{ width: rect.width }', '/query/fields/0/value/target'],
             ['a reserved literal in another case naming a member', '@panel.NULL', '/query/name'],
@@ -170,6 +174,13 @@ describe('Domql', () => {
 
         it('keeps a reserved word inside a string as an ordinary string', () => {
             expect(Domql.parse('@target.attribute "null"').definition.query.arguments[0].value).toEqual(literal('null'));
+        });
+
+        it('lets get, is and has infer the last segment of the name they read', () => {
+            const { definition } = Domql.parse('@target { is "disabled", is "readOnly", has "children", get "grid.columns", is "scroll.atEnd" }');
+
+            expect(definition.query.fields.map(field => field.name)).toEqual([undefined, undefined, undefined, undefined, undefined]);
+            expect(() => Domql.parse('@target { is "disabled", is "Disabled" }')).toThrow(/differ at most in case/);
         });
 
         it('accepts a field continuing past a get of a bound name', () => {
@@ -243,7 +254,7 @@ describe('Domql', () => {
 
         it.each([
             ['a root', { Document: 1 }],
-            ['the page in any case', { PAGE: 1 }],
+            ['the window in any case', { WINDOW: 1 }],
             ['two names differing only in case', { panel: 1, Panel: 2 }],
             ['a name that is no name', { 'my-panel': 1 }],
             ['a reserved literal in any case', { Null: 1 }],

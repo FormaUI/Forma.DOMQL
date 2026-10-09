@@ -83,6 +83,9 @@ export class DefinitionValidator {
 
         let isNamed = false;
 
+        /** @type {Map<string, string>} */
+        const argumentNames = new Map();
+
         const entries = node.arguments.map((argument, index) => {
             const argumentPointer = `${pointer}/arguments/${index}`;
             this.#requireProperties(argument, argumentPointer, ENTRY);
@@ -90,6 +93,14 @@ export class DefinitionValidator {
             if (argument.name !== undefined) {
                 this.#requireName(argument.name, `${argumentPointer}/name`);
                 isNamed = true;
+
+                const folded = Names.fold(argument.name);
+
+                if (argumentNames.has(folded)) {
+                    this.#fail(argumentPointer, `Two arguments of one call are named '${argumentNames.get(folded)}' and '${argument.name}', which differ at most in case`);
+                }
+
+                argumentNames.set(folded, argument.name);
             } else if (isNamed) {
                 this.#fail(argumentPointer, 'Arguments given by position come before those given by name');
             }
@@ -130,7 +141,7 @@ export class DefinitionValidator {
             const name = field.name ?? Names.inferField(value);
 
             if (name === null) {
-                this.#fail(fieldPointer, 'This field infers no name and takes one of its own: a parameter, a literal or a shape alone names nothing, and nor does a get of a bound name');
+                this.#fail(fieldPointer, 'This field infers no name and takes one of its own: a parameter, a literal or a shape alone names nothing, and nor does a get, is or has of a bound name');
             }
 
             const folded = Names.fold(name);

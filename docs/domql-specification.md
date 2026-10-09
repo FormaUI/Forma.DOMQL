@@ -22,7 +22,7 @@ field     = [ name ":" ] value
 literal   = string | number | "true" | "false" | "null"
 ```
 
-A name is a letter followed by letters and digits. `true`, `false` and `null` are reserved literal tokens and cannot be used as names, regardless of ASCII case; the restriction applies equally to text queries and to definitions created directly, wherever a name is declared or supplied: a member, a parameter, a field's name, a named argument, and an extension's or a predicate's declaration. A string holding one of them stays an ordinary string, so `attribute "null"` reads the attribute named `null`. A string is double-quoted, with `\"` and `\\` as its escapes. A number is written as in JSON. Commas separate a shape's fields and a member's arguments, and a trailing comma after the last is allowed; whitespace, line breaks included, separates anything else. Outside a string, `//` starts a comment that runs to the end of its line, and `/*` starts one that runs to the next `*/`, across lines; a block comment does not nest, so the first `*/` closes it, and one never closed is a syntax error. Inside a string both are text, so `"https://example.com"` and `"/* */"` read as written.
+A name is a letter followed by letters and digits. `true`, `false` and `null` are reserved literal tokens and cannot be used as names, regardless of ASCII case; the restriction applies equally to text queries and to definitions created directly, wherever a name is declared or supplied: a member, a parameter, a field's name, a named argument, and an extension's or a predicate's declaration. A string holding one of them stays an ordinary string, so `attribute "null"` reads the attribute named `null`. `document` and `window` name the roots, and no parameter can take either, in any case. They are ordinary names everywhere else, so `window: @window { size }` names a field `window`. A string is double-quoted, with `\"` and `\\` as its escapes. A number is written as in JSON. Commas separate a shape's fields and a member's arguments, and a trailing comma after the last is allowed; whitespace, line breaks included, separates anything else. Outside a string, `//` starts a comment that runs to the end of its line, and `/*` starts one that runs to the next `*/`, across lines; a block comment does not nest, so the first `*/` closes it, and one never closed is a syntax error. Inside a string both are text, so `"https://example.com"` and `"/* */"` read as written.
 
 ```
 @viewport {
@@ -45,7 +45,7 @@ A path is evaluated against a **current value**. A bare name is always a member 
 - **Inside a shape**, the current value is the value the shape follows: in `@viewport { rect.width }`, `rect` is the viewport's. A shape at the top level, `{ anchor: @anchor.rect, open: @popup.matches(":popover-open") }`, has no current value, so each of its fields starts with a parameter, a literal or a shape.
 - **A shape following no value** keeps the current value around it, so it groups fields: in `@panel { layout: { width: size.width, height: size.height } }`, `size` is the panel's. At the top level that value is absent.
 - **Parameters** resolve the same way everywhere, inside shapes and arguments alike. A parameter's value is an element, or data: a number, a string, a Boolean, null, a list or an object, as a behavior's configuration is.
-- **The roots** are predefined parameters: `@document` is the document and `@page` is the browser window, its layout viewport and what it supports. A supplied parameter cannot take either name.
+- **The roots** are predefined parameters: `@document` is the document and `@window` is the browser window, its layout viewport and what it supports. A supplied parameter cannot take either name.
 
 ### Arguments
 
@@ -60,13 +60,14 @@ Because the kind is part of the signature, the evaluator validates every kind be
 
 ### Case-insensitive names
 
-Every name DOMQL resolves matches regardless of ASCII case, as an HTML attribute's does: a member, a predicate, a name `get` reads, an extension's namespace and a parameter each resolve whatever their case, and each segment of a member path folds by the same rule. A string is folded only where a member resolves it as a name, as `get` and `is` do. `rect`, `Rect` and `get "RECT"` read one member, and `is "scroll.atEnd"` and `is "scroll.atend"` ask one question, the namespace included.
+Every name DOMQL resolves matches regardless of ASCII case, as an HTML attribute's does, the same in every language and culture: a member, a named argument, an extension's namespace and a parameter each resolve whatever their case, and each segment of a member path folds by the same rule. A string a member interprets as a DOMQL name follows that rule too, as the names `get`, `is` and `has` read do. `rect`, `Rect` and `get "RECT"` read one member, `get "GRID.Columns"` reads `grid.columns`, `is "Visible"` and `has "Children"` ask the questions `is "visible"` and `has "children"` do, and `is "scroll.atEnd"` and `is "scroll.atend"` ask one question, the namespace included.
 
 - **Definitions keep what was written.** A definition records every name as the text or the builder gave it, and whether each field's name was written or is to be inferred.
-- **Names never differ by case alone.** Two declarations on one type whose names differ only in case are an error, and so are two bindings of one request, or two fields of one shape.
+- **Names never differ by case alone.** Two declarations on one type whose names differ only in case are an error, and so are two bindings of one request, two fields of one shape, or two named arguments of one call: `root:` and `ROOT:` cannot both be supplied.
+- **A field's name is a label, not a resolved name.** DOMQL looks up members, predicates, parameters and the names `get` reads, so those match whatever their case. It looks up no field name: the author chooses it, and it becomes a key in the answer. An explicit field name keeps its spelling in the answer, while its uniqueness is checked without regard to ASCII case, so `panel` and `Panel` in one shape are an error when the query is created. `nearend: @sentinel.intersects(root: @panel)` and `nearEnd: @sentinel.intersects(root: @panel)` are each valid, answering the keys `nearend` and `nearEnd`, and a consumer of the answer reads the key by the spelling it was written with. How a consumer matches keys to its own members is its own, and [the design](domql-design.md) sets out the one for C#.
 - **Answers keep the query's spelling.** A field keeps the name it was written with. A field whose name is inferred takes, when the query is prepared, the spelling its member is declared with: `@target { bounds: get "RECT", get "CLIENTSIZE" }` keeps `RECT`, `CLIENTSIZE` and `bounds` in its definition and answers the fields `bounds` and `clientSize`.
 
-A string a member hands to the browser, such as a selector, an attribute's name or value, or an event type, keeps the browser's own rules for its case.
+DOMQL preserves ordinary string values exactly: `kind: "List"` answers `List`. When a value is passed to a browser API, such as a selector, an attribute's name or value, or an event type, that API's own case rules apply. Only a string explicitly interpreted as a DOMQL name follows DOMQL's name-resolution rules.
 
 ## Values
 
@@ -76,7 +77,7 @@ An answer is data: numbers, strings, Booleans, null, lists and shaped objects. A
 
 ### Shapes
 
-- A field takes the name given before its colon, or, with none, the name of the last member in its path, so `rect.width` is `width` and `all("tr") { … }` is `all`; a `get` takes the name of the member it reads, as the section on reading by name sets out; `is "disabled"` is `is`, so two predicates in one shape each take a name.
+- A field takes the name given before its colon, or, with none, the name of the last member in its path, so `rect.width` is `width` and `all("tr") { … }` is `all`; a `get`, `is` or `has` takes the name of the last segment of the name it reads, as the section on reading by name sets out, so `is "disabled"` is `disabled`, `has "children"` is `children` and `is "scroll.atEnd"` is `atEnd`.
 - A field whose path follows no member, a parameter, a literal or a shape on its own or followed by a shape, has no name to take and requires one.
 - Two fields of one shape whose names differ at most in case are an error when the query is created, and so is an empty shape.
 - An answer keeps its fields in the order the shape names them.
@@ -192,10 +193,10 @@ The core vocabulary uses familiar browser concepts, stated in CSS pixels where i
 
 | Available on | Member | Result |
 | --- | --- | --- |
-| Page | `size` | The layout viewport's size |
-| Page | `devicePixelRatio` | A number |
-| Page | `matchesMedia(query)` | A Boolean |
-| Page | `supports(feature)` | A Boolean |
+| Window | `size` | The layout viewport's size |
+| Window | `devicePixelRatio` | A number |
+| Window | `matchesMedia(query)` | A Boolean |
+| Window | `supports(feature)` | A Boolean |
 | Document | `is(predicate)`, `has(predicate)` | A Boolean, as the predicate defines |
 | Element | `rect`, `rect(relativeTo: …)` | A rectangle in the requested coordinate space |
 | Element | `size` | Its border box's size |
@@ -213,7 +214,7 @@ The core vocabulary uses familiar browser concepts, stated in CSS pixels where i
 | Element | `all(selector)` | The matching descendants |
 | Element | `children` | Its child elements |
 | Element | `parent` | Its parent element |
-| Element, document, page | `events(type)` | An occurrence source |
+| Element, document, window | `events(type)` | An occurrence source |
 | Any value with members | `get(name)` | The value of the member, or member path, the name names |
 | List | `count`, `first`, `last`, `at(index)` | A count or an item |
 | List | `max(expression)`, `min(expression)`, `sum(expression)` | An aggregate value |
@@ -221,9 +222,9 @@ The core vocabulary uses familiar browser concepts, stated in CSS pixels where i
 
 `is "focused"` asks whether the element itself is focused, `matches(":focus-within")` whether focus is anywhere within it, and an extension can offer richer focus semantics under names of its own; they are separate questions with separate names.
 
-`is "readOnly"` and `is "texteditable"` are separate questions too, and neither is the other's opposite:
+`is "readOnly"` and `is "textEditable"` are separate questions too, and neither is the other's opposite:
 
-| Element | `is "readOnly"` | `is "texteditable"` |
+| Element | `is "readOnly"` | `is "textEditable"` |
 | --- | --- | --- |
 | An enabled, writable text input | false | true |
 | A read-only text input | true | false |
@@ -237,7 +238,7 @@ Each member's contract states what it answers, how its result changes, how it re
 
 | Member | Answers | Changes | Reads | Fixed |
 | --- | --- | --- | --- | --- |
-| Page `size` | The layout viewport's `width` and `height` | Observable | Fresh | |
+| Window `size` | The layout viewport's `width` and `height` | Observable | Fresh | |
 | `devicePixelRatio` | Device pixels per CSS pixel | Observable | Fresh | |
 | `matchesMedia(query)` | Whether the media query matches | Observable | Fresh | |
 | `supports(feature)` | Whether the browser offers a feature from the vocabulary's registered list, such as `"share"`; a name not on the list is a validation error | Constant | Fresh | `feature` |
@@ -248,7 +249,7 @@ Each member's contract states what it answers, how its result changes, how it re
 | `computedStyle(property)` | The property's computed value, custom properties included | Partly observable: its own size and attributes are observed, rules matching from elsewhere are not | Fresh | |
 | `grid.columns` | The sizes of its grid's column tracks, an empty list for an element that is no grid | Partly observable, as `computedStyle` | Fresh | |
 | `selection` | Its selection's `start` and `end` | Partly observable: input and selection events are observed, assignments by script are not | Fresh | |
-| `intersects(root, margin)` | Whether the browser's intersection observation reports it intersecting the root, or the page without a root, grown by the margin, with its ancestors' clipping applied as the browser applies it | Observable | Maintained | |
+| `intersects(root, margin)` | Whether the browser's intersection observation reports it intersecting the root, or the window without a root, grown by the margin, with its ancestors' clipping applied as the browser applies it | Observable | Maintained | |
 | `overlaps(other, margin)` | Whether its border box overlaps the other's, grown by the margin, compared as rectangles | Partly observable, as `rect` | Fresh | |
 | `matches(selector)` | Whether it matches the selector | Partly observable: attributes, structure, focus and popovers' open state are observed; pointer state such as `:hover` and control state such as `:checked` are not | Fresh | |
 | `closest(selector)`, `first(selector)`, `all(selector)` | The nearest matching ancestor, itself included; the first matching descendant; the matching descendants, in document order | Partly observable, as `matches` | Fresh | |
@@ -266,8 +267,8 @@ Each member's contract states what it answers, how its result changes, how it re
 | --- | --- | --- | --- | --- |
 | `is "attached"` | An element | Whether the element is attached to the document, including through a shadow root | Observable, through the structure of the document and of every shadow root between the element and the document | Fresh |
 | `is "disabled"` | An element | Whether the element matches `:disabled`, as the browser decides it: by its own `disabled` attribute, a disabled ancestor `fieldset` other than through that fieldset's first `legend`, or a disabled `optgroup` holding an `option`; whether it carries a `disabled` attribute is `attribute "disabled"`, a separate question | Observable: its own and its ancestors' `disabled` attributes and the structure between them | Fresh |
-| `is "readOnly"` | An element | Whether native `readonly` applies to the control and is set: a text area, or an input of a type `readonly` applies to, such as `text`, `email`, `number` or `date`; any other element answers false, whatever its attributes | Observable: its `readonly` and `type` attributes | Fresh |
-| `is "texteditable"` | An element | Whether the element supports text editing and its current state permits it: a text area, or an input of a type that takes typed text, such as `text`, `search`, `email` or `number`, that is neither disabled nor read-only; or an element whose content is editable, by its own or an ancestor's `contenteditable` or the document's design mode | Partly observable: its `type`, `disabled` and `readonly` attributes, the `contenteditable` attributes of it and its ancestors, and the structure between them are observed; the document's design mode is not | Fresh |
+| `is "readOnly"` | An element | Whether native `readonly` applies to the control and is set: a text area, or an input whose type is `text`, `search`, `url`, `tel`, `email`, `password`, `date`, `month`, `week`, `time`, `datetime-local` or `number`; any other element answers false, whatever its attributes | Observable: its `readonly` and `type` attributes | Fresh |
+| `is "textEditable"` | An element | Whether the element supports text editing and its current state permits it: a text area, or an input whose type is `text`, `search`, `url`, `tel`, `email`, `password` or `number`, that is neither disabled nor read-only; or an element whose content is editable, by its own or an ancestor's `contenteditable` of `true` or `plaintext-only`, or by the document's design mode. An element that is inert, itself or through an ancestor, is not text editable | Partly observable: everything `is "disabled"` observes, the `readonly` and `type` attributes, the `contenteditable` and `inert` attributes of the element and its ancestors, and the structure between them are observed; the document's design mode is not | Fresh |
 | `is "focused"` | An element | Whether it is the focused element | Observable | Fresh |
 | `is "visible"` | The document | Whether the document is visible | Observable | Fresh |
 | `has "children"` | An element | Whether it has at least one child element | Observable, through its child list | Fresh |
@@ -291,12 +292,12 @@ This answers the fields `rect`, `clientSize`, `disabled` and `hasChildren`. The 
 
 ```
 {
-    page: @page { get "devicePixelRatio" },
+    window: @window { get "devicePixelRatio" },
     input: @input { get "selection" }
 }
 ```
 
-- **Names.** Without a name of its own, a `get` field takes the name of the last member its path names: `get "rect"` is `rect` and `get "grid.columns"` is `columns`. A field naming itself, as `bounds: get "rect"` does, keeps that name, and two fields of one shape whose names differ at most in case remain an error.
+- **Names.** Without a name of its own, a `get`, `is` or `has` field takes the name of the last segment of the name it reads, in the spelling the vocabulary declares: `get "rect"` is `rect`, `get "grid.columns"` is `columns`, `is "disabled"` is `disabled` and `has "children"` is `children`. A name that arrives through a bound parameter cannot be known when the query is created, so a field ending in one takes a name of its own. A field naming itself, as `bounds: get "rect"` does, keeps that name, and two fields of one shape whose names differ at most in case remain an error.
 - **Continuing.** A member after a `get` continues from the value it read, so `get "rect".width` is `rect.width` and takes the name `width`; a shape after it shapes that value, so `get "rect" { width, height }` is the field `rect` holding them.
 - **Readable members only.** A `get` reads a member that takes no arguments, or none it requires; an action, a behavior or an occurrence source it names is a validation error, so a `get` never acts.
 - **Fixed names.** The name is fixed, a literal or a bound parameter settled when the query is prepared, and a field whose path ends in a `get` with a bound name takes a name of its own, since none can be inferred when its definition is created; `get(@name).width` still takes the name `width`.
@@ -317,14 +318,14 @@ An extension can define types of its own, occurrence sources, actions and behavi
 
 ## Definition
 
-A query's **definition** is a JSON document recording its meaning: every query, parsed from text, built fluently or created directly, is one definition, and preparation, validation and evaluation work on the definition alone. It records what the text means, never its punctuation, and comments, commas, the one-literal shorthand and inferred names leave no trace in it.
+A query's **definition** is a JSON document recording its meaning: every query, parsed from text, built fluently or created directly, is one definition, and preparation, validation and evaluation work on the definition alone. It records what the text means, never its punctuation, and comments, commas and the one-literal shorthand leave no trace in it.
 
 A document holds the definition's `version` and the `query` node. Each node is an object whose `kind` says what it is:
 
 | Kind | Properties | Records |
 | --- | --- | --- |
 | `literal` | `value`, a JSON string, number, Boolean or null | A literal |
-| `parameter` | `name` | A parameter, the roots `document` and `page` included |
+| `parameter` | `name` | A parameter, the roots `document` and `window` included |
 | `member` | `name`, `arguments`, and `target`, the node whose value the member belongs to | A member; without a target, a member of the current value |
 | `shape` | `fields`, and `target`, the node the shape follows | A shape; without a target, a shape keeping the current value around it, which at the top level is absent |
 
@@ -361,14 +362,14 @@ A definition names its parameters and never holds their values. An element is bo
 
 A query is validated in two stages, both before any evaluation.
 
-- **Structure,** when the query is created: the definition follows the shape a published JSON Schema describes, and keeps the language's own rules, which need no vocabulary: field names unique within a shape regardless of case, written and inferred names alike; no shape empty; positional arguments before named ones; no path at the top level, nor a field of a shape there, starting with a member, since there is no current value for it to belong to; and no binding supplied under the name `document` or `page` in any case. An inferred name is compared in the spelling the text gives it, since its declared spelling differs from that at most in case. Text that does not follow the syntax fails here as a syntax error.
+- **Structure,** when the query is created: the definition follows the shape a published JSON Schema describes, and keeps the language's own rules, which need no vocabulary: field names unique within a shape regardless of case, written and inferred names alike; no shape empty; positional arguments before named ones, and no two named arguments of one call differing at most in case; no path at the top level, nor a field of a shape there, starting with a member, since there is no current value for it to belong to; and no binding supplied under the name `document` or `window` in any case. An inferred name is compared in the spelling the text gives it, since its declared spelling differs from that at most in case. Text that does not follow the syntax fails here as a syntax error.
 - **Vocabulary,** when the query is prepared: every member and extension exists, every argument has the type and kind its signature declares, every fixed argument is a literal or a bound parameter, every member path a `get` names resolves to a readable member, every expression is valid in the context its member declares, the request is used as its kind, the answer holds only data, and a watch's members can be watched.
 
 A failure in either stage names where it is: its position in the text, or its node's location in the definition, as a JSON Pointer.
 
 ## What a query runs against
 
-A query is evaluated against a document, with each parameter it names bound to something in that document or to plain data. `@panel` is not found by the query: it stands for the element the caller bound under the name `panel`, which is how a query reaches a particular element without a selector for it. A query that names `@panel` and `@sentinel` is given those two elements, and fails to prepare when either is not bound. The roots `@document` and `@page` need no binding, since they are always the document being queried and its window.
+A query is evaluated against a document, with each parameter it names bound to something in that document or to plain data. `@panel` is not found by the query: it stands for the element the caller bound under the name `panel`, which is how a query reaches a particular element without a selector for it. A query that names `@panel` and `@sentinel` is given those two elements, and fails to prepare when either is not bound. The roots `@document` and `@window` need no binding, since they are always the document being queried and its window.
 
 Conceptually, a caller supplies the query's text and the bindings, and gets back an answer shaped like the query:
 
@@ -376,11 +377,13 @@ Conceptually, a caller supplies the query's text and the bindings, and gets back
 answer = evaluate(query, bindings: { panel: <the list panel>, sentinel: <the end marker> })
 ```
 
-A caller can take that answer once, keep it current as the document changes, or take one at each occurrence of an event the query listens to; how it asks for each is the [design](domql-design.md)'s to say. The query itself is the same in all three.
+The bindings name only what the caller chooses. The complete query below also uses `@document` and `@window`, which are absent from them because they are the document the query runs against and its window, so no caller chooses them and none can bind them.
+
+A caller can take that answer once, keep it current as the document changes, or take one at each occurrence of an event the query listens to; how it asks for each is the [design](domql-design.md)'s to say. A value query is read or watched alike; listening needs an occurrence source, whose projection uses the same expression language.
 
 ## A complete query
 
-A list panel asks, in one query, how it is laid out, what it holds, what is in view and what the page around it is doing. The document it is asked of holds a panel of three items, the second selected, and an end marker below them, bound as `panel` and `sentinel`:
+A list panel asks, in one query, how it is laid out, what it holds, what is in view and what the window around it is doing. The document it is asked of holds a panel of three items, the second selected, and an end marker below them, bound as `panel` and `sentinel`:
 
 ```html
 <div id="panel" style="display: grid; grid-template-columns: repeat(3, 1fr)">
@@ -394,7 +397,7 @@ A list panel asks, in one query, how it is laid out, what it holds, what is in v
 The query reads it:
 
 ```
-/* A list panel, its items and the page around it. */
+/* A list panel, its items and the window around it. */
 {
     // The panel itself.
     panel: @panel {
@@ -417,8 +420,8 @@ The query reads it:
     nearEnd: @sentinel.intersects(root: @panel, margin: 200),
     current: @panel.first("[aria-selected=true]").attribute("data-key"),
 
-    // The page around it.
-    page: @page { size, dark: matchesMedia("(prefers-color-scheme: dark)") },
+    // The window around it.
+    window: @window { size, dark: matchesMedia("(prefers-color-scheme: dark)") },
     visible: @document.is "visible",
     kind: "list"
 }
@@ -438,7 +441,7 @@ Its answer, with three items and the second selected:
   "tallest": 64,
   "nearEnd": false,
   "current": "a2",
-  "page": { "size": { "width": 1280, "height": 800 }, "dark": true },
+  "window": { "size": { "width": 1280, "height": 800 }, "dark": true },
   "visible": true,
   "kind": "list"
 }
@@ -458,6 +461,6 @@ With no item selected, `current` is null. With an empty panel, `items` is an emp
 | Each column's key and width | `@table.all("[data-column]") { key: attribute("data-column"), width: rect.width }` |
 | A panel's size, and whether focus is within it | `@panel { size, hasFocus: matches(":focus-within") }` |
 | A text field's selection | `@field.selection { start, end }` |
-| Whether sharing is available | `@page.supports("share")` |
-| The ids of the text-editable elements in a panel | `@panel.all("*").where(is "texteditable") { id: attribute "id" }` |
+| Whether sharing is available | `@window.supports("share")` |
+| The ids of the text-editable elements in a panel | `@panel.all("*").where(is "textEditable") { id: attribute "id" }` |
 | An element's states and what it holds | `@target { attached: is "attached", disabled: is "disabled", hasChildren: has "children", hasSelection: has "selection" }` |
