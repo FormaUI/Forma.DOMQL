@@ -18,7 +18,7 @@ npm test
 
 ## Check a change
 
-`./build.ps1` is the gate. It runs the tests, bundles `src/`, builds the package project with no warnings and checks the formatting. A change is ready when the gate passes. CI runs the gate, with the browser tests, on Linux and on Windows for every push to `main` and every pull request.
+`./build.ps1` is the gate. It runs the tests, bundles `src/`, builds the package project with no warnings and checks the formatting. A change is ready when the gate passes. CI runs the gate, with the browser tests, on Linux for every push to `main` and every pull request.
 
 - Add or change a test for every module you add or change. Tests live in `tests/`, mirror the folders of `src/`, and test through the public API, `Domql`.
 - Give a test that registers a module its own `ModuleRegistry`, or its own copy of `Domql`, so tests pass in any order.

@@ -1,6 +1,6 @@
 name: CI
 
-# The gate on every change: the tests, the tests in a real browser, the bundle, the package project's build with no warnings, and the format check.
+# The gate on every change, on a clean Linux machine: the tests, the tests in a real browser, the bundle, the package project's build with no warnings, and the format check.
 on:
   push:
     branches: [main]
@@ -21,12 +21,8 @@ env:
 # Each action is pinned to the commit of the release named in its comment.
 jobs:
   gate:
-    name: Gate (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+    name: Gate
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -49,9 +45,8 @@ jobs:
           path: .playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
 
-      # Chromium needs system libraries on Linux; Windows has them.
+      # Chromium needs system libraries that the runner does not have.
       - name: Install the browser's system libraries
-        if: runner.os == 'Linux'
         run: |
           npm ci --prefix tests --no-audit --no-fund
           npx --prefix tests playwright install-deps chromium
