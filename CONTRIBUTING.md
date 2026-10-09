@@ -4,7 +4,7 @@ Thank you for taking an interest in DOMQL. This page says how a change is made a
 
 ## Before you start
 
-Open an issue first for anything beyond a small fix, so the change can be discussed before work goes into it. A change to the language itself starts in the [specification](docs/domql-specification.md), which is authoritative: the code follows it, and a change that the specification does not describe is not a change to the language. How DOMQL runs is the [design](docs/domql-design.md)'s concern. The [README](README.md#current-scope) lists what is built and what is planned.
+Open an issue first for anything beyond a small fix, so the change can be discussed before work goes into it. A change to the language itself starts in the [specification](docs/domql-specification.md), which is authoritative: the code follows it, and a change that the specification does not describe is not a change to the language. How DOMQL runs is the [design](docs/domql-design.md)'s concern. The [README](README.md#current-scope) lists what is built and what is planned, and the [implementation plan](docs/domql-implementation-plan.md) says in what order the rest is built and which decisions are open.
 
 ## Set up
 

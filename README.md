@@ -38,6 +38,7 @@ A declaration can describe a capability before its runtime support exists. Succe
 - The [package README](nuget/README.md) teaches the library: loading it, reading queries, the language by example, the API, errors and extending the vocabulary.
 - The [specification](docs/domql-specification.md) defines the language: syntax, types, null behavior, vocabulary contracts and the JSON definition.
 - The [design](docs/domql-design.md) sets out how it runs: construction, resolution, execution, caching, modules and the planned observation lifetimes.
+- The [implementation plan](docs/domql-implementation-plan.md) records the steps that build what is planned, their state and the decisions that shape them.
 
 The specification and design describe the complete intended system; use the status table above to tell those contracts from the runtime features available today.
 

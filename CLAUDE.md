@@ -8,6 +8,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 
 - Do use the [DOMQL specification](docs/domql-specification.md) for what the language means: its syntax, resolution, values, requests, evaluation semantics, vocabulary contracts and the definition. It is authoritative; code follows it, and a change to the language changes it first.
 - Do use the [DOMQL design](docs/domql-design.md) for how DOMQL runs and is used: preparation, waiting and leases, watching, change sets and recovery, occurrence delivery, modules, tooling and the authoring APIs.
+- Do use the [implementation plan](docs/domql-implementation-plan.md) for the steps that build what is not built yet, their state and the open decisions; mark a step done when its work is finished and nothing remains, and record a departure from the design there until the design is brought into line.
 - Do read `.editorconfig` before writing C#; it is the authority on style.
 - Don't invent scope, status or style rules when an authoritative file defines them.
 
