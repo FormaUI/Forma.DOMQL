@@ -15,6 +15,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 
 - Do keep the language's scripts under `src/`: the `domql.js` entry, composing the modules beside it, and those modules in folders named for what they hold, such as `language/`.
 - Do keep the package project, which only carries the bundle to NuGet, in `nuget/`, the tests in `tests/`, and the script that bundles in `scripts/`.
+- Do keep experiments, spikes and notes that belong to a person under `.local/`, which git ignores whole.
 - Do write each module as one concept expressed as a class, taking its collaborators once in its constructor, with `#`-private mechanics; a family of pure helpers is a class with static members.
 - Do keep the entry composing its modules rather than re-exporting them.
 - Do keep DOMQL free of any consumer: no reference to Forma, a component, Blazor, a watcher or an engine, in code, comments or documents.

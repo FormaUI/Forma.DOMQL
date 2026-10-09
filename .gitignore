@@ -9,8 +9,8 @@ artifacts/
 # The bundle that publish.ps1 makes from src/.
 nuget/wwwroot/
 
-# Scratch work.
-scratch/
+# Work that belongs to a person: experiments, spikes and notes.
+.local/
 
 # npm's logs.
 npm-debug.log*
