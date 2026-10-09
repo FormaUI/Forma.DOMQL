@@ -35,7 +35,7 @@ State: **done.** Built in its recommended form by step 1.
 The design has a read wait for the first sample of every maintained member it reads, and a wait cannot be synchronous.
 
 - **Chosen: `read` stays synchronous and `readAsync` waits.** `Domql.read(query, options)` answers the data itself and fails with an evaluation error for a query that reads a maintained member, naming the member. `Domql.readAsync(query, { signal, window })` answers a promise, waits for the samples of every maintained member the query reads, can be canceled, and also reads a query with no maintained member, so a caller can use it for every query.
-- **The name follows the exception.** Almost every operation DOMQL has answers directly, so the plain name is the synchronous one and the suffix `Async` names the operation that waits. Where another operation can wait, its waiting form takes the same suffix.
+- **The name follows the exception.** Almost every operation DOMQL has answers directly, so the plain name is the synchronous one, and every operation that answers a promise takes the suffix `Async`, as `readAsync`, `refreshAsync` and `runAsync` do.
 - **Guarantees of `readAsync`.**
   - Cancellation and failure dispose every session the read opened.
   - Waiting evaluates again as samples arrive and as dependencies change. It never answers while a maintained member the answer reads is still pending, including one that a later evaluation introduced.
@@ -46,16 +46,23 @@ State: **done.** Built in its chosen form by step 2.
 
 ### D3. The public API of a watch and a listener
 
-- **Recommended:** `Domql.watch(query, options)` answers a handle, and `Domql.listen(query, options)` answers a handle for a subscription. The options choose the schedule, the delivery, whether the watch accepts partial observation, and the callbacks. A caller chooses where an answer is delivered; DOMQL never decides it.
-- **Readiness.** A handle has a `status` of `pending` until the first evaluation completes, `ready` once it has an answer, and `failed` after an evaluation fails, and the answer, which can be null, is read beside the status, never in place of it. A failed watch keeps running, as the design describes, and its status returns to `ready` with its next successful evaluation.
+- **Chosen:** `Domql.watch(query, options)` answers a handle, and `Domql.listen(query, options)` answers a handle for a subscription. The options choose the schedule, the delivery, whether the watch accepts partial observation, and the callbacks. A caller chooses where an answer is delivered; DOMQL never decides it.
+- **Status.** A handle has a `status`: `pending`, `ready`, `failed` or `disposed`. The answer, which can be null, is read beside the status, never in place of it.
+  - **A watch** is `pending` until its first answer is available, including the samples of the maintained members it reads, and `ready` from then on. After an evaluation fails it is `failed`, keeps running, and keeps its last successful answer, if it has one. It returns to `ready` with its next successful evaluation, even when that answer equals the last one; the design's rule that the answer is reported after a failure holds.
+  - **A listener** is `pending` until its occurrence subscription is established and `ready` once it is, without waiting for an occurrence. An occurrence whose evaluation fails is reported to the failure callback and leaves the listener `ready`.
 - **The first answer.** It is delivered through the same callback as every later one, as the baseline, so a caller has one path for all of them.
-- **`refresh()`.** It answers a promise that settles when the evaluation it caused has completed and the delivery it produced, if any, has been handed to the callback and the callback has returned. A refresh pending when the handle is disposed settles without delivering.
-- **A failing callback.** A callback that throws, or whose promise rejects, leaves the state it was handed accepted, as the design says, and the failure is reported to the failure callback; it does not stop the watch.
-- **`dispose()`.** It cancels scheduled evaluation, disposes every session, and guarantees that no callback runs after it returns.
-- **Delivery kinds.** A snapshot is immutable and never changes once delivered. A change set is relative to the state it was computed against. Live state is one object with a stable identity, updated in place, so it is chosen explicitly and is never a snapshot.
-- **A listener.** It delivers each occurrence's answer through its callback, with the same failure and disposal rules.
+- **Callbacks.** A callback receives each delivery in delivery order, and DOMQL does not wait for the promise a callback returns. The continuations of asynchronous callbacks can overlap; a caller that needs them one at a time arranges that at its own delivery boundary.
+  - A callback that throws, or whose promise rejects, leaves the state it was handed accepted, as the design says, and the failure is reported to the failure callback; it does not stop the watch.
+  - A failure of the failure callback itself, by throwing or rejecting, never calls it again and interrupts no other subscription. It goes to the diagnostic reporting boundary, as a failure of an observation's callback does.
+- **`refreshAsync()`.** It answers a promise that settles once the evaluation it caused has completed and the delivery it produced, if any, has been handed to the callback; it does not wait for a promise the callback returns, so a callback can await a refresh without a cycle.
+  - It rejects with the failure of its evaluation, which is also reported to the failure callback.
+  - It resolves without delivering when disposal cancels it.
+  - It rejects when called after disposal.
+- **`dispose()`.** It cancels scheduled evaluation, disposes every session, sets the status to `disposed`, and prevents any new callback invocation; a callback already running may finish. Disposing again does nothing.
+- **Delivery kinds.** A snapshot is immutable and never changes once delivered. A change set is relative to the state it was computed against. Live state is one object with a stable identity, updated in place, so it is chosen explicitly and is never a snapshot. Each update to live state is fully applied before its callback begins; a consumer that is asynchronous and needs to retain one version chooses snapshots, since live state can change while it waits.
+- **A listener.** It delivers each occurrence's answer through its callback, with the same callback, failure and disposal rules.
 
-State: open. Needed by steps 3 to 5.
+State: **accepted.** Needed by steps 3 to 5.
 
 ### D4. What DOMQL owns and what a host owns
 
@@ -67,7 +74,7 @@ State: **accepted.**
 
 ### D5. The API of actions and behaviors
 
-- **Recommended:** `Domql.run(query, options)` runs an action once and answers a promise of its result. `Domql.establish(query, options)` answers a handle for a behavior with `update(bindings)` and `dispose()`; the instance belongs to the caller that established it, and releasing it leaves its module registered. A query never runs either.
+- **Recommended:** `Domql.runAsync(query, options)` runs an action once and answers a promise of its result. `Domql.establish(query, options)` answers a handle for a behavior with `update(bindings)` and `dispose()`; the instance belongs to the caller that established it, and releasing it leaves its module registered. A query never runs either.
 
 State: open. Needed by step 6.
 
@@ -96,7 +103,7 @@ Record what an evaluation read, member by member and item by item, with each mem
 Evaluate, report and evaluate again when an observation fires, reporting only an answer that differs: the schedule, the subscriptions that follow the dependencies, the comparison with a member's tolerance, a failed evaluation, an element that leaves the document and returns, and acceptance of partial observation. Snapshots are the first delivery.
 
 - **Needs:** steps 1 and 2, D3.
-- **Done when:** a watch follows the document as the design describes; its status, first delivery, refresh, failing callback and disposal behave as D3 defines; it delivers snapshots that share their unchanged parts, and disposes every session when it ends.
+- **Done when:** a watch follows the document as the design describes; its status, first delivery, `refreshAsync`, failing callback and disposal behave as D3 defines; it delivers snapshots that share their unchanged parts, and disposes every session when it ends.
 - **State:** not started.
 
 ### 4. Change sets and recovery
