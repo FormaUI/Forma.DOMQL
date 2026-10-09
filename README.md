@@ -6,7 +6,7 @@ A small language for querying the DOM. A query names what its caller wants to kn
 @panel {
     size,
     hasFocus: matches(":focus-within"),
-    items: all("[data-key]") { key: attribute "id", height: rect.height }
+    items: all("[data-key]") { key: attribute-of "id", height: rect.height }
 }
 ```
 

@@ -1,4 +1,4 @@
-# DOMQL Design
+# DOMQL Design v1.0.1
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how answers and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
@@ -100,7 +100,7 @@ An occurrence's shape is evaluated as the specification defines, and its answer,
 A maintained member in an occurrence's shape reads its latest sample, or null while it is pending, never waits for a later one and never revises an answer already delivered:
 
 ```
-@button.events("click") {
+@button.events-of "click" {
     nearEnd: @sentinel.intersects(root: @panel)
 }
 ```
@@ -109,7 +109,7 @@ The subscription holds the leases its shapes acquire. After each successful eval
 
 ## Modules
 
-An extension is registered as a module, which declares under its name the state members, occurrence sources, actions and behaviors it contributes and supplies the implementation that carries each out; requests resolve against those declarations. The declarations are data, each member's signature, result type, argument types and kinds and the request kinds it supports, so they can be read without running the implementations. A module registers under a name of its own, and registering a name twice is an error.
+An extension is registered as a module, which declares under its name the state members, occurrence sources, actions and behaviors it contributes and supplies the implementation that carries each out; requests resolve against those declarations. The declarations are data, each member's DOMQL name, signature, result type, argument types and kinds and the request kinds it supports, so they can be read without running the implementations. A module associates three things explicitly, and nothing derives one from another: an operation's DOMQL name, `computedstyle-of`, its public builder name, `computedStyle`, and the function that carries it out, whatever that function is called. A module registers under a name of its own, and registering a name twice is an error.
 
 ```js
 Domql.registerModule(new VirtualizerDomqlModule(Virtualizer));
@@ -143,7 +143,7 @@ A query is parsed from text, built fluently, or created from a definition, and e
 | JavaScript | C# | Meaning |
 | --- | --- | --- |
 | `Domql.parse(text, bindings)` | `Domql.Parse(text, bindings)`, `Domql.Parse<T>(text, bindings)` | Parses text into a query, binding its parameters |
-| | `Domql.TryParse(…)`, `Domql.TryParse<T>(…)` | Parses text, answering false with a diagnostic and no query for text that does not follow the syntax |
+| | `Domql.TryParse(…)`, `Domql.TryParse<T>(…)` | Parses text, answering false with a diagnostic and no query for text that does not follow the syntax or the structural rules |
 | `Domql.from(target)` | | Starts building a query fluently at a target |
 | `Domql.create(definition, bindings)` | `Domql.Create(definition, bindings)`, `Domql.Create<T>(definition, bindings)` | Creates a query from its definition, binding its parameters |
 | `query.definition` | `query.Definition` | The query's definition, without its bound values |
@@ -166,7 +166,7 @@ const rows = Domql
     .all("tbody tr")
     .where(row => row.intersects({ root: panel }))
     .select(row => ({
-        key: row.attribute("data-key"),
+        key: row.attributeOf("data-key"),
         height: row.rect.height
     }));
 
@@ -202,10 +202,37 @@ DomqlQuery<PanelState> typed = Domql.Parse<PanelState>(
 DomqlQuery untyped = Domql.Parse("@panel { size }", ("panel", panel));
 ```
 
-A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches the answer's fields to the constructor parameters of `T` by name regardless of case, so a field `nearend` fills a parameter `NearEnd`; a `DomqlQuery` answers a `DomqlSnapshot` giving structured access to its values. C# has no fluent builder and no C# type standing for each vocabulary concept: a module contributes its declarations and implementations, and the text names what the query reads. A `TryParse` checks the syntax and the structural rules that need no vocabulary, an empty shape, a duplicate field and a reserved name among them; an expected failure there answers false with a diagnostic and no query, and a vocabulary failure, such as an unknown member, arrives when the query is prepared.
+A binding whose value does not reveal its type, an unavailable element, an empty list or a list holding a null, supplies the type with it, and supplies it again through `Create`; a declared type must fit every part of the value, as the specification sets out.
+
+```js
+const query = Domql.parse('{ panel: @panel { size }, ids: @ids }', {
+    panel: Domql.bind(null, 'element?'),
+    ids: Domql.bind([], 'list<number>')
+});
+
+const another = Domql.create(query.definition, {
+    panel: Domql.bind(otherPanel, 'element?'),
+    ids: Domql.bind([1, 2], 'list<number>')
+});
+```
+
+```csharp
+DomqlQuery query = Domql.Parse(
+    "{ panel: @panel { size }, ids: @ids }",
+    ("panel", Domql.Bind(null, "element?")),
+    ("ids", Domql.Bind(Array.Empty<int>(), "list<number>")));
+```
+
+With the bindings of the first example, the answer is the following: a shape following the null `panel` is null, and `ids` is the empty list.
+
+```json
+{ "panel": null, "ids": [] }
+```
+
+A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches the answer's fields to the constructor parameters of `T` by name regardless of case, so a field `nearend` fills a parameter `NearEnd`, and reports an ambiguity where two fields differ only in case, since DOMQL itself tells them apart; a `DomqlQuery` answers a `DomqlSnapshot` giving structured access to its values. C# has no fluent builder and no C# type standing for each vocabulary concept: a module contributes its declarations and implementations, and the text names what the query reads. A `TryParse` checks the syntax and the structural rules that need no vocabulary, an empty shape, a duplicate field and a reserved name among them; an expected failure there answers false with a diagnostic and no query, and a vocabulary failure, such as an unknown member, arrives when the query is prepared.
 
 - **Targets.** `Domql.from(target)` starts a path at an element and binds it as a parameter the builder names, one parameter however often the same element is given; `Domql.document` and `Domql.window` start at the roots. An element or other value given as an argument is bound the same way. A caller rebinding a fluent query's definition takes the parameter names from that definition.
-- **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attribute("data-key")`. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.
+- **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells an operation by its public builder name, `row.attributeOf("data-key")` and `view.computedStyle("--x")`, which the module's declaration records beside the operation's DOMQL name, `attribute-of` and `computedstyle-of`, and apart from the function that carries it out: renaming that function never changes the builder, and the declaration is available when a fluent query is built, while the implementation loads when it is prepared. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.
 - **Shapes.** `select` adds a shape, from a projection that receives the current value and returns an object whose properties are the shape's fields, in order. An object nested in it is a shape following no value, `Domql.from` inside it starts a path at another target, and a literal is written `Domql.value("list")`. `Domql.select({ … })` is a shape at the top level, across targets.
 - **Expression arguments.** A list member taking an expression, such as `where`, `max`, `min` or `sum`, takes a callback receiving the item.
 - **Text and definitions.** Parsing and creating bind the parameters a text or a definition names, by name, and a definition serves any binding. A text is parsed once and kept.
