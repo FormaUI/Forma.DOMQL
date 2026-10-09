@@ -76,11 +76,13 @@ The result contains data, not live DOM references. You can retain it, serialize 
 
 ## Write once, read again
 
-Parsing constructs the query without reading the document. Each read produces a new snapshot of the state it asks for.
+Parsing constructs the query without reading the document, so one query serves every read. Take the `query` and the `snapshot` from the example above. When the document changes, read the same `query` again to get a snapshot of its new state. Here the panel's first item becomes selected:
 
 ```js
+// Access the panel's first item and select it.
 panel.children[0].setAttribute('aria-selected', 'true');
 
+// Read the query from the first example.
 const next = Domql.read(query);
 
 console.log(next.selected);
@@ -90,7 +92,7 @@ console.log(snapshot.selected);
 // [{ key: 'a2' }]
 ```
 
-Earlier snapshots remain unchanged. Compatible name and type resolutions are reused between reads; DOM values are read again.
+The new snapshot, `next`, holds both selected items. `snapshot`, the first example's, was read before the change and still holds only `a2`: earlier snapshots remain unchanged. Compatible name and type resolutions are reused between reads; DOM values are read again.
 
 The same definition can also be bound to another target:
 
@@ -104,7 +106,7 @@ const anotherSnapshot = Domql.read(anotherQuery);
 
 ## Keep a query current
 
-Reading again by hand is not always what you want. Watch the query, and DOMQL evaluates it again whenever something it depends on changes:
+Reading again by hand is not always what you want. Watch the query, and DOMQL evaluates it again whenever something it depends on changes. `render` stands for whatever your application does with a snapshot:
 
 ```js
 const watch = Domql.watch(query, {
@@ -117,11 +119,14 @@ Members such as `all`, `rect` and `matches` can miss some changes, such as point
 
 `onChange` receives the first snapshot right after `watch` returns, then a new one each time the result changes, evaluated at most once per animation frame. A snapshot that did not change is not delivered, and a new one shares every part that did not change with the one before it.
 
-A watch follows the document rather than a fixed set of elements: it observes what the query reads now, so an item added to the panel is watched from the next evaluation on.
+A watch follows the document rather than a fixed set of elements: it observes what the query reads now, so an item added to the panel is watched from the next evaluation on. Change the document, and the watch delivers the new snapshot to `render`:
 
 ```js
+// Access the panel's first item and select it.
 panel.children[0].setAttribute('aria-selected', 'true');
-// render receives a snapshot whose `selected` holds a1 and a2.
+
+// The watch notices, evaluates the query again at the next animation frame
+// and calls render with a snapshot whose `selected` holds a1 and a2.
 ```
 
 Pass `onError` to hear of a failed evaluation or a failing callback; the watch keeps running. `watch.status` and `watch.lastSnapshot` say where it stands, `await watch.refreshAsync()` evaluates now, and `dispose()` ends it and releases its observations:
@@ -151,7 +156,7 @@ const surroundings = Domql.parse(`
     }
 `, { panel });
 
-const snapshot = Domql.read(surroundings);
+const state = Domql.read(surroundings);
 ```
 
 Use this to assemble the state a component needs without maintaining a separate JavaScript function for every result shape.
@@ -166,11 +171,11 @@ Some values, such as an observed intersection, require a browser observation to 
 const sentinel = document.getElementById('sentinel');
 const controller = new AbortController();
 
-const query = Domql.parse(`
+const sentinelQuery = Domql.parse(`
     @sentinel.intersects(root: @panel, margin: 200)
 `, { sentinel, panel });
 
-const nearEnd = await Domql.readAsync(query, {
+const nearEnd = await Domql.readAsync(sentinelQuery, {
     signal: controller.signal
 });
 ```

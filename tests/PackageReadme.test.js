@@ -153,7 +153,9 @@ describe('the repository README', () => {
         // The first two examples share one scope, as they are shown: the second reads the first one's query again.
         const code = `${firstExample.replace(/^import .*\n/, '')}\n${secondExample}\nreturn snapshot;`;
         const snapshot = new Function('Domql', 'document', 'console', code)(Domql, document, { log: value => logged.push(value) });
-        const comments = secondExample.split('\n').filter(line => line.startsWith('// ')).map(line => valueOf([line.slice(3)]));
+        // The values are the comments that follow a log; the comments above the code explain it.
+        const lines = secondExample.split('\n');
+        const comments = lines.filter((line, index) => line.startsWith('// ') && lines[index - 1]?.startsWith('console.log(')).map(line => valueOf([line.slice(3)]));
 
         expect(snapshot).toEqual(JSON.parse(blocks(repositoryReadme, 'json')[0]));
         expect(logged).toEqual(comments);
@@ -183,7 +185,13 @@ describe('the repository README', () => {
             disposeExample,
             'return watch;',
         ].join('\n');
-        const watch = await new AsyncFunction('Domql', 'document', 'render', 'settle', 'frames', code)(Domql, document, snapshot => rendered.push(snapshot), settle, frames);
+        let watch;
+
+        try {
+            watch = await new AsyncFunction('Domql', 'document', 'render', 'settle', 'frames', code)(Domql, document, snapshot => rendered.push(snapshot), settle, frames);
+        } finally {
+            vi.restoreAllMocks();
+        }
 
         expect(rendered).toHaveLength(2);
         expect(rendered[0]).toEqual(JSON.parse(blocks(repositoryReadme, 'json')[0]));
