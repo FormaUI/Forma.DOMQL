@@ -20,7 +20,7 @@ Watching changes, listening to occurrences, actions, behaviors and maintained ob
 
 ## Install and load
 
-The package is not published yet. Build it from the repository with `./publish.ps1`, which writes it to `artifacts/`, and add it from there:
+The package is not published to NuGet yet. Build it from the repository with `./publish.ps1`, which writes it to `artifacts/`, and add it from there:
 
 ```sh
 dotnet add package formaui-net.DOMQL --prerelease --source ./artifacts
