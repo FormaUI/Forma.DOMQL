@@ -11,7 +11,7 @@ export default defineConfig({
         ],
     },
     test: {
-        include: ['browser/**/*.browser.js'],
+        include: ['**/*.browser.js'],
         browser: {
             enabled: true,
             provider: 'playwright',

@@ -35,7 +35,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 ## Tests
 
 - Do add or change a test for every module you add or change, in `tests/`, and run them with `npm test` from that folder.
-- Do test layout, geometry and state the browser decides in `tests/browser/`, which runs in headless Chromium with `npm run test:browser` or `./build.ps1 -Browser`; the happy-dom tests lay nothing out.
+- Do put a test where the code it tests is, `tests/` following `src/` folder for folder, and name a test of layout, geometry or state the browser decides `*.browser.js`, beside the others, which runs in headless Chromium with `npm run test:browser` or `./build.ps1 -Browser`; the happy-dom tests lay nothing out.
 - Do test through the public surface, `Domql` and what it returns, and assert exact definitions, error kinds and locations.
 - Don't wait on the clock for work a test controls.
 
