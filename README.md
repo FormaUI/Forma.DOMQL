@@ -2,7 +2,7 @@
 
 > **Preview, not yet published.** DOMQL is on neither NuGet nor npm yet. Build it from this repository to try it; see [Development](#development).
 
-DOMQL is an extensible query language for reading DOM state as plain data. Describe the values you need—across one element, a collection or several targets—and receive an answer with the same shape.
+DOMQL is a small, extensible query language for reading DOM state as plain data. Describe what you need, and receive a snapshot shaped by your query.
 
 ```text
 @panel {
