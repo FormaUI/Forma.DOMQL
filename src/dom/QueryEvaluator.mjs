@@ -5,7 +5,7 @@
 import { DomqlError } from '../language/DomqlError.mjs';
 import { Names } from '../language/Names.mjs';
 import { Type } from '../language/Type.mjs';
-import { Evaluation } from './Evaluation.mjs';
+import { QueryEvaluation } from './QueryEvaluation.mjs';
 
 /** @typedef {{ window: Window, document: Document }} Environment */
 
@@ -34,30 +34,30 @@ export class QueryEvaluator {
         this.#locations = locations;
     }
 
-    /** The answer the query reads once: immutable data holding no reference to the document. A member maintained by an observation fails it, since its first sample cannot arrive during a synchronous read. */
+    /** The result the query reads once: immutable data holding no reference to the document. A member maintained by an observation fails it, since its first sample cannot arrive during a synchronous read. */
     read() {
-        return this.#answer();
+        return this.#result();
     }
 
     /**
      * Evaluates the query and records what the evaluation depended on, holding each dependency's observations through sessions that call `onChange` when something may have changed.
-     * A maintained member whose first sample has not arrived is pending and answers null, and the evaluation is pending with it. A failure ends the evaluation without throwing, keeping the dependencies it recorded before failing.
+     * A maintained member whose first sample has not arrived is pending and answers null, and the evaluation is pending with it. A failure ends the evaluation without throwing, keeping the dependencies it recorded before failing and answering nothing.
      * The caller disposes the evaluation, which it does after it has the next one, so an observation both need keeps running.
-     * The observations that keep a maintained member's sample are always held. The others are held where the caller keeps the answer current, and otherwise only while the evaluation is pending, since an answer that is complete needs nothing more observed.
+     * The observations that keep a maintained member's sample are always held. The others are held where the caller keeps the result current, and otherwise only while the evaluation is pending, since a result that is complete needs nothing more observed.
      * @param {object} recording Where the dependencies are observed.
      * @param {import('./Observations.mjs').Observations} recording.observations The observations of the window the query is evaluated in.
-     * @param {() => void} recording.onChange Called, synchronously, when something the answer depends on may have changed.
+     * @param {() => void} recording.onChange Called, synchronously, when something the result depends on may have changed.
      * @param {boolean} [recording.holdsAll] Whether every dependency's observation is held, as a watch holds them, rather than those a pending evaluation waits on.
      */
     evaluate({ observations, onChange, holdsAll = false }) {
         const recording = { observations, onChange, holdsAll, dependencies: [], sessions: [], unheld: [], isPending: false };
-        let value = null;
+        let value;
         let error = null;
 
         this.#recording = recording;
 
         try {
-            value = this.#answer();
+            value = this.#result();
         } catch (failure) {
             // A member read through a pending one saw null where a sample will be, so its failure says nothing until the sample arrives.
             error = recording.isPending ? null : failure;
@@ -67,7 +67,7 @@ export class QueryEvaluator {
 
         if (recording.isPending) {
             try {
-                // The pending answer waits on whatever changes the evaluation depended on, so it holds them now.
+                // The pending result waits on whatever changes the evaluation depended on, so it holds them now.
                 for (const request of recording.unheld) {
                     recording.sessions.push(observations.acquire(request, onChange));
                 }
@@ -76,10 +76,10 @@ export class QueryEvaluator {
             }
         }
 
-        return new Evaluation({ value: recording.isPending ? null : value, isPending: recording.isPending, dependencies: recording.dependencies, sessions: recording.sessions, error });
+        return new QueryEvaluation({ value, isPending: recording.isPending, dependencies: recording.dependencies, sessions: recording.sessions, error });
     }
 
-    #answer() {
+    #result() {
         if (this.#resolvedDefinition.kind !== 'query') {
             this.#fail(`A ${this.#resolvedDefinition.kind} request is not read`, '/query');
         }
@@ -183,7 +183,7 @@ export class QueryEvaluator {
         return value;
     }
 
-    /** Carries out a declaration's function, or a predicate's, checking that its answer is of the declared type. */
+    /** Carries out a declaration's function, or a predicate's, checking that its result is of the declared type. */
     #invoke(declaration, receiver, args, type, pointer) {
         const implementation = this.#moduleRegistry.getFunction(declaration);
 

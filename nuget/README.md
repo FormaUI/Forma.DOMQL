@@ -14,9 +14,11 @@ Available now:
 - Validate structure, bindings, vocabulary names and types.
 - Resolve queries without reading the DOM.
 - Perform synchronous one-shot reads and receive immutable data snapshots.
+- Wait for values the browser keeps, such as `intersects`, with `readAsync`.
+- Watch a query and receive a snapshot each time its result changes.
 - Extend the vocabulary through modules.
 
-Watching changes, listening to occurrences, actions, behaviors and maintained observations such as `intersects` are planned. A vocabulary declaration alone does not make those runtime capabilities available.
+Change sets, listening to occurrences, actions and behaviors are planned. A vocabulary declaration alone does not make those runtime capabilities available.
 
 ## Install and load
 
@@ -84,7 +86,7 @@ const snapshot = Domql.read(query);
 // }
 ```
 
-`@panel` refers to the supplied binding; it is not an ID lookup. `parse` constructs the query without reading the DOM. `read` resolves it as needed and returns the current answer synchronously. The snapshot is immutable and contains no live element references.
+`@panel` refers to the supplied binding; it is not an ID lookup. `parse` constructs the query without reading the DOM. `read` resolves it as needed and returns the current result synchronously. The snapshot is immutable and contains no live element references.
 
 ## Read again or bind another target
 
@@ -216,7 +218,7 @@ Domql.read(optional);
 // { panel: null, ids: [] }
 ```
 
-Keep independent results in a top-level shape when one target may be null. Writing `@panel { size, ids: @ids }` instead would make the entire answer null while `panel` is null.
+Keep independent results in a top-level shape when one target may be null. Writing `@panel { size, ids: @ids }` instead would make the entire result null while `panel` is null.
 
 ## API and errors
 
@@ -230,6 +232,7 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.read(query, options)` | Read once, optionally using an explicitly supplied `window`. A member kept by an observation, such as `intersects`, fails it. |
 | `Domql.readAsync(query, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
+| `Domql.watch(query, options)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 
 `resolve` checks a query without a browser and without reading anything:
@@ -268,7 +271,7 @@ try {
 }
 ```
 
-A misspelled operation is an error and a missing selector match is null. Raw elements are not valid answer data: `@panel.children` fails because its answer would hold elements, so project their properties with a shape.
+A misspelled operation is an error and a missing selector match is null. Raw elements are not valid result data: `@panel.children` fails because its result would hold elements, so project their properties with a shape.
 
 ## Environments
 
@@ -315,6 +318,6 @@ Modules can also declare event types, predicates and supported feature names. De
 
 - [Repository README](https://github.com/FormaUI/Forma.DOMQL): scope, build and test workflow, and the components to work in.
 - [Language specification](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-specification.md): syntax, types, null semantics and vocabulary contracts.
-- [Runtime design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md): resolution, evaluation, modules and planned watching and occurrence behavior.
+- [Runtime design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md): resolution, evaluation, modules and watching and planned occurrence behavior.
 
 The specification and design cover the intended system. Refer to the current capabilities above for what this package implements today.

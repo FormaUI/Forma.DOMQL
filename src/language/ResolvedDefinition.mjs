@@ -1,5 +1,5 @@
 /**
- * ResolvedDefinition — a definition resolved against the vocabulary: its request kind, the type of its answer, and what each of its nodes resolved to
+ * ResolvedDefinition — a definition resolved against the vocabulary: its request kind, the type of its result, and what each of its nodes resolved to
  */
 
 export class ResolvedDefinition {
@@ -12,7 +12,7 @@ export class ResolvedDefinition {
     /**
      * @param {object} definition The request's definition.
      * @param {'query' | 'subscription' | 'action' | 'behavior'} kind The request's kind.
-     * @param {import('./Type.mjs').Type} type The type of its answer.
+     * @param {import('./Type.mjs').Type} type The type of its result.
      * @param {Map<string, object>} resolutions What each member node, by its JSON Pointer, resolved to.
      * @param {object[]} usedMembers The declarations the request uses, each with the pointer that used it.
      */
@@ -34,7 +34,7 @@ export class ResolvedDefinition {
         return this.#kind;
     }
 
-    /** The type of the request's answer. */
+    /** The type of the request's result. */
     get type() {
         return this.#type;
     }

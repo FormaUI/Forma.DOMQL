@@ -39,10 +39,10 @@ export class LanguageResolver {
     resolveDefinition(definition) {
         const result = this.#node(definition.query, '/query', { current: null });
 
-        const answer = result.kind === 'subscription' && result.type.kind === 'occurrence' ? result.type.item : result.type;
+        const resultType = result.kind === 'subscription' && result.type.kind === 'occurrence' ? result.type.item : result.type;
 
-        if ((result.kind === 'query' || result.kind === 'subscription') && !this.#isData(answer)) {
-            this.#fail(`The answer would hold ${answer}, which is no data; shape it into the facts it needs`, '/query');
+        if ((result.kind === 'query' || result.kind === 'subscription') && !this.#isData(resultType)) {
+            this.#fail(`The result would hold ${resultType}, which is no data; shape it into the facts it needs`, '/query');
         }
 
         if (this.#options.watch === true && result.kind === 'query') {

@@ -32,6 +32,15 @@ describe('DomqlModule', () => {
         expect(messageOf(() => new DomqlModule('charts', { members: [declaration({ changes: 'partly-observable' })] }))).toContain('states the changes it misses');
     });
 
+    it('takes a tolerance that is a number that is not negative', () => {
+        expect(() => new DomqlModule('charts', { members: [declaration({ name: 'charts', changes: 'unobserved', tolerance: 0.5 })] })).not.toThrow();
+        expect(() => new DomqlModule('charts', { members: [declaration({ name: 'charts', changes: 'unobserved', tolerance: 0 })] })).not.toThrow();
+
+        for (const tolerance of [-1, '1', Infinity, null]) {
+            expect(messageOf(() => new DomqlModule('charts', { members: [declaration({ name: 'charts', changes: 'unobserved', tolerance })] }))).toContain('tolerance');
+        }
+    });
+
     it('accepts unobserved coverage', () => {
         expect(() => new DomqlModule('charts', { members: [declaration({ name: 'charts', changes: 'unobserved' })] })).not.toThrow();
     });

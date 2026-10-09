@@ -34,9 +34,9 @@ describe('Domql readAsync in a browser', () => {
     });
 
     it('reads it among the other members of a shape', async () => {
-        const answer = await Domql.readAsync(Domql.parse('@item { near: intersects, height: size.height, id: attribute-of "id" }', { item: inside }));
+        const snapshot = await Domql.readAsync(Domql.parse('@item { near: intersects, height: size.height, id: attribute-of "id" }', { item: inside }));
 
-        expect(answer).toEqual({ near: true, height: 40, id: 'inside' });
+        expect(snapshot).toEqual({ near: true, height: 40, id: 'inside' });
     });
 
     it('is refused by read, which cannot wait for the sample', () => {
@@ -50,5 +50,63 @@ describe('Domql readAsync in a browser', () => {
         controller.abort(new Error('not needed'));
 
         expect((await reading).message).toBe('not needed');
+    });
+
+    describe('watch', () => {
+        const watches = [];
+        const settle = (milliseconds = 0) => new Promise(resolve => setTimeout(resolve, milliseconds));
+        /** Waits for an animation frame, and for the observers that fire after the frame that changed the layout. */
+        const frame = async () => {
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            await settle();
+        };
+
+        afterEach(() => {
+            watches.splice(0).forEach(watch => watch.dispose());
+        });
+
+        it('follows the layout a browser decides, reporting an snapshot when the size changes', async () => {
+            const snapshots = [];
+            const watch = Domql.watch(Domql.parse('@item.size', { item: inside }), { onChange: snapshot => snapshots.push(snapshot) });
+
+            watches.push(watch);
+            await frame();
+
+            expect(snapshots).toEqual([{ width: 200, height: 40 }]);
+
+            inside.style.height = '60px';
+            await frame();
+
+            expect(snapshots).toEqual([{ width: 200, height: 40 }, { width: 200, height: 60 }]);
+            expect(watch.status).toBe('ready');
+        });
+
+        it('waits for the browser to report a member it keeps, then follows it', async () => {
+            const snapshots = [];
+            const watch = Domql.watch(Domql.parse('@item.intersects(root: @panel)', { item: outside, panel }), { onChange: snapshot => snapshots.push(snapshot) });
+
+            watches.push(watch);
+            await frame();
+
+            expect(snapshots).toEqual([false]);
+
+            panel.scrollTop = 420;
+            await frame();
+
+            expect(snapshots).toEqual([false, true]);
+        });
+
+        it('stops reporting once it is disposed', async () => {
+            const snapshots = [];
+            const watch = Domql.watch(Domql.parse('@item.size', { item: inside }), { onChange: snapshot => snapshots.push(snapshot) });
+
+            await frame();
+            watch.dispose();
+            inside.style.height = '80px';
+            await frame();
+
+            expect(snapshots).toEqual([{ width: 200, height: 40 }]);
+        });
     });
 });

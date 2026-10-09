@@ -32,7 +32,7 @@ export class ObservationSession {
         return new ObservationSession({ contract: 'invalidation', observation: null, onChange: () => {}, end: () => {}, reportError: () => {} });
     }
 
-    /** What the observation provides: a signal that an answer may have changed, or a sample a member reads. */
+    /** What the observation provides: a signal that a result may have changed, or a sample a member reads. */
     get contract() {
         return this.#contract;
     }

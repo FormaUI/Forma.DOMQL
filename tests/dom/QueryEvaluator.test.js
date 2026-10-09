@@ -470,7 +470,7 @@ describe('QueryEvaluator evaluation', () => {
 
             expect(evaluation.error).toBeInstanceOf(DomqlError);
             expect(evaluation.error.message).toContain("The member 'boom' failed");
-            expect(evaluation.value).toBeNull();
+            expect(evaluation.value).toBeUndefined();
             expect(membersOf(evaluation)).toEqual(['attribute-of', 'boom']);
         });
     });
@@ -500,7 +500,7 @@ describe('QueryEvaluator evaluation', () => {
             const evaluation = evaluate('{ id: @panel.attribute-of "id", level: @panel.level }', { panel }, [waitingModule()]);
 
             expect(evaluation.isPending).toBe(true);
-            expect(evaluation.value).toBeNull();
+            expect(evaluation.value).toEqual({ id: 'panel', level: null });
             expect(observations.running).toBe(2);
         });
 

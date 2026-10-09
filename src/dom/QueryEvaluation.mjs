@@ -1,5 +1,5 @@
 /**
- * Evaluation — one evaluation of a query: its answer, what the answer depends on, and the sessions that keep those dependencies observed
+ * QueryEvaluation — one evaluation of a query: its result, what the result depends on, and the sessions that keep those dependencies observed
  */
 
 /**
@@ -7,14 +7,14 @@
  * @typedef {{ member: string, pointer: string, observations: { type: string, target: object, arguments: Record<string, any> }[] }} Dependency
  */
 
-export class Evaluation {
+export class QueryEvaluation {
     #sessions;
     #isDisposed = false;
 
     /**
      * @param {object} outcome What the evaluation produced.
-     * @param {unknown} outcome.value The detached answer, or null where it is not complete.
-     * @param {boolean} outcome.isPending Whether a maintained member the answer reads is still waiting for its first sample.
+     * @param {unknown} outcome.value The detached result, in which a member still waiting for its first sample answers null, or undefined where the evaluation produced none.
+     * @param {boolean} outcome.isPending Whether a maintained member the result reads is still waiting for its first sample.
      * @param {Dependency[]} outcome.dependencies What the evaluation read, including what it read before it failed.
      * @param {import('./ObservationSession.mjs').ObservationSession[]} outcome.sessions The sessions that hold the dependencies' observations.
      * @param {Error | null} outcome.error The failure that ended the evaluation, or null.

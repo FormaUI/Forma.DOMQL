@@ -8,12 +8,13 @@ Each item is what exists and what checks it.
 
 - **The language.** Parsing text and creating queries from their definition, with the position of every mistake. Checked by the tests of parsing and of the definition.
 - **The vocabulary.** The built-in vocabulary declared as module data, and modules that extend it. Checked by the tests of modules, the registry and the vocabulary.
-- **Resolution.** Resolving a definition against the vocabulary and typing its answer, without a browser; the resolution is kept for its query. Checked by the resolver tests and the tests of `Domql.resolve`.
+- **Resolution.** Resolving a definition against the vocabulary and typing its result, without a browser; the resolution is kept for its query. Checked by the resolver tests and the tests of `Domql.resolve`.
 - **Reading.** `read` reads every built-in member except `intersects`, which is maintained, and `events-of`, which is an occurrence source; both fail it with an evaluation error that says so. `readAsync` waits for the first sample of a maintained member, evaluates again as samples arrive and as what the query depends on changes, and lets go of its observations when it answers, fails or is canceled. Each evaluation records its dependencies. A read answers detached, immutable data. Checked by the evaluator tests, in a simulated DOM, and by the browser tests, in Chromium, for geometry, for state the browser decides and for the reads that wait.
 - **Observations.** The built-in vocabulary names the observations that cover its members' changes, as types a module declares, and observations are started, shared and ended through sessions. There is no public API for them yet. Checked by the tests of declarations, of the sessions and of the browser observers, and in Chromium by a test of each type of observation reporting a change.
+- **Watching.** `Domql.watch` evaluates a query, reports its snapshot, and evaluates again when what the result depends on changes, at the next animation frame or in the task that reported the change, reporting a snapshot that differs and sharing the branches of the last that did not. A watch follows the document, keeps its dependencies through a failed evaluation, recovers, and is refreshed and disposed through its handle. Checked by the watch and answer tests, in a simulated DOM, and in Chromium by a watch of a size and of a maintained member.
 - **The package.** The bundle, with its TypeScript declarations checked against `Domql` and against a TypeScript caller; the READMEs' examples run as tests.
 
-What is not built: watching, occurrence sources, actions and behaviors, the fluent builder, the C# half and editor tooling.
+What is not built: change sets and recovery, occurrence sources, actions and behaviors, the fluent builder, the C# half and editor tooling.
 
 ## Decisions
 
@@ -24,7 +25,7 @@ Each decision is open until its state says otherwise, and a step that needs it d
 A declaration states how a member changes as a category. A watch needs the observations themselves.
 
 - **Recommended: observations are of named types.** A declaration lists the observations that cover its changes, each of a named type with its target and the arguments that matter to it, such as `{ type: 'resize', of: 'receiver' }`. The built-in vocabulary defines the types it observes with: resize, attributes and structure, intersection, media query, focus and selection events, and document visibility. A module can contribute types of its own, each with the function that starts the observation and releases it. Declarations stay data, so a tool reads them without running anything, and a custom observation stays possible.
-- **Two contracts, one lifecycle.** An *invalidation* observation says that the answer may have changed and the query should be evaluated again; it carries no value. A *maintained* observation provides a sampled value that a member reads, and is pending until its first sample. Both are started, shared and released the same way; their contracts differ and a type is one or the other.
+- **Two contracts, one lifecycle.** An *invalidation* observation says that the result may have changed and the query should be evaluated again; it carries no value. A *maintained* observation provides a sampled value that a member reads, and is pending until its first sample. Both are started, shared and released the same way; their contracts differ and a type is one or the other.
 - **Identity.** Equivalent observation requests share an underlying observation where their type permits it. A request's identity is its type, its target, the arguments that change what is observed, such as an intersection's root and margin or the attributes an observation filters on, and the DOM environment it belongs to. A type states which of its arguments belong to the identity and whether sharing is permitted at all.
 - **Alternative: a function per member.** A member supplies a function that subscribes and returns its release. It is the most flexible and leaves nothing for a tool to read.
 
@@ -38,29 +39,29 @@ The design has a read wait for the first sample of every maintained member it re
 - **The name follows the exception.** Almost every operation DOMQL has answers directly, so the plain name is the synchronous one, and every operation that answers a promise takes the suffix `Async`, as `readAsync`, `refreshAsync` and `runAsync` do.
 - **Guarantees of `readAsync`.**
   - Cancellation and failure dispose every session the read opened.
-  - Waiting evaluates again as samples arrive and as dependencies change. It never answers while a maintained member the answer reads is still pending, including one that a later evaluation introduced.
-  - The answer uses fresh reads and the samples available when the last evaluation ran. It does not promise that every measurement was taken at the same instant.
+  - Waiting evaluates again as samples arrive and as dependencies change. It never answers while a maintained member the result reads is still pending, including one that a later evaluation introduced.
+  - The result uses fresh reads and the samples available when the last evaluation ran. It does not promise that every measurement was taken at the same instant.
 - **Alternative:** `read` answers a promise and `readSync` answers the data, as Node names `readFile` and `readFileSync`. It gives the short name to the form that reads every query, and puts the suffix on the greater part of the operations.
 
 State: **done.** Built in its chosen form by step 2.
 
 ### D3. The public API of a watch and a listener
 
-- **Chosen:** `Domql.watch(query, options)` answers a handle, and `Domql.listen(query, options)` answers a handle for a subscription. The options choose the schedule, the delivery, whether the watch accepts partial observation, and the callbacks. A caller chooses where an answer is delivered; DOMQL never decides it.
-- **Status.** A handle has a `status`: `pending`, `ready`, `failed` or `disposed`. The answer, which can be null, is read beside the status, never in place of it.
-  - **A watch** is `pending` until its first answer is available, including the samples of the maintained members it reads, and `ready` from then on. After an evaluation fails it is `failed`, keeps running, and keeps its last successful answer, if it has one. It returns to `ready` with its next successful evaluation, even when that answer equals the last one; the design's rule that the answer is reported after a failure holds.
-  - **A listener** is `pending` until its occurrence subscription is established and `ready` once it is, without waiting for an occurrence. An occurrence whose evaluation fails is reported to the failure callback and leaves the listener `ready`.
-- **The first answer.** It is delivered through the same callback as every later one, as the baseline, so a caller has one path for all of them.
+- **Chosen:** `Domql.watch(query, options)` answers a handle, and `Domql.listen(query, options)` answers a handle for a subscription. The options choose the schedule, the delivery, whether the watch accepts partial observation, and the callbacks. A caller chooses where a snapshot is delivered; DOMQL never decides it.
+- **Status.** A handle has a `status`: `pending`, `ready`, `failed` or `disposed`. The snapshot, which can be null, is read beside the status, never in place of it.
+  - **A watch** is `pending` until its first snapshot is available, including the samples of the maintained members it reads, and `ready` from then on. After an evaluation fails it is `failed`, keeps running, and keeps its last successful snapshot, if it has one. It returns to `ready` with its next successful evaluation, even when that snapshot equals the last one; the design's rule that the snapshot is reported after a failure holds.
+  - **A listener** is `pending` until its occurrence subscription is established and `ready` once it is, without waiting for an occurrence. An occurrence whose evaluation fails is reported to the error callback and leaves the listener `ready`.
+- **The first snapshot.** It is delivered through the same callback as every later one, as the baseline, so a caller has one path for all of them.
 - **Callbacks.** A callback receives each delivery in delivery order, and DOMQL does not wait for the promise a callback returns. The continuations of asynchronous callbacks can overlap; a caller that needs them one at a time arranges that at its own delivery boundary.
-  - A callback that throws, or whose promise rejects, leaves the state it was handed accepted, as the design says, and the failure is reported to the failure callback; it does not stop the watch.
-  - A failure of the failure callback itself, by throwing or rejecting, never calls it again and interrupts no other subscription. It goes to the diagnostic reporting boundary, as a failure of an observation's callback does.
+  - A callback that throws, or whose promise rejects, leaves the state it was handed accepted, as the design says, and the failure is reported to the error callback; it does not stop the watch.
+  - A failure of the error callback itself, by throwing or rejecting, never calls it again and interrupts no other subscription. It goes to the diagnostic reporting boundary, as a failure of an observation's callback does.
 - **`refreshAsync()`.** It answers a promise that settles once the evaluation it caused has completed and the delivery it produced, if any, has been handed to the callback; it does not wait for a promise the callback returns, so a callback can await a refresh without a cycle.
-  - It rejects with the failure of its evaluation, which is also reported to the failure callback.
+  - It rejects with the failure of its evaluation, which is also reported to the error callback.
   - It resolves without delivering when disposal cancels it.
   - It rejects when called after disposal.
 - **`dispose()`.** It cancels scheduled evaluation, disposes every session, sets the status to `disposed`, and prevents any new callback invocation; a callback already running may finish. Disposing again does nothing.
 - **Delivery kinds.** A snapshot is immutable and never changes once delivered. A change set is relative to the state it was computed against. Live state is one object with a stable identity, updated in place, so it is chosen explicitly and is never a snapshot. Each update to live state is fully applied before its callback begins; a consumer that is asynchronous and needs to retain one version chooses snapshots, since live state can change while it waits.
-- **A listener.** It delivers each occurrence's answer through its callback, with the same callback, failure and disposal rules.
+- **A listener.** It delivers the result of each occurrence's projection through its callback, with the same callback, failure and disposal rules.
 
 State: **accepted.** Needed by steps 3 to 5.
 
@@ -96,23 +97,23 @@ Record what an evaluation read, member by member and item by item, with each mem
 
 - **Needs:** step 1, D2.
 - **Done when:** a query's dependencies are the ones the design lists, including those of expression arguments, of a path that met null and of a detached element; `intersects` reads in a real browser; `readAsync` waits for the first sample, evaluates again for a member a later evaluation introduces, and disposes its sessions on cancellation and on failure.
-- **State:** done. Where it departs from the design: a member that answered null for a detached element records the element's attachment in the evaluator, once for every member, instead of each declaration naming it; an evaluation that fails while a maintained member is pending reports nothing and waits, since the failure may come from the null the pending member answered; a read holds the observations of a maintained member always, and the others only while it waits, since an answer that is complete needs nothing more observed, where a watch holds them all; and the reads in one window share one set of observations.
+- **State:** done. Where it departs from the design: a member that answered null for a detached element records the element's attachment in the evaluator, once for every member, instead of each declaration naming it; an evaluation that fails while a maintained member is pending reports nothing and waits, since the failure may come from the null the pending member answered; a read holds the observations of a maintained member always, and the others only while it waits, since a result that is complete needs nothing more observed, where a watch holds them all; and the reads in one window share one set of observations.
 
 ### 3. Watches
 
-Evaluate, report and evaluate again when an observation fires, reporting only an answer that differs: the schedule, the subscriptions that follow the dependencies, the comparison with a member's tolerance, a failed evaluation, an element that leaves the document and returns, and acceptance of partial observation. Snapshots are the first delivery.
+Evaluate, report and evaluate again when an observation fires, reporting only a snapshot that differs: the schedule, the subscriptions that follow the dependencies, the comparison with a member's tolerance, a failed evaluation, an element that leaves the document and returns, and acceptance of partial observation. Snapshots are the first delivery.
 
 - **Needs:** steps 1 and 2, D3.
 - **Done when:** a watch follows the document as the design describes; its status, first delivery, `refreshAsync`, failing callback and disposal behave as D3 defines; it delivers snapshots that share their unchanged parts, and disposes every session when it ends.
-- **State:** not started.
+- **State:** done. Where it departs from the design: a member declares its tolerance as `tolerance`, and no built-in member declares one yet, so their numbers compare exactly; the first evaluation follows the call that creates the watch, so no callback runs before the caller has the handle; and `delivery` takes `snapshot` alone until step 4 builds change sets. The package README does not teach `watch` or `readAsync` by example yet, since its examples run through a synchronous harness.
 
 ### 4. Change sets and recovery
 
 Deliver a baseline and then change sets as JSON Patch limited to `replace`, `add`, `remove` and `move`, with coalescing and the rules of ordering that recovery relies on: DOMQL numbers its baselines and revisions, accepts a change set only against the state it was computed against, applies it atomically, and gives a stale update no effect.
 
 - **Needs:** step 3, D4.
-- **Done when:** applying each change set to the state it was computed against gives the next answer; the design's rules of recovery hold under failed, late and out-of-order deliveries; a host that asks for a replacement baseline gets one that nothing earlier can affect.
-- **List projections** keep an internal identity for each element they project, so a change set expresses insertions, removals and moves without an answer holding an element reference. Tests include projected values that repeat, and a list that is reordered and updated in one change.
+- **Done when:** applying each change set to the state it was computed against gives the next result; the design's rules of recovery hold under failed, late and out-of-order deliveries; a host that asks for a replacement baseline gets one that nothing earlier can affect.
+- **List projections** keep an internal identity for each element they project, so a change set expresses insertions, removals and moves without a result holding an element reference. Tests include projected values that repeat, and a list that is reordered and updated in one change.
 - **State:** not started.
 
 ### 5. Occurrence sources
@@ -120,7 +121,7 @@ Deliver a baseline and then change sets as JSON Patch limited to `replace`, `add
 Deliver what an occurrence source reports: `events-of` captures what the event carries at dispatch, the shape after it is evaluated for each occurrence, and the sessions its shapes open are held across occurrences.
 
 - **Needs:** steps 1 and 2, D3.
-- **Done when:** a subscription delivers one immutable answer for each occurrence and releases everything when it ends. Its tests include:
+- **Done when:** a subscription delivers one immutable result for each occurrence and releases everything when it ends. Its tests include:
   - the first occurrence answering null for a maintained member whose sample is still pending, and a later occurrence reading the sample that arrived;
   - an evaluation that depends on different members from the one before it keeping what it reads and releasing the rest;
   - a failed projection delivering nothing, keeping the sessions it held before and disposing those the failed attempt opened.

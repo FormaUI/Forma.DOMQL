@@ -2,9 +2,11 @@
  * Domql — creates DOMQL queries from text and from definitions
  */
 
+import { SnapshotComparer } from './dom/SnapshotComparer.mjs';
 import { BrowserModule } from './dom/BrowserModule.mjs';
 import { Observations } from './dom/Observations.mjs';
 import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
+import { Watch } from './dom/Watch.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
 import { DomqlError } from './language/DomqlError.mjs';
 import { DomqlModule } from './language/vocabulary/DomqlModule.mjs';
@@ -15,6 +17,10 @@ import { ParameterBindings } from './language/ParameterBindings.mjs';
 import { ParsedTexts } from './language/ParsedTexts.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
+
+/** When a watch evaluates after a change, and what it delivers. */
+const WATCH_SCHEDULES = ['frame', 'immediate'];
+const WATCH_DELIVERIES = ['snapshot'];
 
 export class Domql {
     /**
@@ -97,14 +103,14 @@ export class Domql {
         const observations = Domql.#observationsOf(window);
 
         return new Promise((resolve, reject) => {
-            let evaluation = null;
+            let queryEvaluation = null;
             let isScheduled = false;
             let isSettled = false;
 
             const settle = outcome => {
                 isSettled = true;
                 signal?.removeEventListener('abort', cancel);
-                evaluation?.dispose();
+                queryEvaluation?.dispose();
                 outcome();
             };
             const cancel = () => settle(() => reject(signal.reason));
@@ -118,8 +124,8 @@ export class Domql {
                 const next = evaluator.evaluate({ observations, onChange: schedule });
 
                 // The next evaluation holds its observations before the last lets go of its own, so one both need keeps running.
-                evaluation?.dispose();
-                evaluation = next;
+                queryEvaluation?.dispose();
+                queryEvaluation = next;
 
                 if (next.error !== null) {
                     settle(() => reject(next.error));
@@ -140,12 +146,63 @@ export class Domql {
         });
     }
 
-    static #evaluatorOf(query, window) {
+    /**
+     * Watches a query: evaluates it, reports a snapshot of the result, and evaluates again when something the result depends on changes, reporting a snapshot that differs from the last.
+     * The first snapshot is reported after the call returns, as the baseline, through the same callback as every later one.
+     * @param {DomqlQuery} query The query to watch.
+     * @param {object} options How the query is watched.
+     * @param {(snapshot: unknown) => unknown} options.onChange Receives each snapshot, an immutable result that shares what did not change with the snapshot before it. What it returns is not awaited.
+     * @param {(error: unknown) => unknown} [options.onError] Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting.
+     * @param {'frame' | 'immediate'} [options.schedule] When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
+     * @param {'snapshot'} [options.delivery] What `onChange` receives.
+     * @param {boolean} [options.acceptPartialObservation] Whether the watch accepts a member whose observations only partly cover its changes.
+     * @param {Window} [options.window] The window `@window` stands for, and whose document `@document` stands for.
+     */
+    static watch(query, { onChange, onError, schedule = 'frame', delivery = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = {}) {
+        if (typeof onChange !== 'function') {
+            throw DomqlError.structure('A watch takes the function that receives its snapshots, as onChange', {});
+        }
+
+        if (onError !== undefined && typeof onError !== 'function') {
+            throw DomqlError.structure('The error callback of a watch is a function', {});
+        }
+
+        if (!WATCH_SCHEDULES.includes(schedule)) {
+            throw DomqlError.structure(`A watch is scheduled as ${WATCH_SCHEDULES.join(' or ')}`, {});
+        }
+
+        if (!WATCH_DELIVERIES.includes(delivery)) {
+            throw DomqlError.structure(`A watch delivers ${WATCH_DELIVERIES.join(' or ')}`, {});
+        }
+
+        const options = { watch: true, acceptPartialObservation: acceptPartialObservation === true };
+        const evaluator = Domql.#evaluatorOf(query, window, options);
+        const resolved = Domql.resolve(query, options);
+
+        if (resolved.kind !== 'query') {
+            throw DomqlError.evaluation(`A ${resolved.kind} request is not watched`, { pointer: '/query' });
+        }
+
+        if (schedule === 'frame' && typeof window.requestAnimationFrame !== 'function') {
+            throw DomqlError.structure("A watch scheduled by animation frame needs a window that has them; schedule it as 'immediate' otherwise", {});
+        }
+
+        return new Watch({
+            evaluator,
+            observations: Domql.#observationsOf(window),
+            comparer: new SnapshotComparer(resolved),
+            window,
+            reportError: error => (window.reportError ? window.reportError(error) : console.error(error)),
+            options: { schedule, onChange, onError },
+        });
+    }
+
+    static #evaluatorOf(query, window, options = {}) {
         if (!window?.document) {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }
 
-        const resolved = Domql.resolve(query);
+        const resolved = Domql.resolve(query, options);
 
         return new QueryEvaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition));
     }

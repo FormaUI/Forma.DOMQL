@@ -234,6 +234,10 @@ export class DomqlModule {
         if (declaration.changes === 'partly-observable' && (typeof declaration.misses !== 'string' || declaration.misses === '')) {
             fail('A partly observable member states the changes it misses', name);
         }
+
+        if (declaration.tolerance !== undefined && !(Number.isFinite(declaration.tolerance) && declaration.tolerance >= 0)) {
+            fail('Its tolerance is a number that is not negative', name);
+        }
     }
 
     /** Validates the observations that cover a declaration's changes: each names its type, what it observes and the arguments its type takes. */

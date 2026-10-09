@@ -21,15 +21,16 @@ DOMQL is a JavaScript library. It is packaged as the NuGet package `formaui-net.
 
 ## Current scope
 
-The current implementation supports **one-shot reads through the JavaScript API**. The broader design includes watching state, projecting events, actions and behaviors; those capabilities are not yet executable.
+The current implementation supports **reads and watches through the JavaScript API**. The broader design includes projecting events, actions, behaviors and change sets; those capabilities are not yet executable.
 
 | Available | Planned |
 | --- | --- |
-| Parse text or create a query from a JSON definition | Watch queries and deliver state changes |
+| Parse text or create a query from a JSON definition | Deliver state changes as change sets |
 | Validate definitions, bindings and vocabulary usage | Listen to occurrence sources such as `events-of` |
 | Resolve names and types without reading the DOM | Execute actions and establish behaviors |
-| Read synchronous DOM members and return immutable data | Read maintained observations such as `intersects` |
-| Extend the vocabulary through modules | Observation lifetimes and occurrence delivery |
+| Read DOM members, including values the browser keeps such as `intersects`, and return immutable data | Occurrence delivery |
+| Watch a query and receive an immutable snapshot each time its result changes | Fluent construction and the C# half |
+| Extend the vocabulary through modules | |
 
 A declaration can describe a capability before its runtime support exists. Successful resolution does not by itself mean a request can execute in the current release or host.
 
@@ -37,7 +38,7 @@ A declaration can describe a capability before its runtime support exists. Succe
 
 - The [package README](nuget/README.md) teaches the library: loading it, reading queries, the language by example, the API, errors and extending the vocabulary.
 - The [specification](docs/domql-specification.md) defines the language: syntax, types, null behavior, vocabulary contracts and the JSON definition.
-- The [design](docs/domql-design.md) sets out how it runs: construction, resolution, execution, caching, modules and the planned observation lifetimes.
+- The [design](docs/domql-design.md) sets out how it runs: construction, resolution, execution, caching, modules and observation sessions and planned occurrence delivery.
 - The [implementation plan](docs/domql-implementation-plan.md) records the steps that build what is planned, their state and the decisions that shape them.
 
 The specification and design describe the complete intended system; use the status table above to tell those contracts from the runtime features available today.
@@ -82,7 +83,7 @@ The documented role of `publish.ps1` is local package creation. Uploading a pack
 
 ### Where to work
 
-The main flow is text or JSON definition → validation and resolution → evaluation → immutable answer.
+The main flow is text or JSON definition → validation and resolution → evaluation → immutable result.
 
 | Component | Responsibility |
 | --- | --- |

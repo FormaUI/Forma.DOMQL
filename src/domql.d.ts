@@ -22,6 +22,34 @@ export interface ReadAsyncOptions extends ReadOptions {
     signal?: AbortSignal;
 }
 
+/** How a query is watched. */
+export interface WatchOptions<T = unknown> {
+    /** Receives each snapshot, the first as the baseline: an immutable result that shares what did not change with the snapshot before it. What it returns is not awaited. */
+    onChange: (snapshot: T) => unknown;
+    /** Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting. A failure of this callback goes there too. */
+    onError?: (error: unknown) => unknown;
+    /** When an evaluation follows a change: at the next animation frame, once however many observations fired (the default), or in the task that reported it. */
+    schedule?: 'frame' | 'immediate';
+    /** What `onChange` receives. */
+    delivery?: 'snapshot';
+    /** Whether the watch accepts a member whose observations only partly cover its changes; a watch over one without it is a validation error. */
+    acceptPartialObservation?: boolean;
+    /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
+    window?: Window;
+}
+
+/** A watch: the handle of a query kept current. */
+export interface DomqlWatch<T = unknown> {
+    /** `pending` until the first snapshot is available, `ready` while the watch has a current one, `failed` after an evaluation fails, and `disposed` once it is ended. */
+    readonly status: 'pending' | 'ready' | 'failed' | 'disposed';
+    /** The snapshot last reported, null before the first and where the snapshot itself is null; read beside the status. */
+    readonly lastSnapshot: T | null;
+    /** Evaluates now, and settles once the evaluation has completed and the snapshot it produced, if it differs, has been handed to the callback. Rejects with the failure of its evaluation, resolves without delivering where disposal cancels it, and rejects after disposal. */
+    refreshAsync(): Promise<void>;
+    /** Ends the watch: cancels what it scheduled, disposes every observation session and prevents any new callback invocation. A callback already running may finish. */
+    dispose(): void;
+}
+
 /** A DOMQL definition: the JSON document that records a query's meaning, without the values its parameters are bound to. */
 export interface Definition {
     readonly version: number;
@@ -82,7 +110,7 @@ export interface ResolvedDefinition {
     readonly definition: Definition;
     /** The kind of request: a query, a subscription, an action or a behavior request. */
     readonly kind: 'query' | 'subscription' | 'action' | 'behavior';
-    /** The type of the request's answer. */
+    /** The type of the request's result. */
     readonly type: Type;
     /** The declarations the request uses, with where each is used. */
     readonly usedMembers: readonly { readonly declaration: object; readonly pointer: string }[];
@@ -135,7 +163,7 @@ export interface ObservationDeclaration {
 /** A type of observation: what its observations provide, and the function that starts one. */
 export interface ObservationTypeDeclaration {
     name: string;
-    /** A signal that an answer may have changed, or a sampled value a member reads. */
+    /** A signal that a result may have changed, or a sampled value a member reads. */
     contract: 'invalidation' | 'maintained';
     /** The arguments that belong to the identity of an observation, beside its target. */
     identity?: string[];
@@ -181,6 +209,8 @@ export interface MemberDeclaration {
     reads: ReadingMode;
     /** The changes a partly observable member's observations miss. */
     misses?: string;
+    /** How far a number it answers may move before a watch reports a different snapshot; the number must change by more, and exactly where it is not declared. */
+    tolerance?: number;
     /** The observations that cover its changes, which an observable or partly observable member names and no other does. */
     observations?: ObservationDeclaration[];
 }
@@ -242,6 +272,9 @@ export declare class Domql {
 
     /** Reads a query once, waiting for the first sample of every maintained member it reads, and answers immutable data that holds nothing of the document. */
     static readAsync<T = unknown>(query: DomqlQuery, options?: ReadAsyncOptions): Promise<T>;
+
+    /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
+    static watch<T = unknown>(query: DomqlQuery, options: WatchOptions<T>): DomqlWatch<T>;
 
     /** Creates a module from the vocabulary it declares and the functions that carry the declarations out. */
     static createModule(name: string, contents: ModuleContents, functions?: ModuleFunctions | null): DomqlModule;
