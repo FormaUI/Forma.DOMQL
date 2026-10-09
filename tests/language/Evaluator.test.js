@@ -3,8 +3,8 @@ import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { DomqlModule } from '#domql/language/DomqlModule.mjs';
 import { Evaluator } from '#domql/language/Evaluator.mjs';
+import { LanguageResolver } from '#domql/language/LanguageResolver.mjs';
 import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { RequestResolver } from '#domql/language/RequestResolver.mjs';
 import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
 /** Gives the element a border box, since the test environment lays nothing out. */
@@ -29,9 +29,9 @@ const propertyModule = (name, implementation) => new DomqlModule(name, {
 const readWith = (module, text, bindings) => {
     const registry = new ModuleRegistry([Vocabulary.module, module]);
     const query = Domql.parse(text, bindings);
-    const request = new RequestResolver(registry, query.bindings, null, {}).resolve(query.definition);
+    const resolved = new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
 
-    return new Evaluator(registry, request, query.bindings, { window, document }, null).read();
+    return new Evaluator(registry, resolved, query.bindings, { window, document }, null).read();
 };
 
 const failureWith = (module, text, bindings) => {

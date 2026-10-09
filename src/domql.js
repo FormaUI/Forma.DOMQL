@@ -8,9 +8,9 @@ import { DomqlError } from './language/DomqlError.mjs';
 import { DomqlModule } from './language/DomqlModule.mjs';
 import { DomqlQuery } from './language/DomqlQuery.mjs';
 import { Evaluator } from './language/Evaluator.mjs';
+import { LanguageResolver } from './language/LanguageResolver.mjs';
 import { ModuleRegistry } from './language/ModuleRegistry.mjs';
 import { ParsedTexts } from './language/ParsedTexts.mjs';
-import { RequestResolver } from './language/RequestResolver.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
 import { Vocabulary } from './language/Vocabulary.mjs';
@@ -35,7 +35,7 @@ export class Domql {
 
     /**
      * The resolutions of each query by the options they were made under, valid for the registry revision they were made at and released with the query.
-     * @type {WeakMap<DomqlQuery, { revision: number, byOptions: Map<string, import('./language/ResolvedRequest.mjs').ResolvedRequest> }>}
+     * @type {WeakMap<DomqlQuery, { revision: number, byOptions: Map<string, import('./language/ResolvedDefinition.mjs').ResolvedDefinition> }>}
      */
     static #resolutions = new WeakMap();
 
@@ -61,7 +61,7 @@ export class Domql {
         const key = `${options.watch === true}|${options.acceptPartialObservation === true}`;
 
         if (!kept.byOptions.has(key)) {
-            kept.byOptions.set(key, new RequestResolver(Domql.#registry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolve(query.definition));
+            kept.byOptions.set(key, new LanguageResolver(Domql.#registry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolveDefinition(query.definition));
         }
 
         return kept.byOptions.get(key);
@@ -77,9 +77,9 @@ export class Domql {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }
 
-        const request = Domql.resolve(query);
+        const resolved = Domql.resolve(query);
 
-        return new Evaluator(Domql.#registry, request, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
+        return new Evaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition)).read();
     }
 
     /**

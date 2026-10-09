@@ -10,21 +10,21 @@ import { Type } from './Type.mjs';
 
 export class Evaluator {
     #registry;
-    #request;
+    #resolved;
     #bindings;
     #environment;
     #locations;
 
     /**
      * @param {import('./ModuleRegistry.mjs').ModuleRegistry} registry The vocabulary the request was resolved against.
-     * @param {import('./ResolvedRequest.mjs').ResolvedRequest} request The request to read.
+     * @param {import('./ResolvedDefinition.mjs').ResolvedDefinition} resolved The resolved definition to read.
      * @param {import('./Bindings.mjs').Bindings} bindings What the request's parameters are bound to.
      * @param {Environment} environment The window and the document the roots stand for.
      * @param {import('./TextLocations.mjs').TextLocations | null} locations Where in a text each part of the definition came from.
      */
-    constructor(registry, request, bindings, environment, locations) {
+    constructor(registry, resolved, bindings, environment, locations) {
         this.#registry = registry;
-        this.#request = request;
+        this.#resolved = resolved;
         this.#bindings = bindings;
         this.#environment = environment;
         this.#locations = locations;
@@ -32,11 +32,11 @@ export class Evaluator {
 
     /** The answer the query reads: immutable data holding no reference to the document. */
     read() {
-        if (this.#request.kind !== 'query') {
-            this.#fail(`A ${this.#request.kind} request is not read`, '/query');
+        if (this.#resolved.kind !== 'query') {
+            this.#fail(`A ${this.#resolved.kind} request is not read`, '/query');
         }
 
-        return Evaluator.#detach(this.#evaluate(this.#request.definition.query, '/query', null));
+        return Evaluator.#detach(this.#evaluate(this.#resolved.definition.query, '/query', null));
     }
 
     #evaluate(node, pointer, current) {
@@ -70,7 +70,7 @@ export class Evaluator {
             return null;
         }
 
-        const resolution = this.#request.getResolution(pointer);
+        const resolution = this.#resolved.getResolution(pointer);
 
         if (resolution.kind === 'field') {
             return receiver[node.name] ?? null;

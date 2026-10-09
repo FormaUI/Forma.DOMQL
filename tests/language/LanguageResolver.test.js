@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { DomqlModule } from '#domql/language/DomqlModule.mjs';
+import { LanguageResolver } from '#domql/language/LanguageResolver.mjs';
 import { ModuleRegistry } from '#domql/language/ModuleRegistry.mjs';
-import { RequestResolver } from '#domql/language/RequestResolver.mjs';
 import { Vocabulary } from '#domql/language/Vocabulary.mjs';
 
 const panel = document.createElement('div');
@@ -22,7 +22,7 @@ const failure = (text, bindings, options) => {
     throw new Error('The query was resolved');
 };
 
-describe('RequestResolver', () => {
+describe('LanguageResolver', () => {
     describe('types', () => {
         it('types a property of the window', () => {
             expect(resolve('@window.size').type.toString()).toBe('size');
@@ -232,7 +232,7 @@ describe('RequestResolver', () => {
             const resolveWith = text => {
                 const query = Domql.parse(text, { panel: element });
 
-                return new RequestResolver(registry, query.bindings, null, {}).resolve(query.definition);
+                return new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
             };
             const events = resolveWith('@panel.events-of "chart-selected" { value }');
             const predicate = resolveWith('@panel.is "plotted"');

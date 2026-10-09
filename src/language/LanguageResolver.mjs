@@ -1,16 +1,16 @@
 /**
- * RequestResolver — resolves a definition against the vocabulary and types it, before anything is evaluated
+ * LanguageResolver — resolves a DOMQL definition against the vocabulary and validates its types, before anything is evaluated
  */
 
 import { DomqlError } from './DomqlError.mjs';
 import { Names } from './Names.mjs';
-import { ResolvedRequest } from './ResolvedRequest.mjs';
+import { ResolvedDefinition } from './ResolvedDefinition.mjs';
 import { Type } from './Type.mjs';
 
 const DATA = new Set(['number', 'string', 'boolean']);
 const READABLE = new Set(['property', 'operation']);
 
-export class RequestResolver {
+export class LanguageResolver {
     #registry;
     #bindings;
     #locations;
@@ -36,7 +36,7 @@ export class RequestResolver {
     }
 
     /** Resolves and types the definition, answering what it resolved to or throwing where it cannot. */
-    resolve(definition) {
+    resolveDefinition(definition) {
         const result = this.#node(definition.query, '/query', { current: null });
 
         const answer = result.kind === 'subscription' && result.type.kind === 'occurrence' ? result.type.item : result.type;
@@ -49,7 +49,7 @@ export class RequestResolver {
             this.#checkWatch();
         }
 
-        return new ResolvedRequest(definition, result.kind, result.type, this.#resolutions, this.#used);
+        return new ResolvedDefinition(definition, result.kind, result.type, this.#resolutions, this.#used);
     }
 
     #node(node, pointer, scope) {
@@ -81,7 +81,7 @@ export class RequestResolver {
             this.#fail(`The parameter '@${node.name}' is not bound`, pointer);
         }
 
-        return { type: RequestResolver.#toType(this.#bindings.typeOf(node.name)), kind: 'query', isFixed: true, value: this.#bindings.get(node.name) };
+        return { type: LanguageResolver.#toType(this.#bindings.typeOf(node.name)), kind: 'query', isFixed: true, value: this.#bindings.get(node.name) };
     }
 
     #member(node, pointer, scope) {
@@ -118,14 +118,14 @@ export class RequestResolver {
             this.#fail(`'${node.name}' is no member of the vocabulary`, pointer);
         }
 
-        const declaration = candidates.find(candidate => RequestResolver.#matchesReceiver(candidate, receiverType, new Map()));
+        const declaration = candidates.find(candidate => LanguageResolver.#matchesReceiver(candidate, receiverType, new Map()));
 
         if (declaration === undefined) {
             this.#fail(`'${node.name}' is not available on ${receiverType.toNonNullable()}; it is available on ${candidates.flatMap(candidate => [candidate.on].flat()).join(', ')}`, pointer);
         }
 
         const matched = new Map();
-        RequestResolver.#matchesReceiver(declaration, receiverType, matched);
+        LanguageResolver.#matchesReceiver(declaration, receiverType, matched);
 
         const resolved = this.#resolveArguments(declaration, node, pointer, scope, receiverType, matched);
 
@@ -146,7 +146,7 @@ export class RequestResolver {
 
         const type = receiverType.isNullable || resolved.isNullable ? declared.toNullable() : declared;
 
-        return { type, kind: RequestResolver.#kindOf(declaration), isFixed: false };
+        return { type, kind: LanguageResolver.#kindOf(declaration), isFixed: false };
     }
 
     #resolveArguments(declaration, node, pointer, scope, receiverType, matched) {
@@ -287,7 +287,7 @@ export class RequestResolver {
             case 'predicate': {
                 const predicate = this.#registry.getPredicate(declaration.name, name);
 
-                if (predicate === undefined || !RequestResolver.#matchesAny(predicate.on, receiverType)) {
+                if (predicate === undefined || !LanguageResolver.#matchesAny(predicate.on, receiverType)) {
                     const available = this.#registry.getPredicateNames(declaration.name).join(', ');
 
                     this.#fail(`'${declaration.name} "${name}"' is no predicate of ${receiverType.toNonNullable()}; '${declaration.name}' reads ${available}`, pointer);
@@ -331,14 +331,14 @@ export class RequestResolver {
                 continue;
             }
 
-            const declaration = this.#registry.getMembers(segment).find(candidate => READABLE.has(candidate.kind) && candidate.parameters.every(parameter => !parameter.required) && RequestResolver.#matchesReceiver(candidate, current, new Map()));
+            const declaration = this.#registry.getMembers(segment).find(candidate => READABLE.has(candidate.kind) && candidate.parameters.every(parameter => !parameter.required) && LanguageResolver.#matchesReceiver(candidate, current, new Map()));
 
             if (declaration === undefined) {
                 this.#fail(`'${segment}' names no property or operation of ${current.toNonNullable()} that reads without arguments`, pointer);
             }
 
             const matched = new Map();
-            RequestResolver.#matchesReceiver(declaration, current, matched);
+            LanguageResolver.#matchesReceiver(declaration, current, matched);
             current = Type.substitute(Type.parse(declaration.result), matched);
             steps.push({ kind: 'member', declaration, type: current });
             isNullable ||= current.isNullable;
@@ -465,7 +465,7 @@ export class RequestResolver {
 
     /** Whether the declaration applies to the receiver, binding the variables its types write. */
     static #matchesReceiver(declaration, receiverType, bindings) {
-        return RequestResolver.#matchesAny(declaration.on, receiverType, bindings);
+        return LanguageResolver.#matchesAny(declaration.on, receiverType, bindings);
     }
 
     static #matchesAny(on, receiverType, bindings = new Map()) {
@@ -485,10 +485,10 @@ export class RequestResolver {
 
         switch (binding.kind) {
             case 'list':
-                type = Type.list(RequestResolver.#toType(binding.item));
+                type = Type.list(LanguageResolver.#toType(binding.item));
                 break;
             case 'object':
-                type = Type.shape(new Map([...binding.fields].map(([name, field]) => [name, RequestResolver.#toType(field)])));
+                type = Type.shape(new Map([...binding.fields].map(([name, field]) => [name, LanguageResolver.#toType(field)])));
                 break;
             default:
                 type = Type.named(binding.kind);

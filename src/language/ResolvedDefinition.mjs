@@ -1,8 +1,8 @@
 /**
- * ResolvedRequest — a request resolved against the vocabulary: its kind, the type of its answer, and what each of its nodes resolved to
+ * ResolvedDefinition — a definition resolved against the vocabulary: its request kind, the type of its answer, and what each of its nodes resolved to
  */
 
-export class ResolvedRequest {
+export class ResolvedDefinition {
     #definition;
     #kind;
     #type;
