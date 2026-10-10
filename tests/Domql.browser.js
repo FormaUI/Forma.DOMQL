@@ -66,7 +66,7 @@ describe('Domql readAsync in a browser', () => {
             watches.splice(0).forEach(watch => watch.dispose());
         });
 
-        it('follows the layout a browser decides, reporting an snapshot when the size changes', async () => {
+        it('follows the layout a browser decides, reporting a snapshot when the size changes', async () => {
             const snapshots = [];
             const watch = Domql.watch(Domql.parse('@item.size', { item: inside }), { onChange: snapshot => snapshots.push(snapshot) });
 

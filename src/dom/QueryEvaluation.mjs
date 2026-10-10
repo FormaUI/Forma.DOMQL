@@ -14,13 +14,15 @@ export class QueryEvaluation {
     /**
      * @param {object} outcome What the evaluation produced.
      * @param {unknown} outcome.value The detached result, in which a member still waiting for its first sample answers null, or undefined where the evaluation produced none.
+     * @param {import('../snapshots/SnapshotPatcher.mjs').Identities} outcome.identities The elements the result's lists were projected from.
      * @param {boolean} outcome.isPending Whether a maintained member the result reads is still waiting for its first sample.
      * @param {Dependency[]} outcome.dependencies What the evaluation read, including what it read before it failed.
      * @param {import('./ObservationSession.mjs').ObservationSession[]} outcome.sessions The sessions that hold the dependencies' observations.
      * @param {Error | null} outcome.error The failure that ended the evaluation, or null.
      */
-    constructor({ value, isPending, dependencies, sessions, error }) {
+    constructor({ value, identities = null, isPending, dependencies, sessions, error }) {
         this.value = value;
+        this.identities = identities;
         this.isPending = isPending;
         this.dependencies = Object.freeze(dependencies);
         this.error = error;

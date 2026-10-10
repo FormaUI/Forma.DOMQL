@@ -146,7 +146,7 @@ describe('Watch', () => {
     });
 
     describe('changes', () => {
-        it('are followed by an evaluation, which reports an snapshot that differs', async () => {
+        it('are followed by an evaluation, which reports a snapshot that differs', async () => {
             watch('@panel.attributeOf("data-n")', { panel });
             await settle();
             await change(panel, 5);
@@ -532,6 +532,118 @@ describe('Watch', () => {
         });
     });
 
+    describe('delivering change sets', () => {
+        /** A watch that delivers change sets to a current snapshot, acknowledging each one it applies unless the host is told not to. */
+        const watchChanges = (text, bindings, { acknowledges = () => true, options = {} } = {}) => {
+            const current = isolated.createSnapshot();
+            const deliveries = [];
+            const watched = watch(text, bindings, {
+                updateStrategy: 'changeSet',
+                onChange: delivery => {
+                    deliveries.push(delivery);
+
+                    const outcome = current.apply(delivery);
+
+                    if (outcome === 'accepted' && acknowledges(delivery)) {
+                        watched.acknowledge(delivery);
+                    } else if (outcome === 'failed') {
+                        watched.recover();
+                    }
+                },
+                ...options,
+            });
+
+            return { watched, current, deliveries };
+        };
+
+        it('deliver a baseline, then change sets that build on the current the state the watch holds', async () => {
+            const { watched, current, deliveries } = watchChanges('@panel { n: attributeOf "data-n", rows: children { n: attributeOf "data-n" } }', { panel });
+
+            await settle();
+            await change(panel, 5);
+            await change(panel.children[1], 7);
+
+            expect(deliveries.map(delivery => delivery.kind)).toEqual(['baseline', 'changeSet', 'changeSet']);
+            expect(deliveries[2].patch).toEqual([{ op: 'replace', path: '/rows/1/n', value: '7' }]);
+            expect(current.value).toEqual(watched.lastSnapshot);
+        });
+
+        it('move the item of an element that changed position, telling apart elements that project to the same data', async () => {
+            const [first, second] = panel.children;
+
+            first.setAttribute('data-n', '0');
+            second.setAttribute('data-n', '0');
+
+            const { watched, current, deliveries } = watchChanges('@panel.children { n: attributeOf "data-n" }', { panel });
+
+            await settle();
+
+            // The second element moves before the first, and is then the one that changes.
+            panel.insertBefore(second, first);
+            second.setAttribute('data-n', '1');
+            await settle();
+
+            const patch = deliveries.slice(1).flatMap(delivery => delivery.patch);
+
+            expect(patch).toContainEqual({ op: 'move', from: '/1', path: '/0' });
+            expect(current.value).toEqual([{ n: '1' }, { n: '0' }]);
+            expect(current.value).toEqual(watched.lastSnapshot);
+        });
+
+        it('send nothing more until the current acknowledges, then one change set for everything since', async () => {
+            let isAcknowledging = false;
+            const { watched, current, deliveries } = watchChanges('@panel.attributeOf("data-n")', { panel }, { acknowledges: () => isAcknowledging });
+
+            await settle();
+            await change(panel, 2);
+            await change(panel, 3);
+
+            expect(deliveries.map(delivery => delivery.kind)).toEqual(['baseline']);
+
+            isAcknowledging = true;
+            watched.acknowledge(deliveries[0]);
+
+            expect(deliveries[1]).toEqual({ kind: 'changeSet', generation: 1, from: 0, to: 1, patch: [{ op: 'replace', path: '', value: '3' }] });
+            expect(current.value).toBe('3');
+        });
+
+        it('recover a current that was lost with a baseline of a new generation', async () => {
+            const { watched, deliveries } = watchChanges('@panel.attributeOf("data-n")', { panel });
+
+            await settle();
+            await change(panel, 2);
+
+            const replacement = isolated.createSnapshot();
+
+            watched.recover();
+
+            expect(deliveries.at(-1)).toEqual({ kind: 'baseline', generation: 2, from: null, to: 0, snapshot: '2' });
+            expect(replacement.apply(deliveries.at(-1))).toBe('accepted');
+            expect(replacement.value).toBe('2');
+        });
+
+        it('deliver an empty change set when an evaluation recovers from a failure with the result it had', async () => {
+            const { deliveries } = watchChanges('{ n: @panel.flaky }', { panel });
+
+            await settle();
+            broken = true;
+            await change(panel, 1);
+            broken = false;
+            await change(panel, 1);
+
+            expect(deliveries.at(-1)).toEqual({ kind: 'changeSet', generation: 1, from: 0, to: 1, patch: [] });
+        });
+
+        it('are acknowledged and recovered only by a watch that delivers change sets', async () => {
+            const watched = watch('@panel.attributeOf("data-n")', { panel });
+
+            await settle();
+
+            expect(() => watched.acknowledge({})).toThrow(expect.objectContaining({ kind: 'structure' }));
+            expect(() => watched.recover()).toThrow(expect.objectContaining({ kind: 'structure' }));
+        });
+    });
+
     describe('a query that is watched', () => {
         it('is refused when a member only partly observes its changes, unless the watch accepts that', () => {
             const query = isolated.parse('@panel.rect', { panel });
@@ -555,7 +667,7 @@ describe('Watch', () => {
         it('takes the function that receives its snapshots, a schedule and a delivery that exist', () => {
             const query = isolated.parse('@panel.attributeOf("id")', { panel });
 
-            for (const options of [{}, { onChange: 3 }, { onChange: () => {}, onError: 3 }, { onChange: () => {}, schedule: 'later' }, { onChange: () => {}, delivery: 'patch' }]) {
+            for (const options of [{}, { onChange: 3 }, { onChange: () => {}, onError: 3 }, { onChange: () => {}, schedule: 'later' }, { onChange: () => {}, updateStrategy: 'patch' }]) {
                 expect(() => isolated.watch(query, options)).toThrow(expect.objectContaining({ name: 'DomqlError', kind: 'structure' }));
             }
         });

@@ -1,6 +1,6 @@
-# DOMQL Specification v1.0.7
+# DOMQL Specification v1.0.8
 
-DOMQL is a small language for querying the DOM: a query names what its caller wants to know about a document and its elements, and evaluating it gives one answer shaped the way it asked. The same query is read once, watched for changes, or evaluated at each occurrence of something that happened in the document, and the actions and behaviors a caller asks the browser for are requests of their own kinds. The language knows how to name values and shape answers; what can be asked about, an element's size, a computed style, whether it matches a selector, comes from a vocabulary beside it, so adding to what can be asked never changes the language.
+DOMQL is a small language for querying the DOM: a query names what its caller wants to know about a document and its elements, and evaluating it gives one result shaped the way it asked. The same query is read once, watched for changes, or evaluated at each occurrence of something that happened in the document, and the actions and behaviors a caller asks the browser for are requests of their own kinds. The language knows how to name values and shape results; what can be asked about, an element's size, a computed style, whether it matches a selector, comes from a vocabulary beside it, so adding to what can be asked never changes the language.
 
 This specification defines the language: its syntax, what each request means, the contracts of its vocabulary and the definition every request has. The [DOMQL design](domql-design.md) sets out how requests are built, prepared and carried out.
 
@@ -8,7 +8,7 @@ This specification describes the whole language. An implementation may cover par
 
 ## Terms
 
-A **query** is a value expression whose evaluation produces an **answer**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** an answer holds, each with a value. A **predicate test** asks whether a value satisfies **predicates**, names the vocabulary registers, with `is` or `has`, and `and` and `or` combine them. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or released; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
+A **query** is a value expression whose evaluation produces a **result**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** a result holds, each with a value. A **predicate test** asks whether a value satisfies **predicates**, names the vocabulary registers, with `is` or `has`, and `and` and `or` combine them. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or released; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
 
 ## Syntax
 
@@ -100,14 +100,14 @@ A field without a name of its own takes the name of the member or segment it rea
 
 A value is a number, a string, a Boolean, null, a list, a structured value such as a rectangle, an element, the window, the document, or an occurrence source. A member's signature declares its result type, as the section on types sets out, and a result marked `?` can be null by itself; any member answers null when its receiver or an argument is null and its parameter propagates null.
 
-An answer is data: numbers, strings, Booleans, null, lists and shaped objects. An element or an occurrence source has no data form, so a query whose answer would contain one is a validation error; a query shapes an element into the facts it needs.
+A result is data: numbers, strings, Booleans, null, lists and shaped objects. An element or an occurrence source has no data form, so a query whose result would contain one is a validation error; a query shapes an element into the facts it needs.
 
 ### Shapes
 
 - A field takes the name given before its colon, or, with none, the name of the last member in its path, so `rect.width` is `width` and `all("tr") { … }` is `all`; a `get` takes the name of the last segment of the name it reads, as the section on reading by name sets out, and a predicate test of one literal name takes that name's last segment, so `is "disabled"` is `disabled`, `has "children"` is `children` and `is "scroll.atEnd"` is `atEnd`. A test that combines names, or takes its name from a parameter, takes a name of its own: `unavailable: is "disabled" or "readOnly"`.
 - A field whose path follows no member, a parameter, a literal or a shape on its own or followed by a shape, has no name to take and requires one.
 - Two fields of one shape with the same name are an error when the query is created, and so is an empty shape.
-- An answer keeps its fields in the order the shape names them.
+- A result keeps its fields in the order the shape names them.
 - A shape following null is null.
 
 ### Lists
@@ -188,7 +188,7 @@ Reading or watching a query never performs an action or configures a behavior: a
 
 ## Occurrences
 
-A path that ends in an occurrence source is listened to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The answer is immutable data, and that answer, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the built-in vocabulary's native drop event:
+A path that ends in an occurrence source is listened to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The result is immutable data, and that result, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the built-in vocabulary's native drop event:
 
 ```
 @zone.eventsOf("drop") { key: target.closest("[data-drop-target]").attributeOf("data-drop-key") }
@@ -214,7 +214,7 @@ A maintained member's observation starts the first time an evaluation reads it, 
 
 Evaluating a query is read-only for every vocabulary. A measurement that needs the document changed first, such as measuring columns at their intrinsic widths under a temporary class, is an action of its own.
 
-A member whose answer depends on what happened before, as well as on the document as it is, is captured: it keeps that history while a watch or a listener holds it, and documents what a read reports without it.
+A member whose result depends on what happened before, as well as on the document as it is, is captured: it keeps that history while a watch or a listener holds it, and documents what a read reports without it.
 
 ### Elements that leave the document
 
@@ -235,7 +235,7 @@ A literal is constant, so a watched shape can carry one: `@viewport { kind: "vie
 
 ## Null
 
-Null answers both "there is no such value", as when `closest` finds no element, and "the value is unavailable", as when an element has no layout to measure. One null for both keeps answers simple, at the cost of telling the two apart; a member whose consumers need the difference offers it separately, as `is "attached"` says whether an element is still attached to the document.
+Null answers both "there is no such value", as when `closest` finds no element, and "the value is unavailable", as when an element has no layout to measure. One null for both keeps results simple, at the cost of telling the two apart; a member whose consumers need the difference offers it separately, as `is "attached"` says whether an element is still attached to the document.
 
 A member of null is null, and so is a predicate test of null, so a path that meets null answers null from there on, and a mistake is always an error:
 
@@ -250,13 +250,13 @@ A member of null is null, and so is a predicate test of null, so a path that mee
 | A predicate its verb does not register, or one that does not apply to its subject | A validation error naming it |
 | A receiver, an argument, an expression or a binding of the wrong type, an argument of the wrong kind, or a missing required one | A validation error naming where, the expected type and the type found |
 | A module returning a value of a type other than the one it declared | An evaluation error |
-| An answer that would contain an element or an occurrence source | A validation error |
+| A result that would contain an element or an occurrence source | A validation error |
 | A request used as another kind: reading or watching an occurrence source, listening to a value, running a query, or reading an action or a behavior | A validation error |
 | An action or a behavior inside a query, an argument or another request's shape | A validation error |
 | Watching a partly observable member without accepting partial observation | A validation error naming each such member and the changes it misses |
 | A member failing unexpectedly while it evaluates | An evaluation error |
 
-A query is validated before any evaluation, as the section on validation sets out. An evaluation error fails the whole answer, and the caller receives the error in its place.
+A query is validated before any evaluation, as the section on validation sets out. An evaluation error fails the whole result, and the caller receives the error in its place.
 
 ## Built-in vocabulary
 
@@ -409,7 +409,7 @@ A test's `test` is a `literal` holding a string, a `parameter`, or an `and` or a
 }
 ```
 
-An argument is an object holding a `value` node and, for an argument given by name, its `name`; a member's arguments keep the order they were given in. A field is an object holding its `value` node and, where its name was written, its `name`; a shape's fields keep their order. A field without a `name` takes the name its value infers, so the definition keeps the author's naming intent apart from the names the answer takes.
+An argument is an object holding a `value` node and, for an argument given by name, its `name`; a member's arguments keep the order they were given in. A field is an object holding its `value` node and, where its name was written, its `name`; a shape's fields keep their order. A field without a `name` takes the name its value infers, so the definition keeps the author's naming intent apart from the names the result takes.
 
 `@panel { size, hasFocus: matches(":focus-within") }` has this definition:
 
@@ -443,7 +443,7 @@ A definition names its parameters and never holds their values. An element is bo
 A query is validated in two stages, both before any evaluation.
 
 - **Structure,** when the query is created: the definition follows the shape a published JSON Schema describes, and keeps the language's own rules, which need no vocabulary: field names unique within a shape, written and inferred names alike; no shape empty; positional arguments before named ones, and no two named arguments of one call with the same name; no path at the top level, nor a field of a shape there, starting with a member or a test without a subject, since there is no current value for it to belong to; every test's verb `is` or `has`, and its names string literals, parameters, or `and` and `or` of two or more of them; and no binding supplied under the name `document` or `window`. Text that does not follow the syntax fails here as a syntax error.
-- **Vocabulary,** when the query is prepared: every member and extension exists, every receiver, argument, expression and binding has the type its signature declares and every argument its kind, every fixed argument is a literal or a bound parameter, every member path a `get` names resolves to a readable member, every predicate a test names is registered for its verb and applies to its subject, every expression is valid in the context its member declares, the request is used as its kind, the answer holds only data, and a watch's members can be watched.
+- **Vocabulary,** when the query is prepared: every member and extension exists, every receiver, argument, expression and binding has the type its signature declares and every argument its kind, every fixed argument is a literal or a bound parameter, every member path a `get` names resolves to a readable member, every predicate a test names is registered for its verb and applies to its subject, every expression is valid in the context its member declares, the request is used as its kind, the result holds only data, and a watch's members can be watched.
 
 A failure in either stage names where it is: its position in the text, or its node's location in the definition, as a JSON Pointer.
 
@@ -451,15 +451,15 @@ A failure in either stage names where it is: its position in the text, or its no
 
 A query is evaluated against a document, with each parameter it names bound to something in that document or to plain data. `@panel` is not found by the query: it stands for the element the caller bound under the name `panel`, which is how a query reaches a particular element without a selector for it. A query that names `@panel` and `@sentinel` is given those two elements, and fails to prepare when either is not bound. The roots `@document` and `@window` need no binding, since they are always the document being queried and its window.
 
-Conceptually, a caller supplies the query's text and the bindings, and gets back an answer shaped like the query:
+Conceptually, a caller supplies the query's text and the bindings, and gets back a result shaped like the query:
 
 ```text
-answer = evaluate(query, bindings: { panel: <the list panel>, sentinel: <the end marker> })
+result = evaluate(query, bindings: { panel: <the list panel>, sentinel: <the end marker> })
 ```
 
 The bindings name only what the caller chooses. The complete query below also uses `@document` and `@window`, which are absent from them because they are the document the query runs against and its window, so no caller chooses them and none can bind them.
 
-A caller can take that answer once, keep it current as the document changes, or take one at each occurrence of an event the query listens to; how it asks for each is the [design](domql-design.md)'s to say. A value query is read or watched alike; listening needs an occurrence source, whose projection uses the same expression language.
+A caller can take that result once, keep it current as the document changes, or take one at each occurrence of an event the query listens to; how it asks for each is the [design](domql-design.md)'s to say. A value query is read or watched alike; listening needs an occurrence source, whose projection uses the same expression language.
 
 ## A complete query
 
@@ -507,7 +507,7 @@ The query reads it:
 }
 ```
 
-Its answer, with three items and the second selected:
+Its result, with three items and the second selected:
 
 ```json
 {

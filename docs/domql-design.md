@@ -1,6 +1,6 @@
-# DOMQL Design v1.0.7
+# DOMQL Design v1.0.8
 
-The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how answers and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
+The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how results and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
 This design describes the whole runtime. Reading a query once and watching it as snapshots are built; change sets, occurrence delivery, actions and behaviors are not yet, and the [README](../README.md#status) states what this implementation covers.
 
@@ -13,7 +13,7 @@ This design describes the whole runtime. Reading a query once and watching it as
 | Queries read, requests act | Reading, watching or listening to a query reads the document and changes nothing, whatever vocabulary it uses; an action or a behavior request is a request of its own kind, carried out only when its caller runs or establishes it. |
 | One meaning | A query evaluates the same way for every caller, however it was written. |
 | Three ways in | A query is parsed from text, built fluently, or created from its JSON definition, and each produces a definition with the same meaning, validated and evaluated alike. |
-| Visible mistakes | A misspelling or a wrong argument is an error before anything is evaluated; null is always an answer. |
+| Visible mistakes | A misspelling or a wrong argument is an error before anything is evaluated; null is always a result. |
 
 ## Preparation
 
@@ -21,14 +21,14 @@ An extension a request names is loaded when the request is prepared, before it i
 
 ### Reading
 
-A read resolves the query, then evaluates it once against the document in a single synchronous pass, following the resolution rather than looking names up again. A resolution is kept for its query, for the options it was made under and for the vocabulary it was made against, and is released with the query, so an unchanged query is resolved once however often it is read; what a read evaluates is always the document as it is. A read needs a browser window, the one it is given or the one the environment holds, and fails with an evaluation error where there is none, while parsing, creating and resolving need none. The answer is a detached copy, frozen, that holds nothing of the document. A member whose function answers a type other than the one it declares has broken its contract, and the read fails with an evaluation error naming the member and where it stands in the query; so does a member whose function throws, with the thrown error as its cause. A member a module declares and does not implement fails the read the same way. A member maintained by an observation, or an occurrence source, cannot be read in a single synchronous pass and fails it.
+A read resolves the query, then evaluates it once against the document in a single synchronous pass, following the resolution rather than looking names up again. A resolution is kept for its query, for the options it was made under and for the vocabulary it was made against, and is released with the query, so an unchanged query is resolved once however often it is read; what a read evaluates is always the document as it is. A read needs a browser window, the one it is given or the one the environment holds, and fails with an evaluation error where there is none, while parsing, creating and resolving need none. The result is a detached copy, frozen, that holds nothing of the document. A member whose function answers a type other than the one it declares has broken its contract, and the read fails with an evaluation error naming the member and where it stands in the query; so does a member whose function throws, with the thrown error as its cause. A member a module declares and does not implement fails the read the same way. A member maintained by an observation, or an occurrence source, cannot be read in a single synchronous pass and fails it.
 
 ### Waiting for maintained members
 
 A maintained member is pending until its first sample arrives, as the specification defines.
 
-- **`readAsync`, and a watch's first answer,** wait for the first sample of every pending member they read, evaluating again as samples arrive, until an evaluation reads no pending member; only that answer is delivered. The caller can cancel the wait, and a member that can produce no sample reports itself unavailable. The wait completes at the first evaluation that reads no pending member; dependencies that keep introducing pending members can keep it waiting until the caller cancels it.
-- **A maintained member a watch first reads after its first answer** is pending in the answer the watch reports, and the watch evaluates again when its first sample arrives.
+- **`readAsync`, and a watch's first snapshot,** wait for the first sample of every pending member they read, evaluating again as samples arrive, until an evaluation reads no pending member; only that result is delivered. The caller can cancel the wait, and a member that can produce no sample reports itself unavailable. The wait completes at the first evaluation that reads no pending member; dependencies that keep introducing pending members can keep it waiting until the caller cancels it.
+- **A maintained member a watch first reads after its first snapshot** is pending in the snapshot the watch reports, and the watch evaluates again when its first sample arrives.
 - **Inside an occurrence's shape,** a maintained member answers its latest sample, or null while pending, and is never waited for.
 
 ### Sessions
@@ -37,7 +37,7 @@ Every observation a query starts is reached through a session, which the query d
 
 ## Watching and dependencies
 
-A watch keeps a query's answer current: it evaluates the query, reports the answer, and evaluates again when something the answer depends on changes, reporting only an answer that differs.
+A watch keeps a query's result current: it evaluates the query, reports a snapshot of the result, and evaluates again when something the result depends on changes, reporting only a snapshot that differs.
 
 ### Accepting partial observation
 
@@ -53,35 +53,35 @@ A watch's dependencies are what its last evaluation actually read, recorded as i
 - **A path that met null depends on what it read before the null,** so `closest(".row")` finding nothing still depends on the ancestors it searched, and the watch evaluates again when one starts to match.
 - **A watch keeps its bindings.** Binding different values starts the watch afresh.
 
-Invalidation, evaluation and delivery each keep their own schedule. An observation invalidates the watch at once. The watch evaluates at the next animation frame, once however many observations fired, or immediately, in the task that reported the change, where its caller needs a change handled at the moment it is reported, such as at mutation delivery. When the caller receives the answer is the caller's own. Watches that depend on the same target through the same observation share one observation.
+Invalidation, evaluation and delivery each keep their own schedule. An observation invalidates the watch at once. The watch evaluates at the next animation frame, once however many observations fired, or immediately, in the task that reported the change, where its caller needs a change handled at the moment it is reported, such as at mutation delivery. When the caller receives the snapshot is the caller's own. Watches that depend on the same target through the same observation share one observation.
 
-Evaluating the whole query each time is the design. A member may keep its result until its own observations fire, as long as the answer is the one a full evaluation would give.
+Evaluating the whole query each time is the design. A member may keep its result until its own observations fire, as long as the result is the one a full evaluation would give.
 
 ### Elements that leave the document
 
-A member that answered null because its element is detached depends on whether that element is attached, so a watch reading it evaluates again when the same element returns to the document, and observes it again from that evaluation. Removing an element changes the answers that read it, and a watch over them runs on until its caller ends it.
+A member that answered null because its element is detached depends on whether that element is attached, so a watch reading it evaluates again when the same element returns to the document, and observes it again from that evaluation. Removing an element changes the results that read it, and a watch over them runs on until its caller ends it.
 
 ### When evaluation fails
 
-A watch whose evaluation fails reports the error to its caller, and keeps the dependencies of its last successful evaluation together with those the failed one recorded before failing. It evaluates again when any of them changes or its caller refreshes it, and its next successful evaluation reports its answer whether or not it equals the last one reported.
+A watch whose evaluation fails reports the error to its caller, and keeps the dependencies of its last successful evaluation together with those the failed one recorded before failing. It evaluates again when any of them changes or its caller refreshes it, and its next successful evaluation reports its snapshot whether or not it equals the last one reported.
 
 ### Cached state, change sets and snapshots
 
-A watch keeps its answer as cached state and hands its caller snapshots, change sets or live state:
+A watch keeps its result as cached state and hands its caller snapshots, change sets or live state:
 
 | Concept | Is |
 | --- | --- |
-| Cached state | The watch's own copy of its answer, updated in place as individual values change |
-| Baseline | A complete answer, establishing the state its receiver starts from |
+| Cached state | The watch's own copy of its result, updated in place as individual values change |
+| Baseline | A complete result, establishing the state its receiver starts from |
 | Change set | The fields and list entries that changed, relative to the receiver state it was computed against |
-| Snapshot | An immutable answer captured at one moment |
+| Snapshot | An immutable result captured at one moment |
 | Live state | A stable object a JavaScript caller holds, updated in place as the cached state is |
 
-A snapshot never changes once delivered. A new snapshot reuses every immutable branch that did not change and builds new ones only along the paths that did, and a caller taking change sets receives no full snapshot after its baseline. Live state is the one value that changes under its holder: reading it at two moments can give two answers, so it is chosen explicitly and is never a snapshot.
+A snapshot never changes once delivered. A new snapshot reuses every immutable branch that did not change and builds new ones only along the paths that did, and a caller taking change sets receives no full snapshot after its baseline. Live state is the one value that changes under its holder: reading it at two moments can give two results, so it is chosen explicitly and is never a snapshot.
 
-- **Baseline.** The first delivery is the complete answer.
-- **Change sets.** A change set is a [JSON Patch](https://www.rfc-editor.org/rfc/rfc6902) document limited to `replace`, `add`, `remove` and `move`, whose paths are JSON Pointers into the answer; applying it to the state it was computed against gives the new answer. A field the change set leaves out is unchanged, and a field that became null is replaced with null. A shape's fields are fixed, so `add` and `remove` apply to list items alone.
-- **Lists.** A list whose items come from elements changes by element: an element entering is added, one leaving is removed, one changing position is moved, and one whose answer changed is changed inside its item. Any other list changes by position.
+- **Baseline.** The first delivery is the complete result.
+- **Change sets.** A change set is a [JSON Patch](https://www.rfc-editor.org/rfc/rfc6902) document limited to `replace`, `add`, `remove` and `move`, whose paths are JSON Pointers into the result; applying it to the state it was computed against gives the new result. A field the change set leaves out is unchanged, and a field that became null is replaced with null. A shape's fields are fixed, so `add` and `remove` apply to list items alone.
+- **Lists.** A list whose items come from elements changes by element: an element entering is added, one leaving is removed, one changing position is moved, and one whose result changed is changed inside its item. Any other list changes by position.
 - **Coalescing.** Pending changes combine into one change set, computed against the state the change set in flight establishes once accepted, so it carries everything since that one, and changes that cancel out send nothing.
 - **Recovery.** Where the receiver's baseline cannot be trusted, after a failed delivery, a lost connection or a new target, the watch sends a fresh complete baseline.
 
@@ -89,21 +89,32 @@ Recovery abandons any delivery still unanswered and installs a fresh baseline, a
 
 1. **A change set applies only to the state it was computed against.** Its predecessor was accepted, or a recovery established a new baseline.
 2. **Recovery invalidates older delivery work.** Once a recovery baseline is accepted, older pending changes and late completions update no state, advance no baseline and occupy no delivery slot.
-3. **Applying a change set is atomic to consumers.** One that fails exposes no partial answer, and the receiver resynchronizes from a fresh baseline.
+3. **Applying a change set is atomic to consumers.** One that fails exposes no partial result, and the receiver resynchronizes from a fresh baseline.
 4. **A failing handler leaves its state accepted.** It undoes no accepted change, and an accepted change set is never applied again.
 5. **Coalescing keeps the receiver's chain of states.** A change set waiting behind one in flight is computed against the state that one establishes once accepted, and a delivery whose outcome is uncertain is followed by a fresh baseline.
 
-Evaluating only what changed and delivering only what changed are separate: a watch that evaluates its whole query still delivers only the changes in its answer.
+Evaluating only what changed and delivering only what changed are separate: a watch that evaluates its whole query still delivers only the changes in its result.
 
-### Comparing answers
+### Delivering change sets
 
-A watch reports an answer that differs from the last one it reported, compared field by field and item by item. Strings, Booleans and null compare exactly; a number compares within the tolerance its member declares, and exactly where it declares none.
+A watch delivers change sets when its caller chooses them as its update strategy, `updateStrategy: 'changeSet'`, which brings baselines, acknowledgment and recovery with it; it delivers each snapshot whole otherwise.
+
+- **Identity.** A list projected from elements is matched by element, and two elements can project to the same data, so the identity of each item cannot be read back from a snapshot. Evaluation keeps the element each item came from as metadata beside the result, which the comparer and the change sets use and which neither a result nor a change set ever holds. A list that was not projected from elements, one with a null item, and one in which an element stands twice are matched by position.
+- **What a change set reproduces.** A change set takes the accepted state to the reconciled snapshot, the one the watch reports, with every comparison and tolerance applied; it never describes a different, raw evaluation.
+- **An update** names its generation, the revision it starts from and the revision it reaches, whatever carries it. A baseline starts a generation at revision 0 and carries the whole snapshot; a change set goes from one revision of its generation to the next and carries the patch.
+- **Acknowledgment.** A current snapshot confirms that it applied an update by having its host acknowledge it on the watch. One update waits for acknowledgment at a time; while it waits, the watch keeps the latest snapshot, and once it is acknowledged it computes the next change set against the state that update established, so the changes since combine into one and changes that cancel out send nothing.
+- **Recovery.** Where a current snapshot failed to apply an update, was lost or is new, its host recovers the watch, which abandons the generation, the update waiting in it included, and sends the watch's snapshot as the baseline of the next. A late update or acknowledgment of an abandoned generation changes neither the current snapshot's value nor the watch's bookkeeping.
+- **The current snapshot** is DOMQL's, the receiving side a host creates: it applies an update atomically to the snapshot it was computed against, answers whether it accepted the update, found it stale or failed it, and leaves its value as it was where it fails. Its value is the snapshot last accepted, and every snapshot it held before stays unchanged. The host owns the transport between the watch and the current snapshot, and reports what the current snapshot answered. A callback that fails after the current snapshot accepted an update does not make the update failed.
+
+### Comparing snapshots
+
+A watch reports a snapshot that differs from the last one it reported, compared field by field and item by item. Strings, Booleans and null compare exactly; a number compares within the tolerance its member declares, and exactly where it declares none.
 
 ## Occurrence delivery
 
-An occurrence's shape is evaluated as the specification defines, and its answer, immutable data, reaches the caller by the caller's own delivery.
+An occurrence's shape is evaluated as the specification defines, and its result, immutable data, reaches the caller by the caller's own delivery.
 
-A maintained member in an occurrence's shape reads its latest sample, or null while it is pending, never waits for a later one and never revises an answer already delivered:
+A maintained member in an occurrence's shape reads its latest sample, or null while it is pending, never waits for a later one and never revises a result already delivered:
 
 ```
 @button.eventsOf("click") {
@@ -111,7 +122,7 @@ A maintained member in an occurrence's shape reads its latest sample, or null wh
 }
 ```
 
-The subscription holds the sessions its shapes acquire. After each successful evaluation it keeps the sessions that evaluation read and disposes the rest, so an observation one occurrence started serves the next: the first occurrence reports null for a member still pending, and a later one reads the sample that arrived meanwhile. A failed evaluation delivers no answer and reports its failure; the subscription keeps the sessions it held before it and disposes those the failed attempt acquired. Ending the subscription disposes every session it holds, and an observation another holder still has a session on runs on.
+The subscription holds the sessions its shapes acquire. After each successful evaluation it keeps the sessions that evaluation read and disposes the rest, so an observation one occurrence started serves the next: the first occurrence reports null for a member still pending, and a later one reads the sample that arrived meanwhile. A failed evaluation delivers no result and reports its failure; the subscription keeps the sessions it held before it and disposes those the failed attempt acquired. Ending the subscription disposes every session it holds, and an observation another holder still has a session on runs on.
 
 ## Modules
 
@@ -129,11 +140,11 @@ A module is created with its members and, once it can carry them out, the functi
 - **A declaration** names the member's DOMQL name, which the fluent builder spells the same way, and the key of its function in the module's functions, independent of its name; its kind, one of property, operation, source, action and behavior; the types it applies to; its parameters; its result type; and its observation coverage.
 - **A parameter** is a value or an expression. An expression is evaluated against each item of the list it follows and declares the type it produces. A parameter declares whether it is required, its default where it is not, and whether a null argument propagates, making the call answer null, or is accepted.
 - **A fixed parameter** names something the vocabulary resolves before any evaluation, and declares what it selects: a member, a predicate, an occurrence or a feature.
-- **Observations.** A member that changes observably or partly observably names the observations that cover its changes. An observation is of a type, observes the receiver, the window, the document or an argument of the member, and gives the arguments its type takes; a member that changes in any other way names none. A module declares a type of observation with the function that starts one. A type is either an invalidation observation, which says that an answer may have changed and carries no value, or a maintained observation, which provides a sample a member reads and is pending until its first arrives; a member that reads maintained values names a maintained observation, and no other member does.
+- **Observations.** A member that changes observably or partly observably names the observations that cover its changes. An observation is of a type, observes the receiver, the window, the document or an argument of the member, and gives the arguments its type takes; a member that changes in any other way names none. A module declares a type of observation with the function that starts one. A type is either an invalidation observation, which says that a result may have changed and carries no value, or a maintained observation, which provides a sample a member reads and is pending until its first arrives; a member that reads maintained values names a maintained observation, and no other member does.
 - **Types, events, predicates and features** are contributed by modules as data: structured types with their fields, event types with the type of their occurrences, predicates under `is` or `has` with the types they apply to, and the features `supports` names.
 - **Observation coverage** states how a member changes (constant, observable, partly observable with the changes it misses, unobserved, or derived from its receiver and arguments) and how it reads (fresh, maintained, captured or derived).
 
-A request is resolved with `Domql.resolve`, which resolves every member against the registry, types the answer and records what each member resolved to, without a browser and without evaluating anything. A watch over a member that is unobserved is refused, and one over a partly observable member is refused unless it accepts partial observation.
+A request is resolved with `Domql.resolve`, which resolves every member against the registry, types the result and records what each member resolved to, without a browser and without evaluating anything. A watch over a member that is unobserved is refused, and one over a partly observable member is refused unless it accepts partial observation.
 
 A module is given the capability it exposes, never an instance of it, since instances belong to the callers that establish them. A module exposes a capability through DOMQL without the capability depending on DOMQL: the capability keeps an API of its own, and its module lives beside it or in an integration package for it.
 
@@ -153,11 +164,11 @@ A tool can check a query text known when the code is written against the metadat
 
 ## Callers
 
-A caller creates a request, binding its parameters, and then reads a query once or watches it, listens to a subscription, runs an action, or establishes, updates and releases a behavior; a watch's caller also chooses its schedule and whether it accepts partial observation. The request is prepared before it is first carried out. Each parameter is bound under the name the request uses, with a value the specification allows. An answer is data, which a caller receives in its own language's form.
+A caller creates a request, binding its parameters, and then reads a query once or watches it, listens to a subscription, runs an action, or establishes, updates and releases a behavior; a watch's caller also chooses its schedule and whether it accepts partial observation. The request is prepared before it is first carried out. Each parameter is bound under the name the request uses, with a value the specification allows. A result is data, which a caller receives in its own language's form.
 
 ### Building a query
 
-A query is parsed from text, built fluently, or created from a definition, and each produces a definition with the same meaning, prepared, validated and evaluated alike. A builder generates the names of the parameters it binds, so two equivalent definitions can name them differently; equivalence lies in their meaning and their answers. Constructing a request describes work: it reads nothing in the document, starts no observation and makes no call across an interop boundary, and reading, watching, listening, running and establishing belong to the caller that carries it out. A definition created directly serves tooling and integrations.
+A query is parsed from text, built fluently, or created from a definition, and each produces a definition with the same meaning, prepared, validated and evaluated alike. A builder generates the names of the parameters it binds, so two equivalent definitions can name them differently; equivalence lies in their meaning and their results. Constructing a request describes work: it reads nothing in the document, starts no observation and makes no call across an interop boundary, and reading, watching, listening, running and establishing belong to the caller that carries it out. A definition created directly serves tooling and integrations.
 
 | JavaScript | C# | Meaning |
 | --- | --- | --- |
@@ -204,7 +215,7 @@ const parsed = Domql.parse(`
 const another = Domql.create(parsed.definition, { panel: otherPanel });
 ```
 
-C# writes text, and names the type its answer maps onto, or none:
+C# writes text, and names the type its result maps onto, or none:
 
 ```csharp
 public sealed record PanelState(double? Width, bool? HasFocus);
@@ -242,13 +253,13 @@ DomqlQuery query = Domql.Parse(
     ("ids", Domql.Bind(Array.Empty<int>(), "list<number>")));
 ```
 
-With the bindings of the first example, the answer is the following: a shape following the null `panel` is null, and `ids` is the empty list.
+With the bindings of the first example, the result is the following: a shape following the null `panel` is null, and `ids` is the empty list.
 
 ```json
 { "panel": null, "ids": [] }
 ```
 
-A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches the answer's fields to the constructor parameters of `T` by name regardless of case, so a field `nearend` fills a parameter `NearEnd`, and reports an ambiguity where two fields differ only in case, since DOMQL itself tells them apart; a `DomqlQuery` answers a `DomqlSnapshot` giving structured access to its values. C# has no fluent builder and no C# type standing for each vocabulary concept: a module contributes its declarations and implementations, and the text names what the query reads. A `TryParse` checks the syntax and the structural rules that need no vocabulary, an empty shape, a duplicate field and a reserved name among them; an expected failure there answers false with a diagnostic and no query, and a vocabulary failure, such as an unknown member, arrives when the query is prepared.
+A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches the result's fields to the constructor parameters of `T` by name regardless of case, so a field `nearend` fills a parameter `NearEnd`, and reports an ambiguity where two fields differ only in case, since DOMQL itself tells them apart; a `DomqlQuery` answers a `DomqlSnapshot` giving structured access to its values. C# has no fluent builder and no C# type standing for each vocabulary concept: a module contributes its declarations and implementations, and the text names what the query reads. A `TryParse` checks the syntax and the structural rules that need no vocabulary, an empty shape, a duplicate field and a reserved name among them; an expected failure there answers false with a diagnostic and no query, and a vocabulary failure, such as an unknown member, arrives when the query is prepared.
 
 - **Targets.** `Domql.from(target)` starts a path at an element and binds it as a parameter the builder names, one parameter however often the same element is given; `Domql.document` and `Domql.window` start at the roots. An element or other value given as an argument is bound the same way. A caller rebinding a fluent query's definition takes the parameter names from that definition.
 - **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells a member by its DOMQL name, `row.attributeOf("data-key")` and `view.computedStyleOf("--x")`, with no conversion, and apart from the function that carries it out: renaming that function never changes the builder, and the declaration is available when a fluent query is built, while the implementation loads when it is prepared. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.

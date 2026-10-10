@@ -1,6 +1,6 @@
 // How a TypeScript caller uses DOMQL, which the declarations must accept; the test compiles this file.
 import { Domql } from '../../src/domql.js';
-import type { DefinitionNode, DomqlError, DomqlModule, DomqlWatch, ModuleContents, ModuleFunctions, PredicateNames, ResolvedDefinition } from '../../src/domql.js';
+import type { DefinitionNode, DomqlError, DomqlModule, DomqlCurrentSnapshot, DomqlWatch, ModuleContents, ModuleFunctions, PredicateNames, ResolvedDefinition, SnapshotBaseline, SnapshotChangeSet, SnapshotUpdate } from '../../src/domql.js';
 
 const panel = document.createElement('div');
 
@@ -21,7 +21,7 @@ const watch: DomqlWatch<{ count: number }> = Domql.watch<{ count: number }>(quer
     },
     onError: error => Promise.resolve(error),
     schedule: 'immediate',
-    delivery: 'snapshot',
+    updateStrategy: 'snapshot',
     acceptPartialObservation: true,
     window,
 });
@@ -71,8 +71,37 @@ Domql.watch(query, {});
 // @ts-expect-error A watch is scheduled by frame or immediately.
 Domql.watch(query, { onChange: () => {}, schedule: 'later' });
 
-// @ts-expect-error A watch delivers snapshots until change sets are built.
-Domql.watch(query, { onChange: () => {}, delivery: 'patch' });
+const current: DomqlCurrentSnapshot<{ count: number }> = Domql.createSnapshot<{ count: number }>();
+const changing: DomqlWatch<{ count: number }> = Domql.watch<{ count: number }>(query, {
+    updateStrategy: 'changeSet',
+    onChange: (update: SnapshotUpdate<{ count: number }>) => {
+        if (update.kind === 'baseline') {
+            const baseline: SnapshotBaseline<{ count: number }> = update;
+            const whole: { count: number } = baseline.snapshot;
+        } else {
+            const changeSet: SnapshotChangeSet = update;
+            const operations: number = changeSet.patch.length;
+        }
+
+        const outcome: 'accepted' | 'stale' | 'failed' = current.apply(update);
+
+        if (outcome === 'accepted') {
+            changing.acknowledge(update);
+        } else if (outcome === 'failed') {
+            changing.recover();
+        }
+    },
+});
+
+// In snapshot mode, onChange receives the snapshot itself, never an update.
+Domql.watch<{ count: number }>(query, { onChange: snapshot => snapshot.count });
+
+// @ts-expect-error A watch that delivers snapshots hands over no update.
+Domql.watch<{ count: number }>(query, { onChange: (update: SnapshotUpdate<{ count: number }>) => update.kind });
+const latest: { count: number } | null = current.value;
+
+// @ts-expect-error The update strategy of a watch is snapshots or change sets.
+Domql.watch(query, { onChange: () => {}, updateStrategy: 'patch' });
 
 const tested = Domql.parse('@panel is "attached" or ("disabled" and "focused")', { panel }).definition.query;
 

@@ -19,6 +19,9 @@ export class QueryEvaluator {
     #environment;
     #locations;
 
+    /** The element each item of a list a shape projected came from, by the list it produced, for the evaluation in progress. @type {WeakMap<unknown[], (Element | null)[]>} */
+    #elementsOf = new WeakMap();
+
     /** What the evaluation in progress records, or null where none does. @type {{ observations: import('./Observations.mjs').Observations, onChange: () => void, holdsAll: boolean, dependencies: object[], sessions: object[], unheld: object[], isPending: boolean } | null} */
     #recording = null;
 
@@ -39,7 +42,7 @@ export class QueryEvaluator {
 
     /** The result the query reads once: immutable data holding no reference to the document. A member maintained by an observation fails it, since its first sample cannot arrive during a synchronous read. */
     read() {
-        return this.#result();
+        return this.#result().value;
     }
 
     /**
@@ -55,12 +58,13 @@ export class QueryEvaluator {
     evaluate({ observations, onChange, holdsAll = false }) {
         const recording = { observations, onChange, holdsAll, dependencies: [], sessions: [], unheld: [], isPending: false };
         let value;
+        let identities = null;
         let error = null;
 
         this.#recording = recording;
 
         try {
-            value = this.#result();
+            ({ value, identities } = this.#result());
         } catch (failure) {
             // A member read through a pending one saw null where a sample will be, so its failure says nothing until the sample arrives.
             error = recording.isPending ? null : failure;
@@ -79,15 +83,20 @@ export class QueryEvaluator {
             }
         }
 
-        return new QueryEvaluation({ value, isPending: recording.isPending, dependencies: recording.dependencies, sessions: recording.sessions, error });
+        return new QueryEvaluation({ value, identities, isPending: recording.isPending, dependencies: recording.dependencies, sessions: recording.sessions, error });
     }
 
+    /** The detached result, and the identities of the elements its lists were projected from, which the result itself never holds. */
     #result() {
         if (this.#resolvedDefinition.kind !== 'query') {
             this.#fail(`A ${this.#resolvedDefinition.kind} request is not read`, '/query');
         }
 
-        return QueryEvaluator.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null));
+        this.#elementsOf = new WeakMap();
+
+        const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null));
+
+        return { value, identities };
     }
 
     #evaluate(node, pointer, current) {
@@ -319,7 +328,18 @@ export class QueryEvaluator {
             ? null
             : Object.fromEntries(node.fields.map((field, index) => [field.name ?? Names.inferField(field.value), this.#evaluate(field.value, `${pointer}/fields/${index}/value`, item)]));
 
-        return hasTarget && Array.isArray(target) ? target.map(apply) : apply(target);
+        if (!(hasTarget && Array.isArray(target))) {
+            return apply(target);
+        }
+
+        const items = target.map(apply);
+
+        // A list of elements is projected item by item, so each item keeps the element it came from; two elements can project to the same data.
+        if (target.length > 0 && target.every(item => item === null || item?.nodeType === 1)) {
+            this.#elementsOf.set(items, [...target]);
+        }
+
+        return items;
     }
 
     /** Whether the value is one the type admits. */
@@ -396,15 +416,26 @@ export class QueryEvaluator {
     }
 
     /** A copy of the data sharing no structure with the original, frozen. */
-    static #detach(value) {
+    /**
+     * A frozen copy of the data sharing no structure with the original, and the identities that follow its shape: for a list projected from elements, the element each item came from, and null where nothing beneath holds one.
+     * @returns {[unknown, import('../snapshots/SnapshotPatcher.mjs').Identities]}
+     */
+    #detach(value) {
         if (Array.isArray(value)) {
-            return Object.freeze(value.map(item => QueryEvaluator.#detach(item)));
+            const detached = value.map(item => this.#detach(item));
+            const elements = this.#elementsOf.get(value) ?? null;
+            const items = detached.map(([, identities]) => identities);
+
+            return [Object.freeze(detached.map(([item]) => item)), elements === null && items.every(item => item === null) ? null : { elements, items }];
         }
 
         if (QueryEvaluator.#isRecord(value)) {
-            return Object.freeze(Object.fromEntries(Object.entries(value).map(([name, field]) => [name, QueryEvaluator.#detach(field)])));
+            const detached = Object.entries(value).map(([name, field]) => [name, this.#detach(field)]);
+            const fields = Object.fromEntries(detached.filter(([, [, identities]]) => identities !== null).map(([name, [, identities]]) => [name, identities]));
+
+            return [Object.freeze(Object.fromEntries(detached.map(([name, [field]]) => [name, field]))), Object.keys(fields).length === 0 ? null : { fields }];
         }
 
-        return value;
+        return [value, null];
     }
 }

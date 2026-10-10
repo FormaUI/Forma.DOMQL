@@ -203,12 +203,12 @@ Available today:
 - Text queries and JSON definitions.
 - Binding, name and type validation.
 - Synchronous reads and asynchronous reads of maintained values.
-- Watching a query, with a snapshot each time its result changes.
+- Watching a query, with a snapshot each time its result changes, or a baseline and then change sets.
 - Immutable snapshots.
 - Extensible vocabulary and observation types.
 - TypeScript declarations.
 
-Change sets, occurrence delivery, actions, behaviors, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
+Occurrence delivery, actions, behaviors, live state, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
 
 ## Build and try it
 

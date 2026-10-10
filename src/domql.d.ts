@@ -30,12 +30,59 @@ export interface WatchOptions<T = unknown> {
     onError?: (error: unknown) => unknown;
     /** When an evaluation follows a change: at the next animation frame, once however many observations fired (the default), or in the task that reported it. */
     schedule?: 'frame' | 'immediate';
-    /** What `onChange` receives. */
-    delivery?: 'snapshot';
+    /** How the watch updates its caller: with each snapshot whole, the default. */
+    updateStrategy?: 'snapshot';
     /** Whether the watch accepts a member whose observations only partly cover its changes; a watch over one without it is a validation error. */
     acceptPartialObservation?: boolean;
     /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
     window?: Window;
+}
+
+/** How a query is watched when its snapshots are delivered as a baseline and then change sets. */
+export interface ChangeSetWatchOptions<T = unknown> extends Omit<WatchOptions<T>, 'onChange' | 'updateStrategy'> {
+    /** Delivers a baseline and then the change sets between snapshots, each sent once the one before it is acknowledged. */
+    updateStrategy: 'changeSet';
+    /** Receives each update, for the host to apply to a current snapshot; the host acknowledges one that applied, and recovers the watch where one failed or the snapshot was lost. */
+    onChange: (update: SnapshotUpdate<T>) => unknown;
+}
+
+/** One operation of a change set: a JSON Patch operation limited to replace, add, remove and move, whose paths are JSON Pointers into the result. */
+export type ChangeOperation =
+    | { readonly op: 'replace' | 'add'; readonly path: string; readonly value: unknown }
+    | { readonly op: 'remove'; readonly path: string }
+    | { readonly op: 'move'; readonly from: string; readonly path: string };
+
+/** The complete result that starts a generation of updates, at revision 0. */
+export interface SnapshotBaseline<T = unknown> {
+    readonly kind: 'baseline';
+    readonly generation: number;
+    readonly from: null;
+    readonly to: 0;
+    readonly snapshot: T;
+}
+
+/** The changes from one revision of a generation to the next, relative to the snapshot at the first. */
+export interface SnapshotChangeSet {
+    readonly kind: 'changeSet';
+    readonly generation: number;
+    readonly from: number;
+    readonly to: number;
+    readonly patch: readonly ChangeOperation[];
+}
+
+/** An update of a snapshot, whatever carries it: a baseline or a change set. */
+export type SnapshotUpdate<T = unknown> = SnapshotBaseline<T> | SnapshotChangeSet;
+
+/** The current snapshot a watch's change sets build on the receiving side. */
+export interface DomqlCurrentSnapshot<T = unknown> {
+    /** The snapshot last accepted, immutable; null before the first baseline. Applying an update advances it, and every snapshot read before stays unchanged. */
+    readonly value: T | null;
+    /** The generation of the baseline the state started from, or null before the first. */
+    readonly generation: number | null;
+    /** The revision of the state within its generation, or null before the first baseline. */
+    readonly revision: number | null;
+    /** Applies an update atomically: `accepted` where it applied, to acknowledge; `stale` where it belongs to an older generation or revision, which changes nothing; `failed` where it cannot apply, which leaves the snapshot as it was and asks for recovery. */
+    apply(update: SnapshotUpdate<T>): 'accepted' | 'stale' | 'failed';
 }
 
 /** A watch: the handle of a query kept current. */
@@ -48,6 +95,10 @@ export interface DomqlWatch<T = unknown> {
     refreshAsync(): Promise<void>;
     /** Ends the watch: cancels what it scheduled, disposes every observation session and prevents any new callback invocation. A callback already running may finish. */
     dispose(): void;
+    /** Confirms that the receiver applied a delivery of a watch that delivers change sets, so the next change set is computed against the state it established; a delivery recovery abandoned changes nothing. A watch that delivers snapshots refuses it. */
+    acknowledge(update: SnapshotUpdate<T>): void;
+    /** Abandons the current generation of a watch that delivers change sets, and sends the current snapshot as a new baseline. A watch that delivers snapshots refuses it. */
+    recover(): void;
 }
 
 /** A DOMQL definition: the JSON document that records a query's meaning, without the values its parameters are bound to. */
@@ -280,6 +331,12 @@ export declare class Domql {
 
     /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
     static watch<T = unknown>(query: DomqlQuery, options: WatchOptions<T>): DomqlWatch<T>;
+
+    /** Watches a query, delivering a baseline and then the change sets between its snapshots. */
+    static watch<T = unknown>(query: DomqlQuery, options: ChangeSetWatchOptions<T>): DomqlWatch<T>;
+
+    /** Creates the current snapshot a watch's change sets build. */
+    static createSnapshot<T = unknown>(): DomqlCurrentSnapshot<T>;
 
     /** Creates a module from the vocabulary it declares and the functions that carry the declarations out. */
     static createModule(name: string, contents: ModuleContents, functions?: ModuleFunctions | null): DomqlModule;

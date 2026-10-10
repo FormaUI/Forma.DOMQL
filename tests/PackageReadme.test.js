@@ -28,23 +28,25 @@ const examples = [
         answers: [['{', '  count: 3,', '  items: [', "    { key: 'a1', selected: false },", "    { key: 'a2', selected: true },", "    { key: 'a3', selected: false }", '  ]', '}']],
     },
     { file: '02-read-again.js', observed: 'reads', answers: [['3'], ['0']] },
-    { file: '03-paths.js', observed: 'reads', answers: [['3'], ['3'], ['true']] },
-    { file: '04-shapes.js', observed: 'reads', answers: [['{ count: 3, attached: true, children: true }']] },
+    { file: '03-read-async.js', observed: 'reads', answers: [['true']] },
+    { file: '04-watch.js', observed: 'printed', answers: [['0'], ['1']] },
+    { file: '05-paths.js', observed: 'reads', answers: [['3'], ['3'], ['true']] },
+    { file: '06-shapes.js', observed: 'reads', answers: [['{ count: 3, attached: true, children: true }']] },
     {
-        file: '05-shapes-of-lists.js',
+        file: '07-shapes-of-lists.js',
         observed: 'reads',
         answers: [['[', "  { key: 'a1', selected: false },", "  { key: 'a2', selected: true },", "  { key: 'a3', selected: false }", ']']],
     },
-    { file: '06-lists.js', observed: 'reads', answers: [['1'], ['64']] },
-    { file: '07-null.js', observed: 'reads', answers: [['null']] },
-    { file: '08-bindings.js', observed: 'reads', answers: [['{ panel: null, ids: [] }']] },
-    { file: '09-resolve.js', observed: 'inspected', inspect: '[resolved.kind, resolved.type.toString()]', answers: [["'query'"], ["'number?'"]] },
+    { file: '08-lists.js', observed: 'reads', answers: [['1'], ['64']] },
+    { file: '09-null.js', observed: 'reads', answers: [['null']] },
+    { file: '10-bindings.js', observed: 'reads', answers: [['{ panel: null, ids: [] }']] },
+    { file: '11-resolve.js', observed: 'inspected', inspect: '[resolved.kind, resolved.type.toString()]', answers: [["'query'"], ["'number?'"]] },
     {
-        file: '10-errors.js',
+        file: '12-errors.js',
         observed: 'logged',
         answers: [['validation'], ["The argument 'name' of 'attributeOf' expects string and finds number", '(line 1, column 20, at /query/arguments/0/value)']],
     },
-    { file: '11-module.js', observed: 'reads', answers: [['{ childCount: 3 }']] },
+    { file: '13-module.js', observed: 'reads', answers: [['{ childCount: 3 }']] },
 ];
 
 /** Gives each element with an inline height a layout box of that height, since the test environment lays nothing out. */
@@ -67,26 +69,60 @@ describe('the package README', () => {
         const { Domql: real } = await import('#domql/domql.js');
         const reads = [];
         const logged = [];
+        const printed = [];
+        const watches = [];
 
-        // The examples call Domql as the README writes it, and every read it answers is kept.
+        // The examples call Domql as the README writes it: every read it answers is kept, and every watch it makes is disposed when they end.
         const Domql = new Proxy(real, {
-            get: (target, key) => key === 'read' ? (...args) => { const answer = target.read(...args); reads.push(answer); return answer; } : target[key],
+            get: (target, key) => {
+                switch (key) {
+                    case 'read':
+                        return (...args) => { const answer = target.read(...args); reads.push(answer); return answer; };
+                    case 'readAsync':
+                        return async (...args) => { const answer = await target.readAsync(...args); reads.push(answer); return answer; };
+                    case 'watch':
+                        return (...args) => { const watch = target.watch(...args); watches.push(watch); return watch; };
+                    default:
+                        return target[key];
+                }
+            },
         });
 
         document.body.innerHTML = fixture('document.html');
         layOut(document);
 
         const mark = (index, inspect) => {
-            results[index] = { reads: reads.splice(0), logged: logged.splice(0), inspected: inspect === null ? [] : inspect() };
+            results[index] = { reads: reads.splice(0), logged: logged.splice(0), printed: printed.splice(0), inspected: inspect === null ? [] : inspect() };
         };
 
         const script = examples.map((example, index) => `${fixture(example.file)}\nmark(${index}, ${example.inspect === undefined ? 'null' : `() => ${example.inspect}`});`).join('\n');
+        const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
         const log = vi.spyOn(console, 'error').mockImplementation((...parts) => logged.push(parts));
+        const print = vi.spyOn(console, 'log').mockImplementation(value => printed.push(value));
+        const { IntersectionObserver } = window;
+
+        // The test document lays nothing out, so intersection is reported by an observer that answers at once that its target intersects.
+        window.IntersectionObserver = class {
+            #report;
+
+            constructor(report) {
+                this.#report = report;
+            }
+
+            observe(target) {
+                queueMicrotask(() => this.#report([{ target, isIntersecting: true }]));
+            }
+
+            disconnect() {}
+        };
 
         try {
-            new Function('Domql', 'document', 'mark', script)(Domql, document, mark);
+            await new AsyncFunction('Domql', 'document', 'mark', script)(Domql, document, mark);
         } finally {
+            watches.forEach(watch => watch.dispose());
+            window.IntersectionObserver = IntersectionObserver;
             log.mockRestore();
+            print.mockRestore();
         }
     });
 
@@ -106,7 +142,7 @@ describe('the package README', () => {
         });
 
         it('gives the answers it shows', () => {
-            const { reads, logged, inspected } = results[index];
+            const { reads, logged, printed, inspected } = results[index];
 
             if (example.observed === 'logged') {
                 const [kind, message] = example.answers;
@@ -116,7 +152,7 @@ describe('the package README', () => {
                 expect(logged[0][0]).toBe(kind[0]);
                 expect(logged[0][1]).toBe(message.join(' '));
             } else {
-                const observed = example.observed === 'reads' ? reads : inspected;
+                const observed = { reads, printed, inspected }[example.observed];
 
                 expect(observed).toEqual(example.answers.map(valueOf));
             }

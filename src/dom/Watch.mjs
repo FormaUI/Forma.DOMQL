@@ -2,6 +2,7 @@
  * Watch — keeps a query's result current, evaluating again when something it depends on changes and reporting a snapshot that differs
  */
 
+import { SnapshotDispatcher } from '../snapshots/SnapshotDispatcher.mjs';
 import { DomqlError } from '../language/DomqlError.mjs';
 
 export class Watch {
@@ -17,6 +18,7 @@ export class Watch {
     /** `pending` until the first snapshot is available, `ready` while the watch has a current one, `failed` after an evaluation fails, and `disposed` once it is ended. @type {'pending' | 'ready' | 'failed' | 'disposed'} */
     #status = 'pending';
     #lastSnapshot = null;
+    #lastIdentities = null;
     #hasSnapshot = false;
 
     /** Whether the next successful evaluation reports its snapshot whether or not it differs, as after a failure. */
@@ -41,19 +43,23 @@ export class Watch {
     /** The refreshes waiting for the next evaluation to complete. @type {{ resolve: () => void, reject: (error: unknown) => void }[]} */
     #pendingRefreshes = [];
 
+    /** What delivers the snapshots as a baseline and then change sets, or null for a watch that delivers each snapshot whole. @type {SnapshotDispatcher | null} */
+    #snapshotDispatcher = null;
+
     /**
      * @param {object} configuration What the watch keeps current and how.
      * @param {import('./QueryEvaluator.mjs').QueryEvaluator} configuration.evaluator Evaluates the query.
      * @param {import('./Observations.mjs').Observations} configuration.observations The observations of the window, which the watch holds sessions on.
-     * @param {import('./SnapshotComparer.mjs').SnapshotComparer} configuration.comparer Compares the snapshots.
+     * @param {import('../snapshots/SnapshotComparer.mjs').SnapshotComparer} configuration.comparer Compares the snapshots.
      * @param {Window} configuration.window The window the watch belongs to.
      * @param {(error: unknown) => void} configuration.reportError The diagnostic reporting boundary, which a failure of `onError` reaches and an error reaches where there is no `onError`.
      * @param {object} configuration.options What the caller chose.
      * @param {'frame' | 'immediate'} configuration.options.schedule When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
-     * @param {(snapshot: unknown) => unknown} configuration.options.onChange Receives each snapshot, the first as the baseline. What it returns is not awaited.
+     * @param {'snapshot' | 'changeSet'} configuration.options.updateStrategy How the watch updates its caller, and so what `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged before the next.
+     * @param {(update: unknown) => unknown} configuration.options.onChange Receives each snapshot, or, where the watch delivers change sets, each baseline and change set, the first as the baseline. What it returns is not awaited.
      * @param {((error: unknown) => unknown) | undefined} configuration.options.onError Receives a failure of an evaluation and of `onChange`; by default they go to the diagnostic reporting boundary.
      */
-    constructor({ evaluator, observations, comparer, window, reportError, options: { schedule, onChange, onError } }) {
+    constructor({ evaluator, observations, comparer, window, reportError, options: { schedule, updateStrategy = 'snapshot', onChange, onError } }) {
         this.#evaluator = evaluator;
         this.#observations = observations;
         this.#comparer = comparer;
@@ -68,6 +74,10 @@ export class Watch {
                 // Nothing is left to report to.
             }
         };
+
+        if (updateStrategy === 'changeSet') {
+            this.#snapshotDispatcher = new SnapshotDispatcher(update => this.#deliver(update));
+        }
 
         // The first evaluation follows the caller receiving the handle, so no callback runs before it has one.
         queueMicrotask(() => {
@@ -105,6 +115,28 @@ export class Watch {
                 this.#run();
             }
         });
+    }
+
+    /**
+     * Confirms that the receiver applied a delivery of a watch that delivers change sets, so the next change set is computed against the state it established.
+     * A delivery that recovery abandoned, or one confirmed already, changes nothing; acceptance is the host's to report, and a callback that fails after the receiver applied a delivery does not undo it.
+     * @param {object} update The update the current snapshot applied.
+     */
+    acknowledge(update) {
+        this.#requireChangeSets('acknowledged').acknowledge(update);
+    }
+
+    /** Abandons the deliveries of the current generation, the one waiting for acknowledgment included, and sends the current snapshot as a new baseline that nothing from before can change, for a receiver whose state cannot be trusted. */
+    recover() {
+        this.#requireChangeSets('recovered').recover();
+    }
+
+    #requireChangeSets(verb) {
+        if (this.#snapshotDispatcher === null) {
+            throw DomqlError.structure(`A watch that delivers snapshots is not ${verb}; a watch that delivers change sets is`, {});
+        }
+
+        return this.#snapshotDispatcher;
     }
 
     /** Ends the watch: cancels the evaluation it scheduled, disposes every session and prevents any new callback invocation; a callback already running may finish. Disposing again does nothing. */
@@ -222,15 +254,19 @@ export class Watch {
             return;
         }
 
-        const next = this.#hasSnapshot ? this.#comparer.reconcile(this.#lastSnapshot, queryEvaluation.value) : queryEvaluation.value;
-        const isReported = !this.#hasSnapshot || this.#needsDelivery || next !== this.#lastSnapshot;
+        const next = this.#hasSnapshot ? this.#comparer.reconcile(this.#lastSnapshot, this.#lastIdentities, queryEvaluation.value, queryEvaluation.identities) : queryEvaluation.value;
+        const isDue = this.#needsDelivery;
+        const isReported = !this.#hasSnapshot || isDue || next !== this.#lastSnapshot;
 
         this.#lastSnapshot = next;
+        this.#lastIdentities = queryEvaluation.identities;
         this.#hasSnapshot = true;
         this.#needsDelivery = false;
         this.#status = 'ready';
 
-        if (isReported) {
+        if (isReported && this.#snapshotDispatcher !== null) {
+            this.#snapshotDispatcher.dispatch(next, queryEvaluation.identities, isDue);
+        } else if (isReported) {
             this.#deliver(next);
         }
 
@@ -251,13 +287,13 @@ export class Watch {
         }
     }
 
-    #deliver(snapshot) {
+    #deliver(update) {
         if (this.#status === 'disposed') {
             return;
         }
 
         try {
-            Watch.#observe(this.#onChange(snapshot), error => this.#fail(error));
+            Watch.#observe(this.#onChange(update), error => this.#fail(error));
         } catch (error) {
             this.#fail(error);
         }

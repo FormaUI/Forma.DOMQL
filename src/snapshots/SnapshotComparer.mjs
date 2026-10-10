@@ -15,39 +15,63 @@ export class SnapshotComparer {
     /**
      * The next snapshot, in which every branch equal to the previous snapshot's is the previous branch itself, so a snapshot that did not change is the previous one and a new snapshot shares what it did not change.
      * Strings, Booleans and null compare exactly, and a number compares within the tolerance the member that produced it declares, and exactly where it declares none.
+     * An item of a list projected from elements is compared with the previous item of the same element, wherever it stood, so a reordered list shares the items that did not change.
      * @param {unknown} previous The snapshot last reported.
+     * @param {import('./SnapshotPatcher.mjs').Identities} previousIdentities The elements the previous snapshot's lists were projected from.
      * @param {unknown} next The snapshot to compare, which is frozen.
+     * @param {import('./SnapshotPatcher.mjs').Identities} nextIdentities The elements the next snapshot's lists were projected from, which it follows.
      */
-    reconcile(previous, next) {
-        return this.#reconcileNode(this.#resolvedDefinition.definition.query, '/query', previous, next);
+    reconcile(previous, previousIdentities, next, nextIdentities) {
+        return this.#reconcileNode(this.#resolvedDefinition.definition.query, '/query', previous, previousIdentities, next, nextIdentities);
     }
 
-    #reconcileNode(node, pointer, previous, next) {
+    #reconcileNode(node, pointer, previous, previousIdentities, next, nextIdentities) {
         if (node.kind !== 'shape' || next === null || typeof next !== 'object') {
             return SnapshotComparer.#merge(previous, next, this.#toleranceOf(node, pointer));
         }
 
         if (!Array.isArray(next)) {
-            return this.#reconcileFields(node, pointer, previous, next);
+            return this.#reconcileFields(node, pointer, previous, previousIdentities, next, nextIdentities);
         }
 
-        // A shape that follows a list projects each of its items.
-        const items = next.map((item, index) => (item === null ? null : this.#reconcileFields(node, pointer, Array.isArray(previous) ? previous[index] : undefined, item)));
+        // A shape that follows a list projects each of its items, which are matched by element where the list was projected from elements and by position otherwise.
+        const before = Array.isArray(previous) ? previous : [];
+        const matched = SnapshotComparer.#matchByElement(previousIdentities, before.length, nextIdentities, next.length);
+        const items = next.map((item, index) => {
+            const at = matched === null ? index : matched[index];
+
+            return item === null ? null : this.#reconcileFields(node, pointer, at === -1 ? undefined : before[at], previousIdentities?.items?.[at] ?? null, item, nextIdentities?.items?.[index] ?? null);
+        });
 
         return SnapshotComparer.#sameItems(previous, items) ? previous : Object.freeze(items);
     }
 
-    #reconcileFields(node, pointer, previous, next) {
+    #reconcileFields(node, pointer, previous, previousIdentities, next, nextIdentities) {
         const before = SnapshotComparer.#isRecord(previous) ? previous : undefined;
         const fields = {};
 
         node.fields.forEach((field, index) => {
             const name = field.name ?? Names.inferField(field.value);
 
-            fields[name] = this.#reconcileNode(field.value, `${pointer}/fields/${index}/value`, before?.[name], next[name]);
+            fields[name] = this.#reconcileNode(field.value, `${pointer}/fields/${index}/value`, before?.[name], previousIdentities?.fields?.[name] ?? null, next[name], nextIdentities?.fields?.[name] ?? null);
         });
 
         return SnapshotComparer.#sameFields(before, fields) ? before : Object.freeze(fields);
+    }
+
+    /** For each next item, the index of the previous item projected from its element, or -1 for an element that entered; null where either list is matched by position. */
+    static #matchByElement(previousIdentities, previousLength, nextIdentities, nextLength) {
+        const previousElements = previousIdentities?.elements ?? null;
+        const nextElements = nextIdentities?.elements ?? null;
+        const isKeyed = (elements, length) => elements !== null && elements.length === length && !elements.includes(null) && new Set(elements).size === length;
+
+        if (!isKeyed(previousElements, previousLength) || !isKeyed(nextElements, nextLength)) {
+            return null;
+        }
+
+        const index = new Map(previousElements.map((element, at) => [element, at]));
+
+        return nextElements.map(element => index.get(element) ?? -1);
     }
 
     /** The tolerance of the member that produced the value, which a field of its value shares; null for a value that is no member's. */

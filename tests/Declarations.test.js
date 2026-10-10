@@ -12,7 +12,8 @@ describe('the declarations', () => {
     it('declare every static member of Domql, and only those', () => {
         const runtime = Object.getOwnPropertyNames(Domql).filter(name => !['length', 'name', 'prototype'].includes(name)).sort();
         const [, body] = declarations.match(/export declare class Domql \{([\s\S]*)\n\}/);
-        const declared = [...body.matchAll(/^\s{4}static (?:readonly )?(\w+)/gm)].map(match => match[1]).sort();
+        // A member declared with overloads is one member.
+        const declared = [...new Set([...body.matchAll(/^\s{4}static (?:readonly )?(\w+)/gm)].map(match => match[1]))].sort();
 
         expect(declared).toEqual(runtime);
     });

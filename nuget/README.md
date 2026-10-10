@@ -18,7 +18,7 @@ Available now:
 - Watch a query and receive a snapshot each time its result changes.
 - Extend the vocabulary through modules.
 
-Change sets, listening to occurrences, actions and behaviors are planned. A vocabulary declaration alone does not make those runtime capabilities available.
+Listening to occurrences, actions and behaviors are planned. A vocabulary declaration alone does not make those runtime capabilities available.
 
 ## Install and load
 
@@ -106,6 +106,38 @@ Domql.read(rebound);
 ```
 
 The definition contains the query structure without bound values. `create` reuses it with new bindings and leaves the original query unchanged.
+
+## Wait for values the browser keeps
+
+Some values come from a browser observation, such as whether an element intersects the viewport. `read` refuses them, since their first sample cannot arrive during a synchronous read; `readAsync` waits for it:
+
+```js
+const inView = await Domql.readAsync(Domql.parse('@panel.intersects', { panel }));
+// true
+```
+
+`readAsync` takes a `signal` to cancel the wait, reads a query with no such value as well, and lets go of every observation it started when it answers, fails or is canceled.
+
+## Watch a query
+
+`watch` keeps a query's result current: `onChange` receives a snapshot, then a new one each time the result changes. Here it watches the empty panel bound above:
+
+```js
+const watch = Domql.watch(rebound, {
+    onChange: count => console.log(count)
+});
+
+await watch.refreshAsync();
+// 0
+
+emptyPanel.append(document.createElement('div'));
+await watch.refreshAsync();
+// 1
+
+watch.dispose();
+```
+
+A watch evaluates again on its own at the next animation frame after something it reads changes. `refreshAsync` evaluates now and settles once the snapshot has been handed to `onChange`, which is how the example waits between its steps. `dispose` ends the watch and lets go of its observations. Pass `onError` to hear of a failed evaluation or a failing callback; the watch keeps running.
 
 ## The language
 
@@ -241,6 +273,7 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.readAsync(query, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
 | `Domql.watch(query, options)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
+| `Domql.createSnapshot()` | Create the current snapshot a watch with `updateStrategy: 'changeSet'` builds: `apply(update)` applies a baseline or a change set atomically and answers `accepted`, `stale` or `failed`, which the host reports to the watch through `acknowledge(update)` or `recover()`, and `value` is the snapshot last accepted. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 
 `resolve` checks a query without a browser and without reading anything:

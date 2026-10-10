@@ -2,11 +2,12 @@
  * Domql — creates DOMQL queries from text and from definitions
  */
 
-import { SnapshotComparer } from './dom/SnapshotComparer.mjs';
+import { SnapshotComparer } from './snapshots/SnapshotComparer.mjs';
 import { BrowserModule } from './dom/BrowserModule.mjs';
 import { Observations } from './dom/Observations.mjs';
 import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
 import { Watch } from './dom/Watch.mjs';
+import { CurrentSnapshot } from './snapshots/CurrentSnapshot.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
 import { DomqlError } from './language/DomqlError.mjs';
 import { DomqlModule } from './language/vocabulary/DomqlModule.mjs';
@@ -18,9 +19,9 @@ import { ParsedTexts } from './language/ParsedTexts.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
 
-/** When a watch evaluates after a change, and what it delivers. */
+/** When a watch evaluates after a change, and how it updates its caller. */
 const WATCH_SCHEDULES = ['frame', 'immediate'];
-const WATCH_DELIVERIES = ['snapshot'];
+const WATCH_UPDATE_STRATEGIES = ['snapshot', 'changeSet'];
 
 export class Domql {
     /**
@@ -29,6 +30,11 @@ export class Domql {
      * @param {object} contents What the module declares.
      * @param {Record<string, Function> | null} functions The functions the members name.
      */
+    /** Creates the current snapshot a watch's change sets build: it applies each update atomically to the snapshot it was computed against and gives a stale one no effect. */
+    static createSnapshot() {
+        return new CurrentSnapshot();
+    }
+
     static createModule(name, contents, functions = null) {
         return new DomqlModule(name, contents, functions);
     }
@@ -151,14 +157,14 @@ export class Domql {
      * The first snapshot is reported after the call returns, as the baseline, through the same callback as every later one.
      * @param {DomqlQuery} query The query to watch.
      * @param {object} options How the query is watched.
-     * @param {(snapshot: unknown) => unknown} options.onChange Receives each snapshot, an immutable result that shares what did not change with the snapshot before it. What it returns is not awaited.
+     * @param {(update: unknown) => unknown} options.onChange Receives each snapshot, an immutable result that shares what did not change with the snapshot before it, or, where the watch delivers change sets, each baseline and change set. What it returns is not awaited.
      * @param {(error: unknown) => unknown} [options.onError] Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting.
      * @param {'frame' | 'immediate'} [options.schedule] When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
-     * @param {'snapshot'} [options.delivery] What `onChange` receives.
+     * @param {'snapshot' | 'changeSet'} [options.updateStrategy] How the watch updates its caller, and so what `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged through the watch's `acknowledge` before the next is sent.
      * @param {boolean} [options.acceptPartialObservation] Whether the watch accepts a member whose observations only partly cover its changes.
      * @param {Window} [options.window] The window `@window` stands for, and whose document `@document` stands for.
      */
-    static watch(query, { onChange, onError, schedule = 'frame', delivery = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = {}) {
+    static watch(query, { onChange, onError, schedule = 'frame', updateStrategy = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = {}) {
         if (typeof onChange !== 'function') {
             throw DomqlError.structure('A watch takes the function that receives its snapshots, as onChange', {});
         }
@@ -171,8 +177,8 @@ export class Domql {
             throw DomqlError.structure(`A watch is scheduled as ${WATCH_SCHEDULES.join(' or ')}`, {});
         }
 
-        if (!WATCH_DELIVERIES.includes(delivery)) {
-            throw DomqlError.structure(`A watch delivers ${WATCH_DELIVERIES.join(' or ')}`, {});
+        if (!WATCH_UPDATE_STRATEGIES.includes(updateStrategy)) {
+            throw DomqlError.structure(`The update strategy of a watch is ${WATCH_UPDATE_STRATEGIES.join(' or ')}`, {});
         }
 
         const options = { watch: true, acceptPartialObservation: acceptPartialObservation === true };
@@ -193,7 +199,7 @@ export class Domql {
             comparer: new SnapshotComparer(resolved),
             window,
             reportError: error => (window.reportError ? window.reportError(error) : console.error(error)),
-            options: { schedule, onChange, onError },
+            options: { schedule, updateStrategy, onChange, onError },
         });
     }
 
