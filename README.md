@@ -4,6 +4,58 @@ DOMQL is a small, extensible query language for reading DOM state as plain data.
 
 Combine measurements, attributes, selection state and collection summaries in one query. Reuse that query as the document changes, or bind it to different elements.
 
+## How DOMQL differs from jQuery
+
+jQuery gives JavaScript code methods for selecting elements, reading and changing the DOM, and handling events. To collect several facts into a result, your code calls those methods and assembles the data.
+
+DOMQL is a declarative language and a runtime for carrying out its requests. A query describes the values to read and the shape of the result. The runtime checks it against a typed vocabulary, evaluates it and returns an immutable snapshot of plain data.
+
+For example, given a panel whose items have layout boxes, both examples read each item’s key, height and selection state:
+
+```js
+const panel = document.getElementById('panel');
+
+// jQuery: the callback reads the values and constructs each object.
+const items = $(panel).find('[data-key]').map((_, item) => ({
+    key: $(item).attr('data-key'),
+    height: item.getBoundingClientRect().height,
+    selected: $(item).is('[aria-selected=true]')
+})).get();
+```
+
+```js
+// DOMQL: the query describes the values and each object's shape.
+const items = Domql.read(`
+    @panel.all("[data-key]") {
+        key: attributeOf "data-key",
+        height: rect.height,
+        selected: matches "[aria-selected=true]"
+    }
+`, { panel });
+```
+
+`@panel` refers to the supplied element; it is not an ID selector. If an item has no layout box, DOMQL reports its height as `null`.
+
+A DOMQL request can be written as text, built fluently or created from a JSON definition. All three forms use the same language and vocabulary rules. Constructing a request does not evaluate it against the DOM: the same query can be read repeatedly, watched for changes or recreated with different bindings.
+
+The runtime also supports subscriptions that project events into data, actions that run once, and behaviors that remain active until disposed. Actions and behaviors are supplied by extension modules. Queries remain read-only.
+
+| | jQuery | DOMQL |
+| --- | --- | --- |
+| Main abstraction | A collection of elements with methods your code calls | A typed request whose definition the runtime carries out |
+| Reading data | Your code reads values and constructs a result | A query specifies the values and result shape |
+| Read result | Whatever your code constructs | An immutable snapshot without live DOM references |
+| Validation | JavaScript calls, with checks available through tooling | Request structure, vocabulary names and types checked before evaluation |
+| Keeping data current | Your code chooses when to repeat its reads | A watch tracks dependencies and reports changed results as snapshots, change sets or live state |
+| Events | Handlers receive events and perform your logic | Subscriptions project occurrences into plain data |
+| Changing the page | DOM manipulation methods | Separate action and behavior requests supplied by modules |
+| Extension | Plugins add methods | Modules declare typed capabilities and their implementations |
+| Reuse | Functions encapsulate operations | Definitions can be reused with new bindings, stored or transmitted as JSON |
+
+Watching follows the observation coverage declared by the vocabulary. Some members are only partly observable and require `acceptPartialObservation: true`; changes outside that coverage need an explicit refresh. Live state is updated in place, while snapshots preserve earlier results.
+
+The [specification](docs/domql-specification.md) defines the language, types and vocabulary contracts.
+
 ## From the DOM to a snapshot
 
 Suppose a panel contains three items:

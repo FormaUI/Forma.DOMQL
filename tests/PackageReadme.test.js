@@ -178,10 +178,24 @@ describe('the package README', () => {
 });
 
 describe('the repository README', () => {
-    const [firstExample, secondExample, , watchExample, changeExample, disposeExample] = blocks(repositoryReadme, 'js');
+    // The comparison with jQuery comes first, its jQuery half shown and never run.
+    const [, comparisonExample, firstExample, secondExample, , watchExample, changeExample, disposeExample] = blocks(repositoryReadme, 'js');
 
     it('shows the document its examples query', () => {
         expect(blocks(repositoryReadme, 'html')[0]).toBe(fixture('document.html'));
+    });
+
+    it('reads, in its comparison with jQuery, the items its first example shows', async () => {
+        vi.resetModules();
+
+        const { Domql } = await import('#domql/domql.js');
+
+        document.body.innerHTML = fixture('document.html');
+        layOut(document);
+
+        const items = new Function('Domql', 'panel', `${comparisonExample}\nreturn items;`)(Domql, document.getElementById('panel'));
+
+        expect(items).toEqual(JSON.parse(blocks(repositoryReadme, 'json')[0]).items);
     });
 
     it('gives the result it shows, and the results of reading again, from that document', async () => {
