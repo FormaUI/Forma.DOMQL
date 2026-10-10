@@ -513,12 +513,33 @@ describe('Domql reads', () => {
             expect(Domql.resolve('@panel.matches(":hover")', { panel }, { watch: true, acceptPartialObservation: true }).kind).toBe('query');
         });
 
+        it('is refused with more arguments than its form takes, rather than ignoring them', async () => {
+            const query = Domql.parse('@panel.children.count', { panel });
+
+            expect(getError(() => Domql.read('@panel.children.count', { panel }, {}, {}))).toMatchObject({ kind: 'structure', message: 'Domql.read takes a text, its parameters and its options, and was given 4 arguments' });
+            expect(getError(() => Domql.read(query, { panel }, {}))).toMatchObject({ kind: 'structure', message: expect.stringContaining('Domql.read takes a query and its options, and was given 3 arguments; a query carries its own parameters') });
+            expect(getError(() => Domql.watch(query, { panel }, { onChange: () => {} }))).toMatchObject({ kind: 'structure', message: expect.stringContaining('Domql.watch takes a query and its configuration') });
+            expect(getError(() => Domql.resolve(query, {}, {})).kind).toBe('structure');
+            await expect(Domql.readAsync(query, {}, {})).rejects.toThrow(expect.objectContaining({ kind: 'structure' }));
+        });
+
+        it('is watched with its parameters always second, {} where it has none', async () => {
+            const counts = [];
+            const watch = Domql.watch('@window.devicePixelRatio', {}, { onChange: ratio => counts.push(ratio), schedule: 'immediate' });
+
+            await watch.refreshAsync();
+            watch.dispose();
+
+            expect(counts).toEqual([window.devicePixelRatio]);
+            expect(getError(() => Domql.watch('@window.devicePixelRatio', { onChange: () => {} })).kind).toBe('structure');
+        });
+
         it('is refused when it is neither a query nor text', () => {
             for (const request of [42, null, { definition: {} }]) {
                 const error = getError(() => Domql.read(request));
 
                 expect(error.kind).toBe('structure');
-                expect(error.message).toBe('Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and bindings to Domql.create.');
+                expect(error.message).toBe('Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and parameters to Domql.create.');
             }
         });
     });
@@ -647,7 +668,7 @@ describe('Domql instances', () => {
 
     it('refuse a query another instance made, saying how to reuse it', async () => {
         const query = other.parse('@panel.children.count', { panel });
-        const message = 'Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and bindings to Domql.create.';
+        const message = 'Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and parameters to Domql.create.';
 
         expect(getError(() => Domql.read(query))).toMatchObject({ kind: 'structure', message });
         expect(getError(() => Domql.resolve(query))).toMatchObject({ kind: 'structure', message });

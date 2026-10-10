@@ -145,7 +145,7 @@ export interface DomqlDefinitionEntry {
     readonly value: DomqlDefinitionNode;
 }
 
-/** A value bound with the type its caller declares for it, as `Domql.bind` answers. */
+/** A value bound with the type its caller declares for it, as `Domql.bind` returns. */
 export interface DomqlTypedBinding {
     readonly value: unknown;
     /** The declared type, in DOMQL's type notation. */
@@ -286,7 +286,7 @@ export interface DomqlMemberDeclaration {
     reads: DomqlReadingMode;
     /** The changes a partly observable member's observations miss. */
     misses?: string;
-    /** How far a number it answers may move before a watch reports a different snapshot; the number must change by more, and exactly where it is not declared. */
+    /** How far a number it returns may move before a watch reports a different snapshot; the number must change by more, and exactly where it is not declared. */
     tolerance?: number;
     /** The observations that cover its changes, which an observable or partly observable member names and no other does. */
     observations?: DomqlObservationDeclaration[];
@@ -321,8 +321,8 @@ export interface DomqlModuleContents {
 /**
  * The functions that carry a module's members, predicates and observation types out, by the key each declaration names.
  * A member or a predicate takes its receiver, its arguments by name and the environment, and a member that reads maintained values also its samples, in the order its declaration names the observations.
- * A source takes its receiver, its arguments and the environment, and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening.
- * An observation type takes the request, the function it calls when something may have changed and the environment, and answers an object whose `stop` ends the observation and, for a maintained one, whose `sample` answers its latest sample.
+ * A source takes its receiver, its arguments and the environment, and the function it delivers each occurrence to, and returns an object whose `stop` ends the listening.
+ * An observation type takes the request, the function it calls when something may have changed and the environment, and returns an object whose `stop` ends the observation and, for a maintained one, whose `sample` returns its latest sample.
  */
 export type DomqlModuleFunctions = Record<string, (...args: any[]) => unknown>;
 
@@ -338,31 +338,37 @@ export declare class Domql {
     static readonly specificationVersion: string;
 
     /** Parses text into a query, binding its parameters. */
-    static parse(text: string, bindings?: DomqlParameterValues): DomqlQuery;
+    static parse(text: string, parameters?: DomqlParameterValues): DomqlQuery;
 
     /** Creates a query from its definition, binding its parameters. */
-    static create(definition: DomqlDefinition, bindings?: DomqlParameterValues): DomqlQuery;
+    static create(definition: DomqlDefinition, parameters?: DomqlParameterValues): DomqlQuery;
 
     /** Binds a value with the type it has, for a value that reveals none, such as null or an empty list. */
     static bind(value: unknown, type: string): DomqlTypedBinding;
 
+    /** Resolves a query given as its text against the registered vocabulary and types it, without evaluating anything. The text is parsed as `parse` parses it, through the same cache. */
+    static resolve(text: string, parameters?: DomqlParameterValues, options?: DomqlResolveOptions): DomqlResolvedDefinition;
+
     /** Resolves a query against the registered vocabulary and types it, without evaluating anything. */
     static resolve(query: DomqlQuery, options?: DomqlResolveOptions): DomqlResolvedDefinition;
 
-    /** Resolves a query given as its text, parsed as `parse` parses it, through the same cache. */
-    static resolve(text: string, bindings?: DomqlParameterValues, options?: DomqlResolveOptions): DomqlResolvedDefinition;
+    /** Reads a query given as its text once, returning an immutable snapshot containing no live DOM references. A member maintained by an observation fails it. */
+    static read<T = unknown>(text: string, parameters?: DomqlParameterValues, options?: DomqlReadOptions): T;
 
-    /** Reads a query once, answering immutable data that holds nothing of the document. A member maintained by an observation fails it. */
+    /** Reads a query once, returning an immutable snapshot containing no live DOM references. A member maintained by an observation fails it. */
     static read<T = unknown>(query: DomqlQuery, options?: DomqlReadOptions): T;
 
-    /** Reads a query given as its text, parsed as `parse` parses it, through the same cache. */
-    static read<T = unknown>(text: string, bindings?: DomqlParameterValues, options?: DomqlReadOptions): T;
+    /** Reads a query given as its text once, waiting for the first sample of every maintained member it reads. Returns a promise of an immutable snapshot containing no live DOM references. */
+    static readAsync<T = unknown>(text: string, parameters?: DomqlParameterValues, options?: DomqlReadAsyncOptions): Promise<T>;
 
-    /** Reads a query once, waiting for the first sample of every maintained member it reads, and answers immutable data that holds nothing of the document. */
+    /** Reads a query once, waiting for the first sample of every maintained member it reads. Returns a promise of an immutable snapshot containing no live DOM references. */
     static readAsync<T = unknown>(query: DomqlQuery, options?: DomqlReadAsyncOptions): Promise<T>;
 
-    /** Reads a query given as its text, waiting as `readAsync` waits. */
-    static readAsync<T = unknown>(text: string, bindings?: DomqlParameterValues, options?: DomqlReadAsyncOptions): Promise<T>;
+    /** Watches a query given as its text: reports its snapshot, and a snapshot that differs each time something it depends on changes. Pass `{}` as the parameters of a text that has none. */
+    static watch<T = unknown>(text: string, parameters: DomqlParameterValues, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
+
+    /** Watches a query given as its text, delivering a baseline and then the change sets between its snapshots. Pass `{}` as the parameters of a text that has none. */
+    static watch<T = unknown>(text: string, parameters: DomqlParameterValues, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
     static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
@@ -370,17 +376,11 @@ export declare class Domql {
     /** Watches a query, delivering a baseline and then the change sets between its snapshots. */
     static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
 
-    /** Watches a query given as its text, with the bindings between the text and the configuration. */
-    static watch<T = unknown>(text: string, bindings: DomqlParameterValues, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
+    /** Subscribes to an event source given as its text and passes each projected result to `onEvent`. Listening starts in the call. Pass `{}` as the parameters of a text that has none. */
+    static subscribe<T = unknown>(text: string, parameters: DomqlParameterValues, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
 
-    /** Watches a query given as its text, delivering a baseline and then the change sets between its snapshots. */
-    static watch<T = unknown>(text: string, bindings: DomqlParameterValues, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
-
-    /** Subscribes to a subscription's occurrence source: at each event it delivers, evaluates the shape that follows the source against it and hands the result to `onEvent`. Listening starts in the call. */
+    /** Subscribes to an event source and passes each projected result to `onEvent`. Listening starts in the call. */
     static subscribe<T = unknown>(query: DomqlQuery, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
-
-    /** Subscribes to a subscription given as its text, with the bindings between the text and the configuration. */
-    static subscribe<T = unknown>(text: string, bindings: DomqlParameterValues, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
 
     /** Creates the current snapshot a watch's change sets build. */
     static createSnapshot<T = unknown>(): DomqlCurrentSnapshot<T>;
@@ -391,3 +391,4 @@ export declare class Domql {
     /** Registers a module's vocabulary, which every query resolved afterwards may use. */
     static registerModule(module: DomqlModule): void;
 }
+
