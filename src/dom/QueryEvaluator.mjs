@@ -25,6 +25,9 @@ export class QueryEvaluator {
     /** What the evaluation in progress records, or null where none does. @type {{ observations: import('./Observations.mjs').Observations, onChange: () => void, holdsAll: boolean, dependencies: object[], sessions: object[], unheld: object[], isPending: boolean } | null} */
     #recording = null;
 
+    /** The identities of the value `#detach` detached last. @type {import('../snapshots/SnapshotPatcher.mjs').Identities} */
+    #detachedIdentities = null;
+
     /** The value that stands for the member the request ends in while its projection is evaluated, an occurrence or an action's result, and the member's node, or null outside a projection. @type {{ node: object, value: unknown } | null} */
     #occurrence = null;
 
@@ -115,7 +118,7 @@ export class QueryEvaluator {
         try {
             this.#elementsOf = new WeakMap();
 
-            return this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, null))[0];
+            return this.#detachResult(this.#evaluate(this.#resolvedDefinition.definition.query, null)).value;
         } finally {
             this.#occurrence = null;
         }
@@ -158,9 +161,7 @@ export class QueryEvaluator {
             try {
                 this.#elementsOf = new WeakMap();
 
-                const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, null));
-
-                return { value, identities };
+                return this.#detachResult(this.#evaluate(this.#resolvedDefinition.definition.query, null));
             } finally {
                 this.#occurrence = null;
             }
@@ -207,9 +208,7 @@ export class QueryEvaluator {
 
         this.#elementsOf = new WeakMap();
 
-        const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, null));
-
-        return { value, identities };
+        return this.#detachResult(this.#evaluate(this.#resolvedDefinition.definition.query, null));
     }
 
     #evaluate(node, current) {
@@ -584,26 +583,69 @@ export class QueryEvaluator {
         }
     }
 
+    /** The detached result and its identities, which the evaluator lets go of once it hands them over, so it holds no element between evaluations. */
+    #detachResult(value) {
+        try {
+            return { value: this.#detach(value), identities: this.#detachedIdentities };
+        } finally {
+            this.#detachedIdentities = null;
+        }
+    }
+
     /**
-     * A frozen copy of the data sharing no structure with the original, and the identities that follow its shape: for a list projected from elements, the element each item came from, and null where nothing beneath holds one.
-     * @returns {[unknown, import('../snapshots/SnapshotPatcher.mjs').Identities]}
+     * A frozen copy of the data sharing no structure with the original; the identities that follow its shape are left in `#detachedIdentities`: for a list projected from elements, the element each item came from, and null where nothing beneath holds one.
      */
     #detach(value) {
         if (Array.isArray(value)) {
-            const detached = value.map(item => this.#detach(item));
-            const elements = this.#elementsOf.get(value) ?? null;
-            const items = detached.map(([, identities]) => identities);
+            const detached = [];
+            const items = [];
+            let hasIdentities = false;
 
-            return [Object.freeze(detached.map(([item]) => item)), elements === null && items.every(item => item === null) ? null : { elements, items }];
+            // A hole stays a hole, as a copy of the list keeps it.
+            value.forEach((item, index) => {
+                detached[index] = this.#detach(item);
+                items[index] = this.#detachedIdentities;
+                hasIdentities ||= this.#detachedIdentities !== null;
+            });
+            detached.length = value.length;
+            items.length = value.length;
+
+            const elements = this.#elementsOf.get(value) ?? null;
+
+            this.#detachedIdentities = elements === null && !hasIdentities ? null : { elements, items };
+
+            return Object.freeze(detached);
         }
 
         if (QueryEvaluator.#isRecord(value)) {
-            const detached = Object.entries(value).map(([name, field]) => [name, this.#detach(field)]);
-            const fields = Object.fromEntries(detached.filter(([, [, identities]]) => identities !== null).map(([name, [, identities]]) => [name, identities]));
+            const detached = {};
+            let fields = null;
 
-            return [Object.freeze(Object.fromEntries(detached.map(([name, [field]]) => [name, field]))), Object.keys(fields).length === 0 ? null : { fields }];
+            for (const name of Object.keys(value)) {
+                QueryEvaluator.#define(detached, name, this.#detach(value[name]));
+
+                if (this.#detachedIdentities !== null) {
+                    fields ??= {};
+                    QueryEvaluator.#define(fields, name, this.#detachedIdentities);
+                }
+            }
+
+            this.#detachedIdentities = fields === null ? null : { fields };
+
+            return Object.freeze(detached);
         }
 
-        return [value, null];
+        this.#detachedIdentities = null;
+
+        return value;
+    }
+
+    /** Gives the object a field of its own holding the value, a field named `__proto__` included, as a data object's fields are. */
+    static #define(object, name, value) {
+        if (name === '__proto__') {
+            Object.defineProperty(object, name, { value, writable: true, enumerable: true, configurable: true });
+        } else {
+            object[name] = value;
+        }
     }
 }

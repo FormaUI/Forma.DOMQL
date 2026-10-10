@@ -376,6 +376,18 @@ describe('Domql', () => {
             expect(bindings.typeOf('row')).toMatchObject({ kind: 'object' });
         });
 
+        it('reads a bound object field by field, a field named __proto__ as an ordinary field of its own', () => {
+            const row = JSON.parse('{ "__proto__": { "polluted": true }, "id": "a", "tags": ["x", "y"] }');
+            const result = Domql.read('@row', { row });
+
+            expect(Object.keys(result)).toEqual(['__proto__', 'id', 'tags']);
+            expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+            expect(Object.getOwnPropertyDescriptor(result, '__proto__').value).toEqual({ polluted: true });
+            expect(result.polluted).toBeUndefined();
+            expect(Object.isFrozen(result) && Object.isFrozen(result.tags) && Object.isFrozen(result.__proto__)).toBe(true);
+            expect(result.tags).not.toBe(row.tags);
+        });
+
         it.each([
             ['null', null],
             ['an empty list', []],
