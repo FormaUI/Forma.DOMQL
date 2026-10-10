@@ -280,7 +280,25 @@ Build queries from calls that produce the same definition text or JSON would, so
   - A typed binding is a `DomqlUnresolvedExpression` in TypeScript, since its type is written as text, and so is the expression `get` answers.
   - Resolutions are kept by definition rather than by query for every query, so the queries parsed from one text with bindings of one resolution key share theirs too; a binding gives that key its type, and its value where that is a string, a number, a Boolean or null, since a bound string can select what a member reads.
 
-### 9. Editor tooling
+### 9. Measured performance
+
+Make reads and watches cheaper where a measurement shows the work, leaving every result, error, error location and change set as it is.
+
+- **Needs:** nothing new; it works inside what is built.
+- **Done when:** each change below is kept only for a repeatable gain on the workload it targets, with no meaningful loss on another, and the gate passes unchanged; the two changes that alter behavior are decided before they are built.
+- **The workloads:** `npm run bench` from `tests/`, outside the gate, in the simulated DOM the tests use: a read of 1,000 shaped rows, and a small read by query and by text; a watch of 1,000 rows refreshed unchanged, and with one row changed under each update strategy; the change set of 1,000 items in six orders. Each baseline is kept under `.local/`.
+- **What the baseline showed:** a watch's refresh costs about three and a half reads of the same rows, changed or not. Acquiring and releasing the observation sessions of each evaluation takes a third of it, and comparing snapshots a sixteenth. Looking a node's resolution up by the pointer string built for it takes a sixth of a read and a seventh of a refresh, and detaching the result another sixth of a read. The simulated DOM's own work is under a tenth.
+- **The changes, in order:**
+  1. A node's resolution found by the node, kept within its resolved definition so it never crosses bindings or options, with the pointer built only for an error, which names the same location as now, inside an item of a list too.
+  2. Detaching a result in one pass, giving the same frozen result and identities.
+  3. Each shape's field names, each declared structure's field types, each node's tolerance and each `get` step's default arguments computed once, from inputs that are frozen; a shape's object built so that a field named `__proto__` is still an ordinary property.
+  4. The key of a call's bindings computed once, and a watch's change callback made once, where a workload shows their cost.
+- **Decided separately, before they are built:**
+  - Keeping an observation's session across a watch's evaluations when the same request repeats. It is the largest gain for a watch, and it changes when an observation is held and released, which the order of holding before releasing protects.
+  - A list's change set by its longest increasing subsequence, which sends one operation to move the first item to the end, where the current diff sends one for every other item. The current diff takes at most half a millisecond for 1,000 items in any order, so this decides the size of a change set rather than its speed; it changes which operations are sent, and their order, ties and repeated elements are settled with it.
+- **State:** in progress. The workloads and their baseline are built.
+
+### 10. Editor tooling
 
 Diagnostics and completion over the grammar and the declaration metadata, without running a capability.
 
@@ -288,7 +306,7 @@ Diagnostics and completion over the grammar and the declaration metadata, withou
 - **Done when:** a query text is checked against the declarations available to its project, reporting the same positions and messages as resolution.
 - **State:** not started.
 
-### 10. The C# half
+### 11. The C# half
 
 `Parse`, `TryParse`, typed mapping and snapshots for a .NET host.
 
