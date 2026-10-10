@@ -62,8 +62,13 @@ try {
     }
 }
 
-// @ts-expect-error A query is read, not a string.
-Domql.read('@panel.children.count');
+const shorthand: number = Domql.read<number>('@panel.children.count', { panel });
+const shorthandAsync: Promise<number> = Domql.readAsync<number>('@panel.children.count', { panel }, { window, signal: new AbortController().signal });
+const shorthandWatch: DomqlWatch<number> = Domql.watch<number>('@panel.children.count', { panel }, { onChange: count => count });
+const shorthandResolved: ResolvedDefinition = Domql.resolve('@panel.children.count', { panel }, { watch: true });
+
+// @ts-expect-error A query is given as a query or its text.
+Domql.read(42);
 
 // @ts-expect-error A watch takes the function that receives its snapshots.
 Domql.watch(query, {});

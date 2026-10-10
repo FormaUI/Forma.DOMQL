@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
+import { ParsedTexts } from '#domql/language/ParsedTexts.mjs';
 
 /** The error a call throws. */
 const getError = call => {
@@ -460,6 +461,68 @@ describe('Domql reads', () => {
         panel = document.getElementById('panel');
     });
 
+    describe('a query given as its text', () => {
+        it('is read as the query its text parses to, with its bindings and then its options', () => {
+            const text = '@panel { count: children.count, id: attributeOf "id" }';
+
+            expect(Domql.read(text, { panel })).toEqual(Domql.read(Domql.parse(text, { panel })));
+            expect(Domql.read('@window.devicePixelRatio', {}, { window: { document, devicePixelRatio: 3 } })).toBe(3);
+            expect(Domql.read('@window.devicePixelRatio')).toBe(window.devicePixelRatio);
+        });
+
+        it('is read the way a parsed query is, through the same cache of parsed texts', () => {
+            const text = '@panel.children.count';
+            const parse = vi.spyOn(ParsedTexts, 'parse');
+
+            try {
+                Domql.read(text, { panel });
+
+                expect(parse).toHaveBeenCalledWith(text);
+                expect(parse.mock.results[0].value).toBe(Domql.parse(text, { panel }).definition);
+            } finally {
+                parse.mockRestore();
+            }
+        });
+
+        it('fails as parsing fails, and refuses its options given where its bindings go', () => {
+            expect(getError(() => Domql.read('@panel {', { panel })).kind).toBe('syntax');
+            expect(getError(() => Domql.read('@window.size', { window })).kind).toBe('structure');
+            expect(getError(() => Domql.read('@window.size', null)).kind).toBe('structure');
+        });
+
+        it('is read once waiting, and watched, as a query is', async () => {
+            expect(await Domql.readAsync('@panel.children.count', { panel })).toBe(3);
+
+            const counts = [];
+            const watch = Domql.watch('@panel.children.count', { panel }, { onChange: count => counts.push(count), schedule: 'immediate' });
+
+            await watch.refreshAsync();
+            watch.dispose();
+
+            expect(counts).toEqual([3]);
+        });
+
+        it('rejects a waiting read whose text does not parse, rather than throwing', async () => {
+            await expect(Domql.readAsync('@panel {', { panel })).rejects.toThrow(expect.objectContaining({ kind: 'syntax' }));
+        });
+
+        it('is resolved as the query its text parses to, with its bindings and then its options', () => {
+            expect(Domql.resolve('@panel.size', { panel }).type.toString()).toBe(Domql.resolve(Domql.parse('@panel.size', { panel })).type.toString());
+            expect(Domql.resolve('@window.size').type.toString()).toBe('size');
+            expect(getError(() => Domql.resolve('@panel.matches(":hover")', { panel }, { watch: true })).kind).toBe('validation');
+            expect(Domql.resolve('@panel.matches(":hover")', { panel }, { watch: true, acceptPartialObservation: true }).kind).toBe('query');
+        });
+
+        it('is refused when it is neither a query nor text', () => {
+            for (const request of [42, null, { definition: {} }]) {
+                const error = getError(() => Domql.read(request));
+
+                expect(error.kind).toBe('structure');
+                expect(error.message).toBe('Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and bindings to Domql.create.');
+            }
+        });
+    });
+
     describe('the environment', () => {
         it('is reported when there is no browser window', () => {
             const query = Domql.parse('@window.devicePixelRatio');
@@ -547,6 +610,50 @@ describe('Domql modules', () => {
         isolated.registerModule(module('zoom'));
 
         expect(getError(() => Domql.resolve(Domql.parse('@panel.zoom', { panel: document.createElement('div') }))).kind).toBe('validation');
+    });
+});
+
+describe('Domql instances', () => {
+    // Each test loads another instance of Domql beside the one imported, as an independently bundled library would.
+    let other;
+    let panel;
+
+    beforeEach(async () => {
+        vi.resetModules();
+        ({ Domql: other } = await import('#domql/domql.js'));
+
+        document.body.innerHTML = '<section id="panel"><p></p><p></p></section>';
+        panel = document.getElementById('panel');
+    });
+
+    it('refuse a query another instance made, saying how to reuse it', async () => {
+        const query = other.parse('@panel.children.count', { panel });
+        const message = 'Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and bindings to Domql.create.';
+
+        expect(getError(() => Domql.read(query))).toMatchObject({ kind: 'structure', message });
+        expect(getError(() => Domql.resolve(query))).toMatchObject({ kind: 'structure', message });
+        expect(getError(() => Domql.watch(query, { onChange: () => {} }))).toMatchObject({ kind: 'structure', message });
+        await expect(Domql.readAsync(query)).rejects.toThrow(message);
+    });
+
+    it('reuse a query from its definition and raw bindings, resolved against their own vocabulary', () => {
+        other.registerModule(other.createModule('zoom', {
+            members: [{ name: 'zoom', function: 'zoom', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+        }, { zoom: () => 7 }));
+
+        const count = other.parse('@panel.children.count', { panel });
+        const zoom = other.parse('@panel.zoom', { panel });
+
+        expect(Domql.read(Domql.create(count.definition, { panel }))).toBe(2);
+        expect(other.read(zoom)).toBe(7);
+        expect(getError(() => Domql.resolve(Domql.create(zoom.definition, { panel }))).kind).toBe('validation');
+    });
+
+    it('take a typed binding made by this instance, and refuse one another instance made', () => {
+        const { definition } = other.parse('@title', { title: other.bind(null, 'string?') });
+
+        expect(Domql.read(Domql.create(definition, { title: Domql.bind(null, 'string?') }))).toBeNull();
+        expect(getError(() => Domql.create(definition, { title: other.bind(null, 'string?') })).kind).toBe('structure');
     });
 });
 

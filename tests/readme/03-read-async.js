@@ -1,2 +1,2 @@
-const inView = await Domql.readAsync(Domql.parse('@panel.intersects', { panel }));
+const inView = await Domql.readAsync('@panel.intersects', { panel });
 // true

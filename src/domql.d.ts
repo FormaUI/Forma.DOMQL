@@ -145,7 +145,10 @@ export interface ParameterBindings {
     get(name: string): unknown;
 }
 
-/** A DOMQL query: its definition and the values its parameters are bound to. */
+/**
+ * A DOMQL query: its definition and the values its parameters are bound to.
+ * It belongs to the DOMQL instance that made it, and another instance refuses it; `Domql.create` makes it again there from its definition and raw bindings.
+ */
 export interface DomqlQuery {
     /** The query's definition, without its bound values. */
     readonly definition: Definition;
@@ -323,17 +326,32 @@ export declare class Domql {
     /** Resolves a query against the registered vocabulary and types it, without evaluating anything. */
     static resolve(query: DomqlQuery, options?: ResolveOptions): ResolvedDefinition;
 
+    /** Resolves a query given as its text, parsed as `parse` parses it, through the same cache. */
+    static resolve(text: string, bindings?: ParameterValues, options?: ResolveOptions): ResolvedDefinition;
+
     /** Reads a query once, answering immutable data that holds nothing of the document. A member maintained by an observation fails it. */
     static read<T = unknown>(query: DomqlQuery, options?: ReadOptions): T;
 
+    /** Reads a query given as its text, parsed as `parse` parses it, through the same cache. */
+    static read<T = unknown>(text: string, bindings?: ParameterValues, options?: ReadOptions): T;
+
     /** Reads a query once, waiting for the first sample of every maintained member it reads, and answers immutable data that holds nothing of the document. */
     static readAsync<T = unknown>(query: DomqlQuery, options?: ReadAsyncOptions): Promise<T>;
+
+    /** Reads a query given as its text, waiting as `readAsync` waits. */
+    static readAsync<T = unknown>(text: string, bindings?: ParameterValues, options?: ReadAsyncOptions): Promise<T>;
 
     /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
     static watch<T = unknown>(query: DomqlQuery, options: WatchOptions<T>): DomqlWatch<T>;
 
     /** Watches a query, delivering a baseline and then the change sets between its snapshots. */
     static watch<T = unknown>(query: DomqlQuery, options: ChangeSetWatchOptions<T>): DomqlWatch<T>;
+
+    /** Watches a query given as its text, with the bindings between the text and the options. */
+    static watch<T = unknown>(text: string, bindings: ParameterValues, options: WatchOptions<T>): DomqlWatch<T>;
+
+    /** Watches a query given as its text, delivering a baseline and then the change sets between its snapshots. */
+    static watch<T = unknown>(text: string, bindings: ParameterValues, options: ChangeSetWatchOptions<T>): DomqlWatch<T>;
 
     /** Creates the current snapshot a watch's change sets build. */
     static createSnapshot<T = unknown>(): DomqlCurrentSnapshot<T>;

@@ -88,6 +88,8 @@ const snapshot = Domql.read(query);
 
 `@panel` refers to the supplied binding; it is not an ID lookup. `parse` constructs the query without reading the DOM. `read` resolves it as needed and returns the current result synchronously. The snapshot is immutable and contains no live element references.
 
+For a query used once, `resolve`, `read`, `readAsync` and `watch` also take its text and bindings directly, with any options after them: `Domql.read('@panel.children.count', { panel })`. The text is parsed the same way, through the same cache; parse a query yourself to reuse it.
+
 ## Read again or bind another target
 
 Reuse a query for repeated reads. Resolution is cached when compatible; DOM values are read again, and earlier snapshots remain unchanged.
@@ -107,12 +109,14 @@ Domql.read(rebound);
 
 The definition contains the query structure without bound values. `create` reuses it with new bindings and leaves the original query unchanged.
 
+A query belongs to the DOMQL instance that created it. A page holds more than one instance when independently bundled libraries each include DOMQL, and an instance refuses another's query with an error saying how to reuse it: pass its definition and bindings to `create`, as in `Domql.create(otherQuery.definition, { panel })`. The receiving instance validates the definition and resolves it against its own vocabulary, so a member another instance registered is unknown to it. Bind raw values, or typed bindings this instance makes with `Domql.bind`.
+
 ## Wait for values the browser keeps
 
 Some values come from a browser observation, such as whether an element intersects the viewport. `read` refuses them, since their first sample cannot arrive during a synchronous read; `readAsync` waits for it:
 
 ```js
-const inView = await Domql.readAsync(Domql.parse('@panel.intersects', { panel }));
+const inView = await Domql.readAsync('@panel.intersects', { panel });
 // true
 ```
 
@@ -268,11 +272,11 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.create(definition, bindings)` | Construct a query from a reusable definition. |
 | `query.definition` | Access the immutable definition without its bound values. |
 | `Domql.bind(value, type)` | Declare a binding's type explicitly. |
-| `Domql.resolve(query, options)` | Check names and types without evaluating the query. |
-| `Domql.read(query, options)` | Read once, optionally using an explicitly supplied `window`. A member kept by an observation, such as `intersects`, fails it. |
-| `Domql.readAsync(query, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
+| `Domql.resolve(query, options)`, `Domql.resolve(text, bindings, options)` | Check names and types without evaluating the query. |
+| `Domql.read(query, options)`, `Domql.read(text, bindings, options)` | Read once, optionally using an explicitly supplied `window`. A member kept by an observation, such as `intersects`, fails it. |
+| `Domql.readAsync(query, options)`, `Domql.readAsync(text, bindings, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
-| `Domql.watch(query, options)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
+| `Domql.watch(query, options)`, `Domql.watch(text, bindings, options)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
 | `Domql.createSnapshot()` | Create the current snapshot a watch with `updateStrategy: 'changeSet'` builds: `apply(update)` applies a baseline or a change set atomically and answers `accepted`, `stale` or `failed`, which the host reports to the watch through `acknowledge(update)` or `recover()`, and `value` is the snapshot last accepted. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 

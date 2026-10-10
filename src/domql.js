@@ -19,6 +19,30 @@ import { ParsedTexts } from './language/ParsedTexts.mjs';
 import { Specification } from './language/Specification.mjs';
 import { TypedBinding } from './language/TypedBinding.mjs';
 
+/**
+ * How a read is carried out.
+ * @typedef {object} ReadOptions
+ * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for; by default the environment's.
+ */
+
+/**
+ * How a read that waits is carried out.
+ * @typedef {object} ReadAsyncOptions
+ * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for; by default the environment's.
+ * @property {AbortSignal} [signal] Cancels the read, which then fails with the signal's reason.
+ */
+
+/**
+ * How a query is watched.
+ * @typedef {object} WatchOptions
+ * @property {(update: unknown) => unknown} onChange Receives each snapshot, an immutable result that shares what did not change with the snapshot before it, or, where the watch delivers change sets, each baseline and change set. What it returns is not awaited.
+ * @property {(error: unknown) => unknown} [onError] Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting.
+ * @property {'frame' | 'immediate'} [schedule] When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
+ * @property {'snapshot' | 'changeSet'} [updateStrategy] How the watch updates its caller, and so what `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged through the watch's `acknowledge` before the next is sent.
+ * @property {boolean} [acceptPartialObservation] Whether the watch accepts a member whose observations only partly cover its changes.
+ * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
+ */
+
 /** When a watch evaluates after a change, and how it updates its caller. */
 const WATCH_SCHEDULES = ['frame', 'immediate'];
 const WATCH_UPDATE_STRATEGIES = ['snapshot', 'changeSet'];
@@ -59,10 +83,16 @@ export class Domql {
 
     /**
      * Resolves a query against the registered vocabulary and types it, without evaluating anything. A query resolved again under the same options and vocabulary answers the resolution it already has.
-     * @param {DomqlQuery} query The query to resolve.
-     * @param {{ watch?: boolean, acceptPartialObservation?: boolean }} options How the query will be carried out.
+     * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
+     * @param {...(Record<string, unknown> | { watch?: boolean, acceptPartialObservation?: boolean })} rest For a text, its bindings and then how it will be carried out; for a query, how it will be carried out.
      */
-    static resolve(query, options = {}) {
+    static resolve(request, ...rest) {
+        const { query, options } = Domql.#requestOf(request, rest);
+
+        return Domql.#resolve(query, options ?? {});
+    }
+
+    static #resolve(query, options) {
         const revision = Domql.#registry.revision;
         let kept = Domql.#resolutions.get(query);
 
@@ -89,20 +119,26 @@ export class Domql {
     /**
      * Reads a query once, answering immutable data that holds nothing of the document.
      * A member maintained by an observation fails the read, since its first sample cannot arrive during it; `readAsync` waits for it.
-     * @param {DomqlQuery} query The query to read.
-     * @param {{ window?: Window }} [options] The window `@window` stands for, and whose document `@document` stands for.
+     * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
+     * @param {...(Record<string, unknown> | ReadOptions)} rest For a text, its bindings and then its options; for a query, its options.
      */
-    static read(query, { window = globalThis.window } = {}) {
+    static read(request, ...rest) {
+        const { query, options } = Domql.#requestOf(request, rest);
+        const { window = globalThis.window } = options ?? {};
+
         return Domql.#evaluatorOf(query, window).read();
     }
 
     /**
      * Reads a query once, waiting for the first sample of every maintained member it reads, and answers a promise of immutable data that holds nothing of the document.
      * The query is evaluated again as samples arrive and as what it depends on changes, until an evaluation reads no pending member; every observation it started is let go when the read answers, fails or is canceled.
-     * @param {DomqlQuery} query The query to read.
-     * @param {{ window?: Window, signal?: AbortSignal }} [options] The window `@window` stands for, and whose document `@document` stands for, and a signal that cancels the read, which then fails with the signal's reason.
+     * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
+     * @param {...(Record<string, unknown> | ReadAsyncOptions)} rest For a text, its bindings and then its options; for a query, its options.
      */
-    static async readAsync(query, { window = globalThis.window, signal } = {}) {
+    static async readAsync(request, ...rest) {
+        const { query, options } = Domql.#requestOf(request, rest);
+        const { window = globalThis.window, signal } = options ?? {};
+
         signal?.throwIfAborted();
 
         const evaluator = Domql.#evaluatorOf(query, window);
@@ -155,16 +191,13 @@ export class Domql {
     /**
      * Watches a query: evaluates it, reports a snapshot of the result, and evaluates again when something the result depends on changes, reporting a snapshot that differs from the last.
      * The first snapshot is reported after the call returns, as the baseline, through the same callback as every later one.
-     * @param {DomqlQuery} query The query to watch.
-     * @param {object} options How the query is watched.
-     * @param {(update: unknown) => unknown} options.onChange Receives each snapshot, an immutable result that shares what did not change with the snapshot before it, or, where the watch delivers change sets, each baseline and change set. What it returns is not awaited.
-     * @param {(error: unknown) => unknown} [options.onError] Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting.
-     * @param {'frame' | 'immediate'} [options.schedule] When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
-     * @param {'snapshot' | 'changeSet'} [options.updateStrategy] How the watch updates its caller, and so what `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged through the watch's `acknowledge` before the next is sent.
-     * @param {boolean} [options.acceptPartialObservation] Whether the watch accepts a member whose observations only partly cover its changes.
-     * @param {Window} [options.window] The window `@window` stands for, and whose document `@document` stands for.
+     * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
+     * @param {...(Record<string, unknown> | WatchOptions)} rest For a text, its bindings and then its options; for a query, its options.
      */
-    static watch(query, { onChange, onError, schedule = 'frame', updateStrategy = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = {}) {
+    static watch(request, ...rest) {
+        const { query, options } = Domql.#requestOf(request, rest);
+        const { onChange, onError, schedule = 'frame', updateStrategy = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = options ?? {};
+
         if (typeof onChange !== 'function') {
             throw DomqlError.structure('A watch takes the function that receives its snapshots, as onChange', {});
         }
@@ -181,9 +214,9 @@ export class Domql {
             throw DomqlError.structure(`The update strategy of a watch is ${WATCH_UPDATE_STRATEGIES.join(' or ')}`, {});
         }
 
-        const options = { watch: true, acceptPartialObservation: acceptPartialObservation === true };
-        const evaluator = Domql.#evaluatorOf(query, window, options);
-        const resolved = Domql.resolve(query, options);
+        const resolution = { watch: true, acceptPartialObservation: acceptPartialObservation === true };
+        const evaluator = Domql.#evaluatorOf(query, window, resolution);
+        const resolved = Domql.#resolve(query, resolution);
 
         if (resolved.kind !== 'query') {
             throw DomqlError.evaluation(`A ${resolved.kind} request is not watched`, { pointer: '/query' });
@@ -203,12 +236,28 @@ export class Domql {
         });
     }
 
+    /**
+     * The query a call names, parsed where it is given as text, and the options that follow it: the bindings come between a text and its options, and a query carries its own.
+     * A query belongs to the DOMQL instance that made it, and another instance, such as one an independently bundled library carries, refuses it; `create` makes it again from its definition and raw bindings, validated and resolved against this instance's own vocabulary.
+     */
+    static #requestOf(request, rest) {
+        if (typeof request === 'string') {
+            return { query: Domql.parse(request, rest[0]), options: rest[1] };
+        }
+
+        if (!(request instanceof DomqlQuery)) {
+            throw DomqlError.structure('Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and bindings to Domql.create.', {});
+        }
+
+        return { query: request, options: rest[0] };
+    }
+
     static #evaluatorOf(query, window, options = {}) {
         if (!window?.document) {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }
 
-        const resolved = Domql.resolve(query, options);
+        const resolved = Domql.#resolve(query, options);
 
         return new QueryEvaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition));
     }
