@@ -59,7 +59,7 @@ import { TypedBinding } from './language/TypedBinding.mjs';
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
  */
 
-/** Each method that takes a query or its text: its name, the kind of request it carries out, what it does with one, and what follows the parameters. */
+/** Each method that takes a query or its text: its name, the kind of request it carries out, what it does with one, and what follows the bindings. */
 const RESOLVE = { name: 'resolve', trailing: 'options' };
 const READ = { name: 'read', kind: 'query', use: 'read', trailing: 'options' };
 const READ_ASYNC = { name: 'readAsync', kind: 'query', use: 'read', trailing: 'options' };
@@ -93,25 +93,25 @@ export class Domql {
     /**
      * Parses text into a query, binding its parameters.
      * @param {string} text The query text.
-     * @param {Record<string, unknown>} [parameters] Each parameter's name and the value it is bound to.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
      * @returns {DomqlQuery}
      */
-    static parse(text, parameters = {}) {
+    static parse(text, bindings = {}) {
         if (typeof text !== 'string') {
-            throw new TypeError('A query text is a string');
+            throw new TypeError('Query text must be a string');
         }
 
-        return new DomqlQuery(ParsedTexts.parse(text), new ParameterBindings(parameters));
+        return new DomqlQuery(ParsedTexts.parse(text), new ParameterBindings(bindings));
     }
 
     /**
      * Creates a query from its definition, binding its parameters.
      * @param {object} definition The query's definition.
-     * @param {Record<string, unknown>} [parameters] Each parameter's name and the value it is bound to.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
      * @returns {DomqlQuery}
      */
-    static create(definition, parameters = {}) {
-        return new DomqlQuery(new DefinitionValidator().validate(definition), new ParameterBindings(parameters));
+    static create(definition, bindings = {}) {
+        return new DomqlQuery(new DefinitionValidator().validate(definition), new ParameterBindings(bindings));
     }
 
     /**
@@ -128,7 +128,7 @@ export class Domql {
      *
      * @overload
      * @param {string} text The query text, parsed as `parse` parses it, through the same cache.
-     * @param {Record<string, unknown>} [parameters] Each parameter's name and the value it is bound to.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
      * @param {DomqlResolveOptions} [options] How the query will be carried out.
      * @returns {import('./language/ResolvedDefinition.mjs').ResolvedDefinition}
      *
@@ -149,7 +149,7 @@ export class Domql {
      *
      * @overload
      * @param {string} text The query text, parsed as `parse` parses it, through the same cache.
-     * @param {Record<string, unknown>} [parameters] Each parameter's name and the value it is bound to.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
      * @param {DomqlReadOptions} [options] How the read is carried out.
      * @returns {unknown}
      *
@@ -171,7 +171,7 @@ export class Domql {
      *
      * @overload
      * @param {string} text The query text, parsed as `parse` parses it, through the same cache.
-     * @param {Record<string, unknown>} [parameters] Each parameter's name and the value it is bound to.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
      * @param {DomqlReadAsyncOptions} [options] How the read is carried out.
      * @returns {Promise<unknown>}
      *
@@ -248,7 +248,7 @@ export class Domql {
      *
      * @overload
      * @param {string} text The query text, parsed as `parse` parses it, through the same cache.
-     * @param {Record<string, unknown>} parameters Each parameter's name and the value it is bound to; `{}` for a text that has none.
+     * @param {Record<string, unknown>} bindings Values or typed bindings supplied by parameter name; `{}` for a text that has none.
      * @param {DomqlWatchConfiguration} configuration How the query is watched.
      * @returns {Watch}
      *
@@ -300,7 +300,7 @@ export class Domql {
      *
      * @overload
      * @param {string} text The subscription text, parsed as `parse` parses it, through the same cache.
-     * @param {Record<string, unknown>} parameters Each parameter's name and the value it is bound to; `{}` for a text that has none.
+     * @param {Record<string, unknown>} bindings Values or typed bindings supplied by parameter name; `{}` for a text that has none.
      * @param {DomqlSubscribeConfiguration} configuration How the event listener listens.
      * @returns {EventListener}
      *
@@ -350,27 +350,27 @@ export class Domql {
     }
 
     /**
-     * Interprets the arguments of a method that takes a query or its text: a text is parsed with the parameters that follow it, and a query carries its own. Returns the query and the options or the configuration that come last.
-     * A call given more arguments than its form takes is refused, so a misplaced argument is never silently ignored. A query belongs to the DOMQL instance that made it, and another instance, such as one an independently bundled library carries, refuses it; `create` makes it again from its definition and raw parameters, validated and resolved against this instance's own vocabulary.
-     * @param {{ name: string, trailing: string }} method The method, and what follows the parameters in it.
+     * Interprets the arguments of a method that takes a query or its text: a text is parsed with the bindings that follow it, and a query carries its own. Returns the query and the options or the configuration that come last.
+     * A call given more arguments than its form takes is refused, so a misplaced argument is never silently ignored. A query belongs to the DOMQL instance that made it, and another instance, such as one an independently bundled library carries, refuses it; `create` makes it again from its definition and a plain object of bindings, validated and resolved against this instance's own vocabulary.
+     * @param {{ name: string, trailing: string }} method The method, and what follows the bindings in it.
      * @param {DomqlQuery | string} input The query, or its text.
      * @param {unknown[]} rest The arguments after it.
      */
     static #normalizeArguments({ name, trailing }, input, rest) {
         if (typeof input === 'string') {
             if (rest.length > 2) {
-                throw DomqlError.structure(`Domql.${name} takes a text, its parameters and its ${trailing}, and was given ${1 + rest.length} arguments`, {});
+                throw DomqlError.structure(`Domql.${name} takes a text, its bindings and its ${trailing}, and was given ${1 + rest.length} arguments`, {});
             }
 
             return { query: Domql.parse(input, rest[0]), options: rest[1] };
         }
 
         if (!(input instanceof DomqlQuery)) {
-            throw DomqlError.structure('Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and parameters to Domql.create.', {});
+            throw DomqlError.structure('Expected a query created by this DOMQL instance. To reuse a query from another instance, pass its definition and a plain object of bindings to Domql.create.', {});
         }
 
         if (rest.length > 1) {
-            throw DomqlError.structure(`Domql.${name} takes a query and its ${trailing}, and was given ${1 + rest.length} arguments; a query carries its own parameters`, {});
+            throw DomqlError.structure(`Domql.${name} takes a query and its ${trailing}, and was given ${1 + rest.length} arguments; a query carries its own bindings`, {});
         }
 
         return { query: input, options: rest[0] };

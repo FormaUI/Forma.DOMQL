@@ -70,10 +70,10 @@ const shorthandResolved: DomqlResolvedDefinition = Domql.resolve('@panel.childre
 // @ts-expect-error A query is given as a query or its text.
 Domql.read(42);
 
-// @ts-expect-error A query carries its own parameters, so only its options follow it.
+// @ts-expect-error A query carries its own bindings, so only its options follow it.
 Domql.read(query, { panel }, { window });
 
-// @ts-expect-error A watch of a text takes its parameters before its configuration, `{}` where it has none.
+// @ts-expect-error A watch of a text takes its bindings before its configuration, `{}` where it has none.
 Domql.watch('@window.size', { onChange: () => {} });
 
 const clicks: DomqlEventListener<{ x: number }> = Domql.subscribe<{ x: number }>(Domql.parse('@panel.eventsOf("click") { x: clientX }', { panel }), {

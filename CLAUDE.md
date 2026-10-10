@@ -27,7 +27,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 
 - Do use only native modern browser APIs in `src/`, with no external library or polyfill; a script is an ES module, strict by construction.
 - Do publish DOMQL as one minified file, `nuget/wwwroot/domql.js`, which `scripts/bundle.mjs` makes from `src/` with esbuild, a development dependency that the package never carries; the file is generated, ignored by git, and as small as the sources allow, and a test runs the bundle. Ship its types beside it as `domql.d.ts`, written by hand in `src/` and copied by the same script; a test compiles a TypeScript caller against it and fails when it and `Domql` disagree.
-- Do name a parameter by its role (`text`, `definition`, `parameters`), never its type.
+- Do name a parameter by its role (`text`, `definition`, `bindings`), never its type.
 - Do give the plain name to an operation that answers directly, and the suffix `Async` to every operation that answers a promise: `read` and `readAsync`. Never suffix the synchronous form.
 - Do call an object of settings that each have a default, and that a call can leave out whole, its options, as `DomqlReadOptions`; call one that holds something the call cannot do without, such as the callback a watch or a subscription delivers to, its configuration, as `DomqlWatchConfiguration`, and name the parameter that takes it the same way.
 - Do prefix every type `domql.d.ts` exports with `Domql`, and declare as a class only what the bundle exports as one; a type describing an object the library hands out is an interface, whatever its class is called inside `src/`.
