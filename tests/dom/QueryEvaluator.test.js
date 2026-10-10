@@ -88,12 +88,12 @@ describe('QueryEvaluator', () => {
             expect(read('@panel.children.count', { panel })).toBe(3);
             expect(read('@panel.all("[data-key]").count', { panel })).toBe(3);
             expect(read('@panel.first("[aria-selected=true]").attribute-of("data-key")', { panel })).toBe('a2');
-            expect(read('@item.closest("#panel").attribute-of "id"', { item: items[0] })).toBe('panel');
+            expect(read('@item.closest("#panel").attribute-of("id")', { item: items[0] })).toBe('panel');
         });
 
         it('answers an empty list where nothing matches and null where an element is expected', () => {
             expect(read('@panel.all(".none").count', { panel })).toBe(0);
-            expect(read('@panel.first(".none").attribute-of "id"', { panel })).toBeNull();
+            expect(read('@panel.first(".none").attribute-of("id")', { panel })).toBeNull();
             expect(read('@panel.closest(".none") { id: attribute-of "id" }', { panel })).toBeNull();
         });
 
@@ -120,11 +120,11 @@ describe('QueryEvaluator', () => {
         });
 
         it('answers null for an attribute the element does not have', () => {
-            expect(read('@panel.attribute-of "nothing"', { panel })).toBeNull();
+            expect(read('@panel.attribute-of("nothing")', { panel })).toBeNull();
         });
 
         it('answers null for a null argument of a propagating parameter without calling the member', () => {
-            expect(read('@panel.attribute-of @name', { panel, name: Domql.bind(null, 'string?') })).toBeNull();
+            expect(read('@panel.attribute-of(@name)', { panel, name: Domql.bind(null, 'string?') })).toBeNull();
         });
     });
 
@@ -179,19 +179,19 @@ describe('QueryEvaluator', () => {
 
     describe('reading by name', () => {
         it('reads what a name resolves to, as direct access does', () => {
-            expect(read('@panel.get "children.count"', { panel })).toBe(3);
-            expect(read('@panel.get "size.width"', { panel })).toBe(640);
+            expect(read('@panel.get("children.count")', { panel })).toBe(3);
+            expect(read('@panel.get("size.width")', { panel })).toBe(640);
             expect(read('@panel { get "size", get "clientSize" }', { panel }).size).toEqual({ width: 640, height: 480 });
         });
 
         it('takes the name from a bound string', () => {
-            expect(read('@panel.get @name', { panel, name: 'children.count' })).toBe(3);
+            expect(read('@panel.get(@name)', { panel, name: 'children.count' })).toBe(3);
         });
 
         it('answers null where a step of the path is null', () => {
             const detached = document.createElement('div');
 
-            expect(read('@detached.get "size.width"', { detached })).toBeNull();
+            expect(read('@detached.get("size.width")', { detached })).toBeNull();
         });
     });
 
@@ -200,37 +200,37 @@ describe('QueryEvaluator', () => {
             document.body.insertAdjacentHTML('beforeend', '<button id="b" disabled></button><input id="i" readonly><textarea id="t"></textarea><div id="e" contenteditable="true"><span id="s"></span></div><div inert><div id="n" contenteditable="true"></div></div>');
             const element = id => document.getElementById(id);
 
-            expect(read('@b.is "disabled"', { b: element('b') })).toBe(true);
-            expect(read('@panel.is "disabled"', { panel })).toBe(false);
-            expect(read('@i.is "readOnly"', { i: element('i') })).toBe(true);
-            expect(read('@i.is "textEditable"', { i: element('i') })).toBe(false);
-            expect(read('@t.is "textEditable"', { t: element('t') })).toBe(true);
-            expect(read('@s.is "textEditable"', { s: element('s') })).toBe(true);
-            expect(read('@n.is "textEditable"', { n: element('n') })).toBe(false);
-            expect(read('@panel.is "textEditable"', { panel })).toBe(false);
-            expect(read('@panel.has "children"', { panel })).toBe(true);
-            expect(read('@item.has "children"', { item: items[0] })).toBe(false);
+            expect(read('@b is "disabled"', { b: element('b') })).toBe(true);
+            expect(read('@panel is "disabled"', { panel })).toBe(false);
+            expect(read('@i is "readOnly"', { i: element('i') })).toBe(true);
+            expect(read('@i is "textEditable"', { i: element('i') })).toBe(false);
+            expect(read('@t is "textEditable"', { t: element('t') })).toBe(true);
+            expect(read('@s is "textEditable"', { s: element('s') })).toBe(true);
+            expect(read('@n is "textEditable"', { n: element('n') })).toBe(false);
+            expect(read('@panel is "textEditable"', { panel })).toBe(false);
+            expect(read('@panel has "children"', { panel })).toBe(true);
+            expect(read('@item has "children"', { item: items[0] })).toBe(false);
         });
 
         it('answers whether an element is attached', () => {
-            expect(read('@panel.is "attached"', { panel })).toBe(true);
-            expect(read('@detached.is "attached"', { detached: document.createElement('div') })).toBe(false);
+            expect(read('@panel is "attached"', { panel })).toBe(true);
+            expect(read('@detached is "attached"', { detached: document.createElement('div') })).toBe(false);
         });
 
         it('answers whether an element is focused', () => {
             const button = document.createElement('button');
             document.body.append(button);
 
-            expect(read('@button.is "focused"', { button })).toBe(false);
+            expect(read('@button is "focused"', { button })).toBe(false);
 
             button.focus();
 
-            expect(read('@button.is "focused"', { button })).toBe(true);
+            expect(read('@button is "focused"', { button })).toBe(true);
         });
 
         it('answers the document predicates', () => {
-            expect(read('@document.is "visible"')).toBeTypeOf('boolean');
-            expect(read('@document.has "focus"')).toBeTypeOf('boolean');
+            expect(read('@document is "visible"')).toBeTypeOf('boolean');
+            expect(read('@document has "focus"')).toBeTypeOf('boolean');
         });
 
         it('answers a selection of a text control', () => {
@@ -240,12 +240,78 @@ describe('QueryEvaluator', () => {
             input.setSelectionRange(1, 3);
 
             expect(read('@input.selection { start, end }', { input })).toEqual({ start: 1, end: 3 });
-            expect(read('@input.has "selection"', { input })).toBe(true);
+            expect(read('@input has "selection"', { input })).toBe(true);
 
             input.setSelectionRange(2, 2);
 
-            expect(read('@input.has "selection"', { input })).toBe(false);
+            expect(read('@input has "selection"', { input })).toBe(false);
             expect(read('@panel.selection { start }', { panel })).toBeNull();
+        });
+    });
+
+    describe('predicate tests', () => {
+        /** A module whose predicates answer what the test sets and count how often they are read. */
+        const probes = () => {
+            const record = { yes: 0, no: 0 };
+            const module = new DomqlModule('probe', {
+                predicates: [
+                    { verb: 'is', name: 'yes', function: 'isYes', on: 'element', changes: 'constant', reads: 'fresh' },
+                    { verb: 'is', name: 'no', function: 'isNo', on: 'element', changes: 'constant', reads: 'fresh' },
+                ],
+            }, {
+                isYes: () => { record.yes++; return true; },
+                isNo: () => { record.no++; return false; },
+            });
+
+            return { module, record };
+        };
+
+        it.each([
+            ['"yes" and "yes"', true],
+            ['"yes" and "no"', false],
+            ['"no" or "yes"', true],
+            ['"no" or "no"', false],
+            ['"no" or "yes" and "yes"', true],
+            ['("no" or "yes") and "no"', false],
+        ])('answer is %s as and, or and grouping define', (names, expected) => {
+            expect(readWith(probes().module, `@panel is ${names}`, { panel })).toBe(expected);
+        });
+
+        it('read no predicate the result does not need', () => {
+            const { module, record } = probes();
+
+            expect(readWith(module, '@panel is "no" and "yes"', { panel })).toBe(false);
+            expect(record).toEqual({ yes: 0, no: 1 });
+            expect(readWith(module, '@panel is "yes" or "no"', { panel })).toBe(true);
+            expect(record).toEqual({ yes: 1, no: 1 });
+        });
+
+        it('evaluate the subject once, whatever number of predicates it reaches', () => {
+            const { module, record } = probes();
+            let reads = 0;
+            const counting = new DomqlModule('counted', {
+                members: [{ name: 'counted', builder: 'counted', function: 'counted', kind: 'property', on: 'element', parameters: [], result: 'element', changes: 'constant', reads: 'fresh' }],
+            }, { counted: element => { reads++; return element; } });
+            const registry = new ModuleRegistry([Vocabulary.module, module, counting]);
+            const query = Domql.parse('@panel.counted is "yes" and "yes" and "yes"', { panel });
+            const resolved = new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
+
+            expect(new QueryEvaluator(registry, resolved, query.bindings, { window, document }, null).read()).toBe(true);
+            expect(reads).toBe(1);
+            expect(record.yes).toBe(3);
+        });
+
+        it('answer null for a subject that is null', () => {
+            expect(read('@panel.first(".none") is "attached" or "focused"', { panel })).toBeNull();
+        });
+
+        it('test the current value inside a shape and an expression', () => {
+            expect(read('@panel { attached: is "attached", empty: has "children" }', { panel })).toEqual({ attached: true, empty: true });
+            expect(read('@panel.children.where(is "attached" and "focused").count', { panel })).toBe(0);
+        });
+
+        it('take the names of a test from its bindings', () => {
+            expect(read('@panel is @state or @other', { panel, state: 'focused', other: 'attached' })).toBe(true);
         });
     });
 
@@ -278,15 +344,15 @@ describe('QueryEvaluator', () => {
             expect(read('@hidden.rect', { hidden })).toBeNull();
             expect(read('@hidden.clientSize', { hidden })).toBeNull();
             expect(read('@hidden.grid.columns', { hidden })).toBeNull();
-            expect(read('@hidden.is "attached"', { hidden })).toBe(true);
+            expect(read('@hidden is "attached"', { hidden })).toBe(true);
             expect(read('@item.rect(relativeTo: @hidden)', { item: items[0], hidden })).toBeNull();
-            expect(read('@hidden.overlaps @item', { hidden, item: items[0] })).toBeNull();
+            expect(read('@hidden.overlaps(@item)', { hidden, item: items[0] })).toBeNull();
         });
 
         it('compares two boxes', () => {
-            expect(read('@a.overlaps @b', { a: items[0], b: items[1] })).toBe(false);
+            expect(read('@a.overlaps(@b)', { a: items[0], b: items[1] })).toBe(false);
             expect(read('@a.overlaps(@b, margin: 10)', { a: items[0], b: items[1] })).toBe(true);
-            expect(read('@a.overlaps @b', { a: items[0], b: items[0] })).toBe(true);
+            expect(read('@a.overlaps(@b)', { a: items[0], b: items[0] })).toBe(true);
         });
     });
 
@@ -294,7 +360,7 @@ describe('QueryEvaluator', () => {
         it('reads the window and its media queries', () => {
             expect(read('@window.size.width')).toBeTypeOf('number');
             expect(read('@window.devicePixelRatio')).toBeTypeOf('number');
-            expect(read('@window.matches-media "(min-width: 0px)"')).toBe(true);
+            expect(read('@window.matches-media("(min-width: 0px)")')).toBe(true);
             expect(read('@window { share: supports "share" }').share).toBeTypeOf('boolean');
         });
 
@@ -309,8 +375,8 @@ describe('QueryEvaluator', () => {
         it('reads a custom property and answers null for one that is not set', () => {
             panel.style.setProperty('--tier', 'medium');
 
-            expect(read('@panel.computedstyle-of "--tier"', { panel })).toBe('medium');
-            expect(read('@panel.computedstyle-of "--none"', { panel })).toBeNull();
+            expect(read('@panel.computedstyle-of("--tier")', { panel })).toBe('medium');
+            expect(read('@panel.computedstyle-of("--none")', { panel })).toBeNull();
         });
     });
 
@@ -340,7 +406,7 @@ describe('QueryEvaluator', () => {
 
     describe('errors', () => {
         it('fail where a member fails, naming it and where', () => {
-            const error = failure('@panel.matches "["', { panel });
+            const error = failure('@panel.matches("[")', { panel });
 
             expect(error.message).toContain("The member 'matches' failed");
             expect(error.location.line).toBe(1);
@@ -352,7 +418,7 @@ describe('QueryEvaluator', () => {
         });
 
         it('refuse a request that is not a query', () => {
-            expect(failure('@panel.events-of "click" { button }', { panel }).message).toContain('subscription request is not read');
+            expect(failure('@panel.events-of("click") { button }', { panel }).message).toContain('subscription request is not read');
         });
 
         it('refuse a request that is not valid before reading anything', () => {
@@ -415,7 +481,7 @@ describe('QueryEvaluator evaluation', () => {
 
     describe('dependencies', () => {
         it('are each member applied to its receiver and arguments, with the observations that cover it', () => {
-            const evaluation = evaluate('@panel.attribute-of "id"', { panel });
+            const evaluation = evaluate('@panel.attribute-of("id")', { panel });
 
             expect(evaluation.value).toBe('panel');
             expect(evaluation.dependencies).toEqual([{
@@ -443,7 +509,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('include what a path read before it met null, and nothing after', () => {
-            const evaluation = evaluate('@panel.closest(".none").attribute-of "id"', { panel });
+            const evaluation = evaluate('@panel.closest(".none").attribute-of("id")', { panel });
 
             expect(evaluation.value).toBeNull();
             expect(membersOf(evaluation)).toEqual(['closest']);
@@ -460,13 +526,21 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('leave the attachment out for an element that is attached', () => {
-            const evaluation = evaluate('@element.attribute-of "id"', { element: panel });
+            const evaluation = evaluate('@element.attribute-of("id")', { element: panel });
 
             expect(evaluation.dependencies.flatMap(dependency => dependency.observations).some(observation => observation.type === 'attachment')).toBe(false);
         });
 
+        it('include the predicates a test reached, and none it did not need', () => {
+            const reached = evaluate('@panel is "attached" or "focused"', { panel });
+            const both = evaluate('@panel is "focused" or "attached"', { panel });
+
+            expect(membersOf(reached)).toEqual(['attached']);
+            expect(membersOf(both)).toEqual(['focused', 'attached']);
+        });
+
         it('are kept with the failure of an evaluation that recorded them before it failed', () => {
-            const evaluation = evaluate('{ id: @panel.attribute-of "id", boom: @panel.boom }', { panel }, [propertyModule('boom', () => { throw new Error('no'); })]);
+            const evaluation = evaluate('{ id: @panel.attribute-of("id"), boom: @panel.boom }', { panel }, [propertyModule('boom', () => { throw new Error('no'); })]);
 
             expect(evaluation.error).toBeInstanceOf(DomqlError);
             expect(evaluation.error.message).toContain("The member 'boom' failed");
@@ -489,7 +563,7 @@ describe('QueryEvaluator evaluation', () => {
 
     describe('observations', () => {
         it('are not held for an answer that is complete, which needs nothing more observed', () => {
-            const evaluation = evaluate('@panel.attribute-of "id"', { panel });
+            const evaluation = evaluate('@panel.attribute-of("id")', { panel });
 
             expect(evaluation.isPending).toBe(false);
             expect(evaluation.dependencies.length).toBe(1);
@@ -497,7 +571,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('are all held for a pending answer, which waits on any of them changing', () => {
-            const evaluation = evaluate('{ id: @panel.attribute-of "id", level: @panel.level }', { panel }, [waitingModule()]);
+            const evaluation = evaluate('{ id: @panel.attribute-of("id"), level: @panel.level }', { panel }, [waitingModule()]);
 
             expect(evaluation.isPending).toBe(true);
             expect(evaluation.value).toEqual({ id: 'panel', level: null });
@@ -505,13 +579,13 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('are all held where the caller keeps the answer current', () => {
-            evaluate('@panel.attribute-of "id"', { panel }, [], true);
+            evaluate('@panel.attribute-of("id")', { panel }, [], true);
 
             expect(observations.running).toBe(1);
         });
 
         it('are held while the evaluation is, and let go when it is disposed', () => {
-            const evaluation = evaluate('@panel.attribute-of "id"', { panel }, [], true);
+            const evaluation = evaluate('@panel.attribute-of("id")', { panel }, [], true);
 
             expect(observations.running).toBe(1);
 
@@ -522,7 +596,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('call the evaluation back when something it depends on changes', async () => {
-            evaluate('@panel.attribute-of "id"', { panel }, [], true);
+            evaluate('@panel.attribute-of("id")', { panel }, [], true);
             panel.setAttribute('id', 'renamed');
 
             await new Promise(resolve => setTimeout(resolve));

@@ -81,10 +81,10 @@ describe('Geometry in a browser', () => {
             const touching = add('position: absolute; left: 100px; top: 0; width: 50px; height: 50px');
             const across = add('position: absolute; left: 90px; top: 90px; width: 50px; height: 50px');
 
-            expect(read('@first.overlaps @other', { first, other: apart })).toBe(false);
+            expect(read('@first.overlaps(@other)', { first, other: apart })).toBe(false);
             expect(read('@first.overlaps(@other, margin: 20)', { first, other: apart })).toBe(true);
-            expect(read('@first.overlaps @other', { first, other: touching })).toBe(false);
-            expect(read('@first.overlaps @other', { first, other: across })).toBe(true);
+            expect(read('@first.overlaps(@other)', { first, other: touching })).toBe(false);
+            expect(read('@first.overlaps(@other)', { first, other: across })).toBe(true);
         });
     });
 
@@ -106,7 +106,7 @@ describe('Geometry in a browser', () => {
                 expect(read('@box.size', { box })).toBeNull();
                 expect(read('@box.rect', { box })).toBeNull();
                 expect(read('@box.clientSize', { box })).toBeNull();
-                expect(read('@box.is "attached"', { box })).toBe(true);
+                expect(read('@box is "attached"', { box })).toBe(true);
             }
         });
 
@@ -124,7 +124,7 @@ describe('Geometry in a browser', () => {
             const box = add('width: 10px; height: 10px');
             const none = add('display: none');
 
-            expect(read('@box.overlaps @other', { box, other: none })).toBeNull();
+            expect(read('@box.overlaps(@other)', { box, other: none })).toBeNull();
         });
     });
 
@@ -132,9 +132,9 @@ describe('Geometry in a browser', () => {
         it('read a custom property and a computed value, and answer null for one that is not set', () => {
             const box = add('--tier: medium; width: 120px');
 
-            expect(read('@box.computedstyle-of "--tier"', { box })).toBe('medium');
-            expect(read('@box.computedstyle-of "width"', { box })).toBe('120px');
-            expect(read('@box.computedstyle-of "--none"', { box })).toBeNull();
+            expect(read('@box.computedstyle-of("--tier")', { box })).toBe('medium');
+            expect(read('@box.computedstyle-of("width")', { box })).toBe('120px');
+            expect(read('@box.computedstyle-of("--none")', { box })).toBeNull();
         });
 
         it('read the sizes of the column tracks of a grid, and none for an element that is no grid', () => {
@@ -151,7 +151,7 @@ describe('Geometry in a browser', () => {
         it('knows when an element is disabled through its fieldset', () => {
             document.body.innerHTML = '<fieldset disabled><legend><input id="inLegend"></legend><input id="outside"></fieldset><input id="free">';
 
-            const answer = id => read('@input.is "disabled"', { input: document.getElementById(id) });
+            const answer = id => read('@input is "disabled"', { input: document.getElementById(id) });
 
             expect(answer('outside')).toBe(true);
             expect(answer('inLegend')).toBe(false);
@@ -162,7 +162,7 @@ describe('Geometry in a browser', () => {
             document.body.innerHTML = '<input id="text"><input id="readonly" readonly><input id="checkbox" type="checkbox"><div id="editable" contenteditable="true"><span id="inner"></span></div><div id="plain"></div>';
 
             const element = id => document.getElementById(id);
-            const ask = (id, predicate) => read(`@e.is "${predicate}"`, { e: element(id) });
+            const ask = (id, predicate) => read(`@e is "${predicate}"`, { e: element(id) });
 
             expect(ask('text', 'textEditable')).toBe(true);
             expect(ask('readonly', 'textEditable')).toBe(false);
@@ -188,15 +188,15 @@ describe('Geometry in a browser', () => {
             input.setSelectionRange(2, 7);
 
             expect(read('@input.selection { start, end }', { input })).toEqual({ start: 2, end: 7 });
-            expect(read('@input.has "selection"', { input })).toBe(true);
-            expect(read('@input.attribute-of "value"', { input })).toBeNull();
+            expect(read('@input has "selection"', { input })).toBe(true);
+            expect(read('@input.attribute-of("value")', { input })).toBeNull();
         });
 
         it('answers the window around the document', () => {
             expect(read('@window.devicePixelRatio')).toBeGreaterThan(0);
-            expect(read('@window.matches-media "(min-width: 1px)"')).toBe(true);
-            expect(read('@window.matches-media "(max-width: 0px)"')).toBe(false);
-            expect(read('@document.is "visible"')).toBe(true);
+            expect(read('@window.matches-media("(min-width: 1px)")')).toBe(true);
+            expect(read('@window.matches-media("(max-width: 0px)")')).toBe(false);
+            expect(read('@document is "visible"')).toBe(true);
         });
     });
 });

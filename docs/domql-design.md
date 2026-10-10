@@ -1,4 +1,4 @@
-# DOMQL Design v1.0.5
+# DOMQL Design v1.0.6
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how answers and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
@@ -106,7 +106,7 @@ An occurrence's shape is evaluated as the specification defines, and its answer,
 A maintained member in an occurrence's shape reads its latest sample, or null while it is pending, never waits for a later one and never revises an answer already delivered:
 
 ```
-@button.events-of "click" {
+@button.events-of("click") {
     nearEnd: @sentinel.intersects(root: @panel)
 }
 ```
@@ -254,6 +254,7 @@ A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches 
 - **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells an operation by its public builder name, `row.attributeOf("data-key")` and `view.computedStyle("--x")`, which the module's declaration records beside the operation's DOMQL name, `attribute-of` and `computedstyle-of`, and apart from the function that carries it out: renaming that function never changes the builder, and the declaration is available when a fluent query is built, while the implementation loads when it is prepared. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.
 - **Shapes.** `select` adds a shape, from a projection that receives the current value and returns an object whose properties are the shape's fields, in order. An object nested in it is a shape following no value, `Domql.from` inside it starts a path at another target, and a literal is written `Domql.value("list")`. `Domql.select({ … })` is a shape at the top level, across targets.
 - **Expression arguments.** A list member taking an expression, such as `where`, `max`, `min` or `sum`, takes a callback receiving the item.
+- **Tests.** `view.is("attached")` and `view.has("children")` build a predicate test of the value they follow, and `Domql.and(…)` and `Domql.or(…)` combine names, so `view.is(Domql.or("disabled", "readOnly"))` is `is "disabled" or "readOnly"`.
 - **Text and definitions.** Parsing and creating bind the parameters a text or a definition names, by name, and a definition serves any binding. A text is parsed once and kept.
 
 ### The fluent callback contract

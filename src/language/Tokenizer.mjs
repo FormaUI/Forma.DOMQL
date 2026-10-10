@@ -6,14 +6,17 @@ import { DomqlError } from './DomqlError.mjs';
 
 /**
  * @typedef {object} Token
- * @property {'name' | 'literal' | 'end' | '@' | '.' | ',' | ':' | '(' | ')' | '{' | '}'} type
- * @property {unknown} [value] A name's text or a literal's value.
+ * @property {'name' | 'literal' | 'operator' | 'end' | '@' | '.' | ',' | ':' | '(' | ')' | '{' | '}'} type
+ * @property {unknown} [value] A name's or an operator's text, or a literal's value.
  * @property {number} start
  * @property {number} end
  */
 
 const PUNCTUATION = new Set(['@', '.', ',', ':', '(', ')', '{', '}']);
 const KEYWORDS = new Map([['true', true], ['false', false], ['null', null]]);
+
+/** The words that test a value and combine the names it is tested against. */
+const OPERATORS = new Set(['is', 'has', 'and', 'or']);
 const NAME = /[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*/y;
 const NUMBER = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
 const SPACE = /\s/;
@@ -73,9 +76,11 @@ export class Tokenizer {
 
             const name = this.#text.slice(start, this.#offset);
 
-            return KEYWORDS.has(name)
-                ? { type: 'literal', value: KEYWORDS.get(name), start, end: this.#offset }
-                : { type: 'name', value: name, start, end: this.#offset };
+            if (KEYWORDS.has(name)) {
+                return { type: 'literal', value: KEYWORDS.get(name), start, end: this.#offset };
+            }
+
+            return { type: OPERATORS.has(name) ? 'operator' : 'name', value: name, start, end: this.#offset };
         }
 
         throw DomqlError.syntax(`Unexpected '${character}'`, this.#text, start);

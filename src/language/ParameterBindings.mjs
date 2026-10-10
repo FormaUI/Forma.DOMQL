@@ -28,7 +28,7 @@ export class ParameterBindings {
             const value = isTyped ? binding.value : binding;
 
             if (!Names.isName(name)) {
-                throw DomqlError.structure('A binding is named as a parameter is, a letter followed by letters and digits, with single hyphens between them, and never true, false or null', { binding: name });
+                throw DomqlError.structure('A binding is named as a parameter is, a letter followed by letters and digits, with single hyphens between them, and never true, false, null, is, has, and or or', { binding: name });
             }
 
             if (ROOTS.has(name)) {

@@ -60,9 +60,60 @@ export class LanguageResolver {
                 return this.#parameter(node, pointer);
             case 'member':
                 return this.#member(node, pointer, scope);
+            case 'predicate':
+                return this.#test(node, pointer, scope);
             default:
                 return this.#shape(node, pointer, scope);
         }
+    }
+
+    /** Resolves a test: its subject, and every predicate name it reads, each under its verb and against the subject's type. */
+    #test(node, pointer, scope) {
+        const { verb } = node;
+        const subject = node.target === undefined ? { type: scope.current, kind: 'query' } : this.#node(node.target, `${pointer}/target`, scope);
+
+        if (subject.type === null) {
+            this.#fail(`'${verb}' without a subject tests the current value, and there is none here`, pointer);
+        }
+
+        if (subject.kind !== 'query') {
+            this.#fail(`'${verb}' tests ${subject.kind === 'subscription' ? 'an occurrence source' : `an ${subject.kind}`}, which is no value`, pointer);
+        }
+
+        if (subject.type.kind === 'null') {
+            this.#fail(`'${verb}' tests null, which no predicate applies to`, pointer);
+        }
+
+        this.#resolveNames(node.test, `${pointer}/test`, verb, subject.type);
+
+        const type = Type.named('boolean');
+
+        return { type: subject.type.isNullable ? type.toNullable() : type, kind: 'query', isFixed: false };
+    }
+
+    /** Resolves each predicate name a test reads, every branch of an and or an or included, so a test is validated whole before any of it is evaluated. */
+    #resolveNames(node, pointer, verb, subjectType) {
+        if (node.kind === 'and' || node.kind === 'or') {
+            node.operands.forEach((operand, index) => this.#resolveNames(operand, `${pointer}/operands/${index}`, verb, subjectType));
+
+            return;
+        }
+
+        const named = this.#node(node, pointer, { current: null });
+
+        if (!named.isFixed || typeof named.value !== 'string') {
+            this.#fail(`A predicate '${verb}' reads is named by a string, or a parameter bound to a string, never null`, pointer);
+        }
+
+        const name = named.value;
+        const predicate = this.#registry.getPredicate(verb, name);
+
+        if (predicate === undefined || !LanguageResolver.#matchesAny(predicate.on, subjectType)) {
+            this.#fail(`'${verb} "${name}"' is no predicate of ${subjectType.toNonNullable()}; '${verb}' reads ${this.#registry.getPredicateNames(verb).join(', ')}`, pointer);
+        }
+
+        this.#resolutions.set(pointer, { kind: 'predicate', predicate });
+        this.#used.push({ declaration: { name: `${verb} ${name}`, changes: predicate.changes, reads: predicate.reads, misses: predicate.misses }, pointer });
     }
 
     #literal(node) {
@@ -138,11 +189,7 @@ export class LanguageResolver {
         const declared = Type.substitute(Type.parse(declaration.result), variables);
 
         this.#used.push({ declaration, pointer });
-        this.#resolutions.set(pointer, { kind: 'member', declaration, receiverType, type: declared, arguments: resolved.arguments, selected: resolved.selected, predicate: resolved.predicate, steps: resolved.steps });
-
-        if (resolved.predicate !== undefined) {
-            this.#used.push({ declaration: { name: `${declaration.name} ${resolved.predicate.name}`, changes: resolved.predicate.changes, reads: resolved.predicate.reads, misses: resolved.predicate.misses }, pointer });
-        }
+        this.#resolutions.set(pointer, { kind: 'member', declaration, receiverType, type: declared, arguments: resolved.arguments, selected: resolved.selected, steps: resolved.steps });
 
         const type = receiverType.isNullable || resolved.isNullable ? declared.toNullable() : declared;
 
@@ -182,7 +229,6 @@ export class LanguageResolver {
         const resolved = [];
         let isNullable = false;
         let selected;
-        let predicate;
         let steps;
 
         for (const parameter of parameters) {
@@ -225,14 +271,13 @@ export class LanguageResolver {
                 const selection = this.#select(parameter, result, declaration, receiverType, valuePointer);
 
                 selected = selection.selected ?? selected;
-                predicate = selection.predicate ?? predicate;
                 steps = selection.steps ?? steps;
             }
 
             resolved.push({ parameter, isDefault: false, pointer: valuePointer, node: given.argument.value, value: parameter.fixed === true ? result.value : undefined });
         }
 
-        return { arguments: resolved, isNullable, selected, predicate, steps };
+        return { arguments: resolved, isNullable, selected, steps };
     }
 
     /** Checks a value argument against its parameter, answering false where a null makes the call answer null. */
@@ -284,17 +329,6 @@ export class LanguageResolver {
         switch (parameter.selects) {
             case 'member':
                 return this.#selectMember(receiverType, name, pointer);
-            case 'predicate': {
-                const predicate = this.#registry.getPredicate(declaration.name, name);
-
-                if (predicate === undefined || !LanguageResolver.#matchesAny(predicate.on, receiverType)) {
-                    const available = this.#registry.getPredicateNames(declaration.name).join(', ');
-
-                    this.#fail(`'${declaration.name} "${name}"' is no predicate of ${receiverType.toNonNullable()}; '${declaration.name}' reads ${available}`, pointer);
-                }
-
-                return { selected: { name, type: Type.named('boolean') }, predicate };
-            }
             case 'occurrence': {
                 const event = this.#registry.getEvent(name);
 

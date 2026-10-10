@@ -1,5 +1,5 @@
 try {
-    Domql.read(Domql.parse('@panel.attribute-of 200', { panel }));
+    Domql.read(Domql.parse('@panel.attribute-of(200)', { panel }));
 } catch (error) {
     if (error?.name !== 'DomqlError') {
         throw error;

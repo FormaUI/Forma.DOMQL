@@ -61,7 +61,14 @@ export type DefinitionNode =
     | { readonly kind: 'literal'; readonly value: string | number | boolean | null }
     | { readonly kind: 'parameter'; readonly name: string }
     | { readonly kind: 'member'; readonly target?: DefinitionNode; readonly name: string; readonly arguments: readonly DefinitionEntry[] }
-    | { readonly kind: 'shape'; readonly target?: DefinitionNode; readonly fields: readonly DefinitionEntry[] };
+    | { readonly kind: 'shape'; readonly target?: DefinitionNode; readonly fields: readonly DefinitionEntry[] }
+    | { readonly kind: 'predicate'; readonly verb: 'is' | 'has'; readonly target?: DefinitionNode; readonly test: PredicateNames };
+
+/** The predicate names a test reads: a string, a parameter, or an and or an or of two or more of them. */
+export type PredicateNames =
+    | { readonly kind: 'literal'; readonly value: string }
+    | { readonly kind: 'parameter'; readonly name: string }
+    | { readonly kind: 'and' | 'or'; readonly operands: readonly PredicateNames[] };
 
 /** An argument of a member or a field of a shape, with the name written for it, if any. */
 export interface DefinitionEntry {
@@ -183,7 +190,7 @@ export interface ParameterDeclaration {
     default?: unknown;
     /** Whether the argument names something the vocabulary resolves before any evaluation. */
     fixed?: boolean;
-    selects?: 'member' | 'predicate' | 'occurrence' | 'feature';
+    selects?: 'member' | 'occurrence' | 'feature';
     /** Whether a null argument makes the call answer null, or is accepted. */
     nulls: 'propagate' | 'accept';
     /** What an expression argument is evaluated against. */

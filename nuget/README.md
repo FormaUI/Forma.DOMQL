@@ -117,28 +117,36 @@ Paths follow members with a dot. Properties retain their declared spelling, such
 Domql.read(Domql.parse('@panel.children.count', { panel }));
 // 3
 
-Domql.read(Domql.parse('@panel.get "children.count"', { panel }));
+Domql.read(Domql.parse('@panel.get("children.count")', { panel }));
 // 3
 
-Domql.read(Domql.parse('@panel.is "attached"', { panel }));
+Domql.read(Domql.parse('@panel is "attached"', { panel }));
 // true
 ```
 
-`get` reads a named member or path, `is` asks about a state or classification, and `has` asks about presence. The strings they interpret as DOMQL names are case-sensitive too. Selectors, attribute names and other strings passed to browser APIs follow the browser's own rules.
-
-Arguments can use parentheses or, for simple literals and parameter references, whitespace:
+`get` reads a named member or path. `is` asks about a state or classification and `has` about presence: they are operators that test the value before them against predicates the vocabulary registers, and `and` and `or` combine names under one verb:
 
 ```text
-attribute-of("data-key")
+@input is "disabled" or "readOnly"
+@input is "disabled" or ("readOnly" and "textEditable")
+@panel has "children"
+```
+
+`and` binds tighter than `or`, parentheses group, and a test stops reading predicates once its result is decided. Inside a shape or an expression, a test without a value before it tests the current value, as `where(is "disabled")` does. The strings that name members and predicates are case-sensitive too. Selectors, attribute names and other strings passed to browser APIs follow the browser's own rules.
+
+After a dot, arguments are enclosed in parentheses. A member that starts a path, inside a shape or an expression, can take simple literals and parameter references without them:
+
+```text
+@panel.attribute-of("data-key")
 attribute-of "data-key"
 attribute-of @attributeName
 ```
 
-Multiple bare arguments are separated by whitespace. Named arguments and expression arguments use parentheses. A following dot continues from the operation's result; use parentheses around an argument that itself follows a path. Commas separate shape fields and parenthesized arguments.
+Multiple bare arguments are separated by whitespace. A member written that way ends its path; to continue from its result, use parentheses, as in `first(".row").rect.height`. Named arguments and expression arguments use parentheses. Commas separate shape fields and parenthesized arguments.
 
 ### Shapes and lists
 
-A shape chooses output fields. An explicit alias controls the output name. Without an alias, the field uses the final member name; `get`, `is` and `has` infer the final segment of the name they select.
+A shape chooses output fields. An explicit alias controls the output name. Without an alias, the field uses the final member name; `get` and a test of one name infer the final segment of the name they read, and a test that combines names or takes one from a parameter needs an alias.
 
 ```js
 Domql.read(Domql.parse(`
@@ -191,7 +199,7 @@ Null represents a missing or unavailable value; it does not hide an invalid quer
 
 ```js
 Domql.read(Domql.parse(
-    '@panel.first(".missing").attribute-of "data-key"',
+    '@panel.first(".missing").attribute-of("data-key")',
     { panel }
 ));
 // null
@@ -258,7 +266,7 @@ Failures report a `DomqlError` with a `kind`, `message` and structured `location
 
 ```js
 try {
-    Domql.read(Domql.parse('@panel.attribute-of 200', { panel }));
+    Domql.read(Domql.parse('@panel.attribute-of(200)', { panel }));
 } catch (error) {
     if (error?.name !== 'DomqlError') {
         throw error;

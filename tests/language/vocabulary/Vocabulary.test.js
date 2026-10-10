@@ -6,12 +6,17 @@ describe('Vocabulary', () => {
     const registry = new ModuleRegistry([Vocabulary.module]);
     const names = [
         'size', 'devicePixelRatio', 'rect', 'clientSize', 'grid', 'selection', 'children', 'parent', 'count', 'first', 'last',
-        'matches-media', 'supports', 'is', 'has', 'attribute-of', 'computedstyle-of', 'intersects', 'overlaps', 'matches', 'closest',
+        'matches-media', 'supports', 'attribute-of', 'computedstyle-of', 'intersects', 'overlaps', 'matches', 'closest',
         'all', 'get', 'at', 'max', 'min', 'sum', 'where', 'events-of',
     ];
 
     it('declares each member the specification lists', () => {
         expect(names.filter(name => registry.getMembers(name).length === 0)).toEqual([]);
+    });
+
+    it('declares no member for is and has, which are operators of the language', () => {
+        expect(registry.getMembers('is')).toEqual([]);
+        expect(registry.getMembers('has')).toEqual([]);
     });
 
     it('gives every member observation coverage and, where partial, what it misses', () => {

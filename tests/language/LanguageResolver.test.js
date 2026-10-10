@@ -59,14 +59,14 @@ describe('LanguageResolver', () => {
         });
 
         it('resolves an occurrence source as a subscription', () => {
-            const resolved = resolve('@document.events-of "keydown" { key }');
+            const resolved = resolve('@document.events-of("keydown") { key }');
 
             expect(resolved.kind).toBe('subscription');
             expect(resolved.type.toString()).toBe('occurrence<{ key: string }>');
         });
 
         it('shapes the occurrences of a source by the fields of its payload', () => {
-            const resolved = resolve('@panel.events-of "click" { clientX, button }');
+            const resolved = resolve('@panel.events-of("click") { clientX, button }');
 
             expect(resolved.kind).toBe('subscription');
             expect(resolved.type.toString()).toBe('occurrence<{ clientX: number, button: number }>');
@@ -74,7 +74,7 @@ describe('LanguageResolver', () => {
 
         it('refuses an answer that is no data', () => {
             expect(failure('@panel.parent').message).toContain('no data');
-            expect(failure('@panel.events-of "click"{ target }').message).toContain('no data');
+            expect(failure('@panel.events-of("click"){ target }').message).toContain('no data');
         });
 
         it('refuses a member after an occurrence source', () => {
@@ -117,11 +117,11 @@ describe('LanguageResolver', () => {
         });
 
         it('refuses too many arguments', () => {
-            expect(failure('@panel.matches "a" "b"').message).toContain('takes 1 argument');
+            expect(failure('@panel.matches("a", "b")').message).toContain('takes 1 argument');
         });
 
         it('refuses an argument of the wrong type', () => {
-            expect(failure('@panel.matches 3').message).toContain('expects string and finds number');
+            expect(failure('@panel.matches(3)').message).toContain('expects string and finds number');
         });
 
         it('refuses an unknown named argument and a repeated one', () => {
@@ -139,20 +139,20 @@ describe('LanguageResolver', () => {
         });
 
         it('accepts a null for a parameter that accepts it', () => {
-            expect(resolve('@panel.intersects null').type.toString()).toBe('boolean?');
+            expect(resolve('@panel.intersects(null)').type.toString()).toBe('boolean?');
         });
     });
 
     describe('null', () => {
         it('makes a call answer null for a null argument of a propagating parameter', () => {
-            const resolved = resolve('@panel.matches @selector', { panel, selector: Domql.bind(null, 'string?') });
+            const resolved = resolve('@panel.matches(@selector)', { panel, selector: Domql.bind(null, 'string?') });
 
             expect(resolved.type.toString()).toBe('boolean?');
         });
 
         it('makes a call answer null for a written null on a propagating parameter', () => {
-            expect(resolve('@window.matches-media "(min-width: 1px)"').type.toString()).toBe('boolean');
-            expect(resolve('@window.matches-media null').type.toString()).toBe('boolean?');
+            expect(resolve('@window.matches-media("(min-width: 1px)")').type.toString()).toBe('boolean');
+            expect(resolve('@window.matches-media(null)').type.toString()).toBe('boolean?');
         });
 
         it('makes a call on a nullable receiver nullable', () => {
@@ -171,51 +171,50 @@ describe('LanguageResolver', () => {
 
     describe('fixed names', () => {
         it('resolves a predicate of a receiver', () => {
-            const resolved = resolve('@panel.is "disabled"');
+            const resolved = resolve('@panel is "disabled"');
 
             expect(resolved.type.toString()).toBe('boolean');
-            expect(resolved.getResolution('/query').selected.name).toBe('disabled');
+            expect(resolved.getResolution('/query/test').predicate.name).toBe('disabled');
         });
 
         it('takes the name from a bound string', () => {
-            expect(resolve('@panel.is @name', { panel, name: 'focused' }).type.toString()).toBe('boolean');
+            expect(resolve('@panel is @name', { panel, name: 'focused' }).type.toString()).toBe('boolean');
         });
 
         it('refuses a predicate the receiver has not', () => {
-            expect(failure('@panel.is "visible"').message).toContain('no predicate of element');
-            expect(failure('@panel.is "nonsense"').message).toContain("'is' reads");
+            expect(failure('@panel is "visible"').message).toContain('no predicate of element');
+            expect(failure('@panel is "nonsense"').message).toContain("'is' reads");
         });
 
         it('keeps is and has apart', () => {
-            expect(failure('@panel.has "disabled"').message).toContain('no predicate');
-            expect(resolve('@panel.has "children"').type.toString()).toBe('boolean');
+            expect(failure('@panel has "disabled"').message).toContain('no predicate');
+            expect(resolve('@panel has "children"').type.toString()).toBe('boolean');
         });
 
         it('refuses a name that is null, unbound text or no string', () => {
-            expect(failure('@panel.is @name', { panel, name: Domql.bind(null, 'string?') }).message).toContain('never null');
-            expect(failure('@panel.is @name', { panel, name: 3 }).message).toContain('expects string and finds number');
-            expect(failure('@panel.is(@panel.attribute-of "kind")').message).toContain('string literal or a parameter bound to a string');
-            expect(failure('@panel.is null').message).toContain('never null');
+            expect(failure('@panel is @name', { panel, name: Domql.bind(null, 'string?') }).message).toContain('never null');
+            expect(failure('@panel is @name', { panel, name: 3 }).message).toContain('never null');
+            expect(failure('@panel is @document').message).toContain('never null');
         });
 
         it('resolves the path a get names to the type at its end', () => {
-            expect(resolve('@panel.get "size.width"').type.toString()).toBe('number?');
-            expect(resolve('@panel.get "children.count"').type.toString()).toBe('number');
+            expect(resolve('@panel.get("size.width")').type.toString()).toBe('number?');
+            expect(resolve('@panel.get("children.count")').type.toString()).toBe('number');
         });
 
         it('refuses a get of a path that names nothing', () => {
-            expect(failure('@panel.get "size.depth"').message).toContain("'depth' names no property");
-            expect(failure('@panel.get "matches"').message).toContain('reads without arguments');
+            expect(failure('@panel.get("size.depth")').message).toContain("'depth' names no property");
+            expect(failure('@panel.get("matches")').message).toContain('reads without arguments');
         });
 
         it('resolves an event type and a feature', () => {
-            expect(resolve('@document.events-of "keydown" { key }').type.toString()).toBe('occurrence<{ key: string }>');
-            expect(resolve('@window.supports "share"').type.toString()).toBe('boolean');
+            expect(resolve('@document.events-of("keydown") { key }').type.toString()).toBe('occurrence<{ key: string }>');
+            expect(resolve('@window.supports("share")').type.toString()).toBe('boolean');
         });
 
         it('refuses an event type or a feature the vocabulary does not declare', () => {
-            expect(failure('@panel.events-of "nonsense"').message).toContain('no event type');
-            expect(failure('@window.supports "nonsense"').message).toContain('no feature');
+            expect(failure('@panel.events-of("nonsense")').message).toContain('no event type');
+            expect(failure('@window.supports("nonsense")').message).toContain('no feature');
         });
     });
 
@@ -234,8 +233,8 @@ describe('LanguageResolver', () => {
 
                 return new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
             };
-            const events = resolveWith('@panel.events-of "chart-selected" { value }');
-            const predicate = resolveWith('@panel.is "plotted"');
+            const events = resolveWith('@panel.events-of("chart-selected") { value }');
+            const predicate = resolveWith('@panel is "plotted"');
 
             expect(events.type.toString()).toBe('occurrence<{ value: number }>');
             expect(predicate.type.toString()).toBe('boolean');
@@ -244,14 +243,14 @@ describe('LanguageResolver', () => {
 
     describe('observation', () => {
         it('lets a query follow anything', () => {
-            expect(() => resolve('@panel.matches ":hover"')).not.toThrow();
+            expect(() => resolve('@panel.matches(":hover")')).not.toThrow();
         });
 
         it('refuses a watch of a partly observable member unless it accepts partial observation', () => {
-            const error = failure('@panel.matches ":hover"', { panel }, { watch: true });
+            const error = failure('@panel.matches(":hover")', { panel }, { watch: true });
 
             expect(error.message).toContain('misses pointer state');
-            expect(() => resolve('@panel.matches ":hover"', { panel }, { watch: true, acceptPartialObservation: true })).not.toThrow();
+            expect(() => resolve('@panel.matches(":hover")', { panel }, { watch: true, acceptPartialObservation: true })).not.toThrow();
         });
 
         it('lets a watch follow what is observable', () => {
@@ -267,7 +266,7 @@ describe('LanguageResolver', () => {
 
     describe('errors', () => {
         it('locates an error in the query text', () => {
-            const error = failure('@panel.matches 3');
+            const error = failure('@panel.matches(3)');
 
             expect(error.location.line).toBe(1);
             expect(error.location.column).toBe(16);
@@ -295,4 +294,43 @@ describe('LanguageResolver', () => {
             expect(resolve('@panel.size').definition).toBe(Domql.parse('@panel.size', { panel }).definition);
         });
     });
+
+    describe('predicate tests', () => {
+        it('type a test as a Boolean, nullable where its subject is', () => {
+            expect(resolve('@panel is "attached"').type.toString()).toBe('boolean');
+            expect(resolve('@panel.parent is "attached" or "focused"').type.toString()).toBe('boolean?');
+        });
+
+        it('resolve every name a test reads under its verb, each branch with its own location', () => {
+            const resolved = resolve('@panel is "attached" or ("disabled" and "focused")');
+
+            expect(resolved.getResolution('/query/test/operands/0').predicate.name).toBe('attached');
+            expect(resolved.getResolution('/query/test/operands/1/operands/1').predicate.name).toBe('focused');
+        });
+
+        it('validate a branch that evaluation might never reach', () => {
+            const error = failure('@panel is "attached" or "nonsense"');
+
+            expect(error.message).toContain('\'is "nonsense"\' is no predicate');
+            expect(error.location.pointer).toBe('/query/test/operands/1');
+        });
+
+        it('read every name under the one verb of the test', () => {
+            expect(failure('@panel is "attached" or "children"').message).toContain('\'is "children"\' is no predicate');
+            expect(resolve('@panel has "children"').type.toString()).toBe('boolean');
+        });
+
+        it('refuse a subject that is no value, or null', () => {
+            expect(failure('@panel.events-of("click") { clientX } is "attached"').message).toContain('occurrence source');
+            expect(failure('null is "attached"').message).toContain('tests null');
+        });
+
+        it('count every branch when a watch asks what can be followed', () => {
+            const error = failure('@panel is "attached" or "textEditable"', { panel }, { watch: true });
+
+            expect(error.message).toContain('is textEditable');
+            expect(() => resolve('@panel is "attached" or "textEditable"', { panel }, { watch: true, acceptPartialObservation: true })).not.toThrow();
+        });
+    });
 });
+

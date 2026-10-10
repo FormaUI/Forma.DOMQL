@@ -14,7 +14,14 @@ const NODES = {
     parameter: { properties: ['kind', 'name'], required: ['name'] },
     member: { properties: ['kind', 'target', 'name', 'arguments'], required: ['name', 'arguments'] },
     shape: { properties: ['kind', 'target', 'fields'], required: ['fields'] },
+    predicate: { properties: ['kind', 'verb', 'target', 'test'], required: ['verb', 'test'] },
 };
+
+/** The verbs a test reads its predicates under. */
+const VERBS = ['is', 'has'];
+
+/** What combines a test's names, and what each holds. */
+const COMBINATIONS = { and: { properties: ['kind', 'operands'], required: ['operands'] }, or: { properties: ['kind', 'operands'], required: ['operands'] } };
 
 const ENTRY = { properties: ['name', 'value'], required: ['value'] };
 
@@ -42,7 +49,7 @@ export class DefinitionValidator {
 
     #validateNode(node, pointer, scope) {
         if (!DefinitionValidator.#isObject(node) || !Object.hasOwn(NODES, node.kind)) {
-            this.#fail(pointer, 'A node is an object whose kind is literal, parameter, member or shape');
+            this.#fail(pointer, Object.hasOwn(COMBINATIONS, node?.kind) ? `An ${node.kind} combines a test's names, inside a test alone` : 'A node is an object whose kind is literal, parameter, member, shape or predicate');
         }
 
         this.#requireProperties(node, pointer, NODES[node.kind]);
@@ -56,9 +63,53 @@ export class DefinitionValidator {
                 return Object.freeze({ kind: 'parameter', name: node.name });
             case 'member':
                 return this.#validateMember(node, pointer, scope);
+            case 'predicate':
+                return this.#validatePredicate(node, pointer, scope);
             default:
                 return this.#validateShape(node, pointer, scope);
         }
+    }
+
+    #validatePredicate(node, pointer, scope) {
+        if (!VERBS.includes(node.verb)) {
+            this.#fail(`${pointer}/verb`, 'A test reads its predicates under is or has');
+        }
+
+        const target = node.target === undefined ? undefined : this.#validateNode(node.target, `${pointer}/target`, scope);
+
+        if (target === undefined && scope === Scope.absent) {
+            this.#fail(pointer, `'${node.verb}' without a subject tests the current value, and the top level has none; a test there follows the value it tests`);
+        }
+
+        const test = this.#validateTest(node.test, `${pointer}/test`);
+
+        return Object.freeze(target === undefined ? { kind: 'predicate', verb: node.verb, test } : { kind: 'predicate', verb: node.verb, target, test });
+    }
+
+    /** Validates the names a test reads: a string, a parameter, or an and or an or of two or more of them. */
+    #validateTest(node, pointer) {
+        if (DefinitionValidator.#isObject(node) && Object.hasOwn(COMBINATIONS, node.kind)) {
+            this.#requireProperties(node, pointer, COMBINATIONS[node.kind]);
+            this.#requireArray(node.operands, `${pointer}/operands`);
+
+            if (node.operands.length < 2) {
+                this.#fail(`${pointer}/operands`, `An ${node.kind} combines two or more names`);
+            }
+
+            return Object.freeze({ kind: node.kind, operands: Object.freeze(node.operands.map((operand, index) => this.#validateTest(operand, `${pointer}/operands/${index}`))) });
+        }
+
+        if (!DefinitionValidator.#isObject(node) || (node.kind !== 'literal' && node.kind !== 'parameter')) {
+            this.#fail(pointer, 'A test names its predicates by strings and parameters, combined with and and or');
+        }
+
+        const name = this.#validateNode(node, pointer, Scope.unknown);
+
+        if (name.kind === 'literal' && typeof name.value !== 'string') {
+            this.#fail(`${pointer}/value`, 'A predicate is named by a string');
+        }
+
+        return name;
     }
 
     #validateLiteral(node, pointer) {
@@ -140,7 +191,7 @@ export class DefinitionValidator {
             const name = field.name ?? Names.inferField(value);
 
             if (name === null) {
-                this.#fail(fieldPointer, 'This field infers no name and takes one of its own: a parameter, a literal or a shape alone names nothing, and nor does a get, is or has of a bound name');
+                this.#fail(fieldPointer, 'This field infers no name and takes one of its own: a parameter, a literal or a shape alone names nothing, and nor does a get of a bound name or a test that combines names or takes one from a parameter');
             }
 
             if (names.has(name)) {
@@ -183,7 +234,7 @@ export class DefinitionValidator {
 
     #requireName(value, pointer) {
         if (!Names.isName(value)) {
-            this.#fail(pointer, 'A name is a letter followed by letters and digits, with single hyphens between them, and never true, false or null');
+            this.#fail(pointer, 'A name is a letter followed by letters and digits, with single hyphens between them, and never true, false, null, is, has, and or or');
         }
     }
 

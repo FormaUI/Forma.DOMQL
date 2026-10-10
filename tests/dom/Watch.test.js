@@ -105,7 +105,7 @@ describe('Watch', () => {
 
     describe('the first snapshot', () => {
         it('is reported after the call returns, as the baseline through the callback every snapshot uses', async () => {
-            const watched = watch('@panel.attribute-of "data-n"', { panel });
+            const watched = watch('@panel.attribute-of("data-n")', { panel });
 
             expect(watched.status).toBe('pending');
             expect(snapshots).toEqual([]);
@@ -135,7 +135,7 @@ describe('Watch', () => {
         });
 
         it('reports a null snapshot, which is read beside the status', async () => {
-            const watched = watch('@panel.first(".none").attribute-of "data-n"', { panel }, { acceptPartialObservation: true });
+            const watched = watch('@panel.first(".none").attribute-of("data-n")', { panel }, { acceptPartialObservation: true });
 
             await settle();
 
@@ -147,7 +147,7 @@ describe('Watch', () => {
 
     describe('changes', () => {
         it('are followed by an evaluation, which reports an snapshot that differs', async () => {
-            watch('@panel.attribute-of "data-n"', { panel });
+            watch('@panel.attribute-of("data-n")', { panel });
             await settle();
             await change(panel, 5);
 
@@ -155,7 +155,7 @@ describe('Watch', () => {
         });
 
         it('report nothing when the snapshot is the one last reported', async () => {
-            watch('@panel.attribute-of "data-n"', { panel });
+            watch('@panel.attribute-of("data-n")', { panel });
             await settle();
             await change(panel, 1);
 
@@ -309,7 +309,7 @@ describe('Watch', () => {
     describe('a callback that fails', () => {
         it('is reported to the failure callback and leaves the watch running with the state it was handed accepted', async () => {
             let fails = true;
-            const watched = watch('@panel.attribute-of "data-n"', { panel }, {
+            const watched = watch('@panel.attribute-of("data-n")', { panel }, {
                 onChange: snapshot => {
                     snapshots.push(snapshot);
 
@@ -331,7 +331,7 @@ describe('Watch', () => {
         });
 
         it('is reported when it rejects, and is not waited for', async () => {
-            const watched = watch('@panel.attribute-of "data-n"', { panel }, { onChange: () => Promise.reject(new Error('later')) });
+            const watched = watch('@panel.attribute-of("data-n")', { panel }, { onChange: () => Promise.reject(new Error('later')) });
 
             await settle();
 
@@ -340,14 +340,14 @@ describe('Watch', () => {
         });
 
         it('goes to the diagnostic reporting where there is no failure callback', async () => {
-            watch('@panel.attribute-of "data-n"', { panel }, { onChange: () => { throw new Error('consumer'); }, onError: undefined });
+            watch('@panel.attribute-of("data-n")', { panel }, { onChange: () => { throw new Error('consumer'); }, onError: undefined });
             await settle();
 
             expect(reported.map(error => error.message)).toEqual(['consumer']);
         });
 
         it('sends the failure of the failure callback to the diagnostic reporting, calling nothing again', async () => {
-            watch('@panel.attribute-of "data-n"', { panel }, {
+            watch('@panel.attribute-of("data-n")', { panel }, {
                 onChange: () => { throw new Error('consumer'); },
                 onError: error => {
                     failures.push(error);
@@ -364,8 +364,8 @@ describe('Watch', () => {
         it('lets the callbacks of other watches run when one fails', async () => {
             const others = [];
 
-            watch('@panel.attribute-of "data-n"', { panel }, { onChange: () => { throw new Error('first'); } });
-            watch('@panel.attribute-of "data-n"', { panel }, { onChange: snapshot => others.push(snapshot) });
+            watch('@panel.attribute-of("data-n")', { panel }, { onChange: () => { throw new Error('first'); } });
+            watch('@panel.attribute-of("data-n")', { panel }, { onChange: snapshot => others.push(snapshot) });
             await settle();
 
             expect(others).toEqual(['1']);
@@ -394,7 +394,7 @@ describe('Watch', () => {
         });
 
         it('settles without delivering where the snapshot did not change', async () => {
-            const watched = watch('@panel.attribute-of "data-n"', { panel });
+            const watched = watch('@panel.attribute-of("data-n")', { panel });
 
             await settle();
             await watched.refreshAsync();
@@ -448,7 +448,7 @@ describe('Watch', () => {
         });
 
         it('rejects when called after disposal', async () => {
-            const watched = watch('@panel.attribute-of "data-n"', { panel });
+            const watched = watch('@panel.attribute-of("data-n")', { panel });
 
             watched.dispose();
 
@@ -459,7 +459,7 @@ describe('Watch', () => {
     describe('dispose', () => {
         it('ends the watch: it reports nothing more and lets go of every observation', async () => {
             const [first] = panel.children;
-            const watched = watch('{ n: @item.level, id: @panel.attribute-of "data-n" }', { item: first, panel });
+            const watched = watch('{ n: @item.level, id: @panel.attribute-of("data-n") }', { item: first, panel });
 
             await settle();
             gauges.get(first).sample = { pending: false, value: 1 };
@@ -495,7 +495,7 @@ describe('Watch', () => {
         });
 
         it('prevents the first snapshot when it comes before it', async () => {
-            const watched = watch('@panel.attribute-of "data-n"', { panel });
+            const watched = watch('@panel.attribute-of("data-n")', { panel });
 
             watched.dispose();
             await settle();
@@ -504,7 +504,7 @@ describe('Watch', () => {
         });
 
         it('does nothing when it is repeated', async () => {
-            const watched = watch('@panel.attribute-of "data-n"', { panel });
+            const watched = watch('@panel.attribute-of("data-n")', { panel });
 
             await settle();
             watched.dispose();
@@ -515,7 +515,7 @@ describe('Watch', () => {
 
         it('lets a callback already running finish, and starts none after', async () => {
             let finished = false;
-            const watched = watch('@panel.attribute-of "data-n"', { panel }, {
+            const watched = watch('@panel.attribute-of("data-n")', { panel }, {
                 onChange: async snapshot => {
                     snapshots.push(snapshot);
                     watched.dispose();
@@ -553,7 +553,7 @@ describe('Watch', () => {
         });
 
         it('takes the function that receives its snapshots, a schedule and a delivery that exist', () => {
-            const query = isolated.parse('@panel.attribute-of "id"', { panel });
+            const query = isolated.parse('@panel.attribute-of("id")', { panel });
 
             for (const options of [{}, { onChange: 3 }, { onChange: () => {}, onError: 3 }, { onChange: () => {}, schedule: 'later' }, { onChange: () => {}, delivery: 'patch' }]) {
                 expect(() => isolated.watch(query, options)).toThrow(expect.objectContaining({ name: 'DomqlError', kind: 'structure' }));
@@ -561,14 +561,14 @@ describe('Watch', () => {
         });
 
         it('is a query: a request that is not one is refused when the watch is made', () => {
-            const subscription = isolated.parse('@panel.events-of "click" { ratio: @window.devicePixelRatio }', { panel });
+            const subscription = isolated.parse('@panel.events-of("click") { ratio: @window.devicePixelRatio }', { panel });
 
             expect(isolated.resolve(subscription, { watch: true }).kind).toBe('subscription');
             expect(() => isolated.watch(subscription, { onChange: () => {} })).toThrow(expect.objectContaining({ name: 'DomqlError', kind: 'evaluation', message: expect.stringContaining('subscription request is not watched') }));
         });
 
         it('is scheduled by animation frame only in a window that has them', () => {
-            const query = isolated.parse('@panel.attribute-of "id"', { panel });
+            const query = isolated.parse('@panel.attribute-of("id")', { panel });
             const frameless = { document, reportError: () => {} };
 
             expect(() => isolated.watch(query, { onChange: () => {}, window: frameless })).toThrow(expect.objectContaining({ kind: 'structure' }));

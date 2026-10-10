@@ -9,6 +9,9 @@ import { QueryEvaluation } from './QueryEvaluation.mjs';
 
 /** @typedef {{ window: Window, document: Document }} Environment */
 
+/** What a predicate answers. */
+const BOOLEAN = Type.named('boolean');
+
 export class QueryEvaluator {
     #moduleRegistry;
     #resolvedDefinition;
@@ -95,8 +98,29 @@ export class QueryEvaluator {
                 return this.#parameter(node);
             case 'member':
                 return this.#member(node, pointer, current);
+            case 'predicate':
+                return this.#test(node, pointer, current);
             default:
                 return this.#shape(node, pointer, current);
+        }
+    }
+
+    /** Tests the subject, evaluated once, against the predicates the test reaches; a test of null is null. */
+    #test(node, pointer, current) {
+        const subject = node.target === undefined ? current : this.#evaluate(node.target, `${pointer}/target`, current);
+
+        return subject === null ? null : this.#holds(node.test, `${pointer}/test`, subject);
+    }
+
+    /** Whether the names hold of the subject: an and stops at the first that does not, an or at the first that does, so a predicate the result does not need is never read. */
+    #holds(node, pointer, subject) {
+        switch (node.kind) {
+            case 'and':
+                return node.operands.every((operand, index) => this.#holds(operand, `${pointer}/operands/${index}`, subject) === true);
+            case 'or':
+                return node.operands.some((operand, index) => this.#holds(operand, `${pointer}/operands/${index}`, subject) === true);
+            default:
+                return this.#invoke(this.#resolvedDefinition.getResolution(pointer).predicate, subject, {}, BOOLEAN, pointer);
         }
     }
 
@@ -122,10 +146,6 @@ export class QueryEvaluator {
 
         if (resolution.kind === 'field') {
             return receiver[node.name] ?? null;
-        }
-
-        if (resolution.predicate !== undefined) {
-            return this.#invoke(resolution.predicate, receiver, {}, resolution.type, pointer);
         }
 
         if (resolution.steps !== undefined) {

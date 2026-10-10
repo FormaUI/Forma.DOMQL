@@ -152,7 +152,7 @@ const surroundings = Domql.parse(`
             dark: matches-media "(prefers-color-scheme: dark)"
         },
 
-        visible: @document.is "visible"
+        visible: @document is "visible"
     }
 `, { panel });
 

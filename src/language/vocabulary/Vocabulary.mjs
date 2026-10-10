@@ -148,8 +148,6 @@ export class Vocabulary {
 
                 operation('matches-media', 'window', 'boolean', { builder: 'matchesMedia', parameters: [value('query', 'string')], observations: [{ type: 'media', of: 'window', query: { argument: 'query' } }] }),
                 operation('supports', 'window', 'boolean', { changes: 'constant', parameters: [value('feature', 'string', { fixed: true, selects: 'feature' })] }),
-                operation('is', ['document', 'element'], 'boolean', { function: null, changes: 'derived', reads: 'derived', parameters: [value('predicate', 'string', { fixed: true, selects: 'predicate' })] }),
-                operation('has', ['document', 'element'], 'boolean', { function: null, changes: 'derived', reads: 'derived', parameters: [value('predicate', 'string', { fixed: true, selects: 'predicate' })] }),
                 operation('attribute-of', 'element', 'string?', { builder: 'attributeOf', parameters: [value('name', 'string')], observations: [{ type: 'mutation', of: 'receiver', attributes: [{ argument: 'name' }] }] }),
                 operation('computedstyle-of', 'element', 'string?', { ...STYLE, builder: 'computedStyle', parameters: [value('property', 'string')], observations: [RESIZE, ATTRIBUTES] }),
                 operation('intersects', 'element', 'boolean?', { reads: 'maintained', parameters: [value('root', 'element?', { default: null, nulls: 'accept', omitted: 'the window' }), value('margin', 'number', { default: 0 })], observations: [{ type: 'intersection', of: 'receiver', root: { argument: 'root' }, margin: { argument: 'margin' } }] }),

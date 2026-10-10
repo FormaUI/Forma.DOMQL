@@ -71,12 +71,18 @@ describe('DomqlModule', () => {
         expect(messageOf(() => new DomqlModule('charts', { predicates: [{ ...predicate, function: 'isPlotted' }] }, {}))).toContain("'isPlotted'");
     });
 
-    it('carries a member that selects a predicate or a member out through what its name resolves to', () => {
+    it('carries a member that selects a member out through what its name resolves to', () => {
         const selecting = selects => declaration({ name: 'charts', parameters: [parameter({ fixed: true, selects })] });
 
-        expect(() => new DomqlModule('charts', { members: [{ ...selecting('predicate'), function: undefined }] })).not.toThrow();
+        expect(() => new DomqlModule('charts', { members: [{ ...selecting('member'), function: undefined }] })).not.toThrow();
         expect(messageOf(() => new DomqlModule('charts', { members: [selecting('member')] }))).toContain('no function');
         expect(() => new DomqlModule('charts', { members: [selecting('feature')] })).not.toThrow();
+    });
+
+    it('refuses a member that selects a predicate, which only a test reads', () => {
+        const selecting = declaration({ name: 'charts', parameters: [parameter({ fixed: true, selects: 'predicate' })] });
+
+        expect(messageOf(() => new DomqlModule('charts', { members: [selecting] }))).toContain('declares what it selects');
     });
 
 describe('observations', () => {

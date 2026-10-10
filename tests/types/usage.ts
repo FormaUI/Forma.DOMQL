@@ -1,6 +1,6 @@
 // How a TypeScript caller uses DOMQL, which the declarations must accept; the test compiles this file.
 import { Domql } from '../../src/domql.js';
-import type { DomqlError, DomqlModule, DomqlWatch, ModuleContents, ModuleFunctions, ResolvedDefinition } from '../../src/domql.js';
+import type { DefinitionNode, DomqlError, DomqlModule, DomqlWatch, ModuleContents, ModuleFunctions, PredicateNames, ResolvedDefinition } from '../../src/domql.js';
 
 const panel = document.createElement('div');
 
@@ -73,6 +73,16 @@ Domql.watch(query, { onChange: () => {}, schedule: 'later' });
 
 // @ts-expect-error A watch delivers snapshots until change sets are built.
 Domql.watch(query, { onChange: () => {}, delivery: 'patch' });
+
+const tested = Domql.parse('@panel is "attached" or ("disabled" and "focused")', { panel }).definition.query;
+
+if (tested.kind === 'predicate') {
+    const verb: 'is' | 'has' = tested.verb;
+    const names: PredicateNames = tested.test;
+}
+
+// @ts-expect-error A test reads its names under is or has.
+const misread: DefinitionNode = { kind: 'predicate', verb: 'was', test: { kind: 'literal', value: 'attached' } };
 
 // @ts-expect-error A query's text is a string.
 Domql.parse(42);

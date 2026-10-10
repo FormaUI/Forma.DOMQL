@@ -5,14 +5,11 @@
 /** A letter followed by letters and digits, with single hyphens between them. */
 const PATTERN = /^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*$/;
 
-/** The literal tokens no name can be. */
-const RESERVED = new Set(['true', 'false', 'null']);
-
-/** The members that read a name from a string, whose field takes the name's last segment. */
-const READS = new Set(['get', 'is', 'has']);
+/** The literal tokens and the operators, which no name can be. */
+const RESERVED = new Set(['true', 'false', 'null', 'is', 'has', 'and', 'or']);
 
 export class Names {
-    /** Whether the text is a name: a letter followed by letters and digits, with single hyphens between them, and no reserved literal. */
+    /** Whether the text is a name: a letter followed by letters and digits, with single hyphens between them, and no reserved literal or operator. */
     static isName(text) {
         return typeof text === 'string' && PATTERN.test(text) && !RESERVED.has(text);
     }
@@ -23,22 +20,30 @@ export class Names {
             return value.target ? Names.inferField(value.target) : null;
         }
 
+        if (value.kind === 'predicate') {
+            return Names.#lastSegment(value.test);
+        }
+
         if (value.kind !== 'member') {
             return null;
         }
 
-        return READS.has(value.name) ? Names.#inferRead(value) : value.name;
+        if (value.name !== 'get') {
+            return value.name;
+        }
+
+        const [argument] = value.arguments;
+
+        return value.arguments.length === 1 && argument.name === undefined ? Names.#lastSegment(argument.value) : null;
     }
 
-    /** The last segment of the name a `get`, `is` or `has` reads by a literal; a bound name infers nothing. */
-    static #inferRead(read) {
-        const [argument] = read.arguments;
-
-        if (read.arguments.length !== 1 || argument.name !== undefined || argument.value.kind !== 'literal' || typeof argument.value.value !== 'string') {
+    /** The last segment of the name a literal string holds; a bound or combined name infers nothing. */
+    static #lastSegment(node) {
+        if (node.kind !== 'literal' || typeof node.value !== 'string') {
             return null;
         }
 
-        const name = argument.value.value.split('.').at(-1);
+        const name = node.value.split('.').at(-1);
 
         return Names.isName(name) ? name : null;
     }

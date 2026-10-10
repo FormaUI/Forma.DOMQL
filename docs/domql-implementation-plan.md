@@ -79,6 +79,17 @@ State: **accepted.**
 
 State: open. Needed by step 6.
 
+### D6. Predicate tests and parenthesized arguments
+
+`@document.is "visible"` read as a member glued to its receiver with its argument set apart, and it made `is` and `has` members although they have no function, a fixed argument that selects a predicate and a contract that comes from the predicate.
+
+- **Chosen: `is` and `has` are operators of the language.** A test applies a verb to the value before it, or to the current value inside a shape or an expression, and reads predicates the vocabulary registers: `@document is "visible"`, `@panel { attached: is "attached" }`. `and` and `or` combine names under the one verb, `and` binding tighter and parentheses grouping; the subject is evaluated once, and a test stops at the first operand that decides it while every branch is resolved and validated beforehand. Names are strings or bound parameters, a test of null is null, a test of one literal name infers its field's name, and a definition records a test as a `predicate` node whose `test` holds the names and their `and` and `or`.
+- **Arguments after a dot are parenthesized.** A member that starts a path may take bare literals and parameters, and such a phrase ends its path; after a dot, arguments take parentheses, and `@sentinel.intersects @panel 200` is a syntax error saying so.
+- **Alternative:** keep `is` and `has` as members, writing `@document.is("visible")` by convention. It leaves two members unlike every other and gives composition no place.
+- **Left for later:** negation, and a test that mixes `is` and `has`, each a decision of its own.
+
+The specification's revision 1.0.6 defines it. State: **done.**
+
 ## Steps
 
 A step is done when its tests pass in the gate, its documents say what it built, and its state here says so.
