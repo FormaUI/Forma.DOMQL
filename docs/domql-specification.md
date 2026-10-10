@@ -8,7 +8,7 @@ This specification describes the whole language. An implementation may cover par
 
 ## Terms
 
-A **query** is a value expression whose evaluation produces a **result**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** a result holds, each with a value. A **predicate test** asks whether a value satisfies **predicates**, names the vocabulary registers, with `is` or `has`, and `and` and `or` combine them. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or released; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
+A **query** is a value expression whose evaluation produces a **result**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** a result holds, each with a value. A **predicate test** asks whether a value satisfies **predicates**, names the vocabulary registers, with `is` or `has`, and `and` and `or` combine them. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or disposed; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
 
 ## Syntax
 
@@ -172,11 +172,11 @@ A request is one of four kinds, and the member its path ends in decides which:
 | Query | A value | Reads it once or watches it |
 | Subscription | An occurrence source | Listens to it |
 | Action | An action | Runs it once, receiving its result |
-| Behavior request | A behavior | Establishes it, updates it with new bindings, and releases it |
+| Behavior request | A behavior | Activates it, updates it with new bindings, and disposes it |
 
-An action is an operation the browser carries out once, and a behavior is one that runs on in the browser until it is updated or released; both are members an extension declares, with signatures as every member has. A shape can follow an action to shape its result. An action or a behavior ends its request's path, so one inside a query, an argument or another request's shape is a validation error.
+An action is an operation the browser carries out once, and a behavior is one that runs on in the browser until it is updated or disposed; both are members an extension declares, with signatures as every member has. A shape can follow an action to shape its result. An action or a behavior ends its request's path, so one inside a query, an argument or another request's shape is a validation error.
 
-Reading or watching a query never performs an action or configures a behavior: a query only reads, and an action or a behavior request acts only when its caller runs or establishes it. A behavior belongs to the caller that established it, and the occurrence sources it offers are listened to as subscriptions of their own.
+Reading or watching a query never performs an action or configures a behavior: a query only reads, and an action or a behavior request acts only when its caller runs or activates it. A behavior belongs to the caller that activated it, and the occurrence sources it offers are listened to as subscriptions of their own.
 
 ```
 // An action: step the viewport forward, answering whether it moved.

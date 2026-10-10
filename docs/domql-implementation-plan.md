@@ -79,14 +79,21 @@ State: **accepted.**
 
 ```js
 const result = await Domql.runAsync(query, options);
-const behavior = Domql.establish(query, options);
+const behavior = Domql.activate(query, options);
 
 behavior.update(bindings);
 behavior.dispose();
 ```
 
-- **Recommended: two entry points, each taking options.** `Domql.runAsync` runs an action once and answers a promise of its result; `Domql.establish` answers the handle of a behavior, which belongs to the caller that established it, and releasing it leaves its module registered. Neither needs a callback, so each takes options, every one of which has a default: `runAsync` takes `window` and `signal`, and `establish` takes `window`. A query never runs an action or establishes a behavior.
-- **The request's kind.** Each refuses a request of another kind with a validation error after resolution and before anything is evaluated or started, as reading, watching and subscribing do: `runAsync` takes an action request, `establish` a behavior request, and the other calls refuse both.
+```js
+const focusTrap = Domql.activate('@dialog.focusTrap', { dialog }); // DomqlBehavior
+
+focusTrap.update({ dialog: anotherDialog });
+focusTrap.dispose(); // Stops trapping focus.
+```
+
+- **Recommended: two entry points, each taking options.** `Domql.runAsync` runs an action once and answers a promise of its result; `Domql.activate` answers a `DomqlBehavior`, the handle of the behavior it puts into effect, which belongs to the caller that activated it, and disposing it leaves its module registered. Neither needs a callback, so each takes options, every one of which has a default: `runAsync` takes `window` and `signal`, and `activate` takes `window`. A query never runs an action or activates a behavior.
+- **The request's kind.** Each refuses a request of another kind with a validation error after resolution and before anything is evaluated or started, as reading, watching and subscribing do: `runAsync` takes an action request, `activate` a behavior request, and the other calls refuse both.
 - **Text.** Each takes a request or its text, as the other entry points do: `(text, bindings?, options?)` parses the text through the same cache as `parse`, and `(query, options?)` reuses a request.
 - **Running an action.**
   - The receiver and the arguments are evaluated first, synchronously, as a read evaluates them; a failure there rejects the promise and runs nothing.
@@ -94,10 +101,10 @@ behavior.dispose();
   - A failure of the action, whatever it throws, rejects the promise with an evaluation error naming the action, whose cause is what was thrown. Nothing goes to the error reporting while the caller holds the promise.
   - Cancellation: a signal already aborted rejects with its reason and runs nothing. A signal that aborts while the action runs rejects the promise with its reason at once, as a waiting read does, and the action learns of it through the signal it was given. What the action does after that is its own: its result is discarded, and a failure it reports afterwards goes to the window's error reporting, since no caller waits for it.
   - Partial failure: an action can change the document before it fails or is canceled. DOMQL never rolls back what it did; the rejection says the action failed, and what it changed stays changed. An action that can be undone offers that as an action of its own.
-- **Establishing a behavior.** `establish` is synchronous: the behavior's function receives the receiver, the arguments and the environment, starts the behavior before it returns, and answers an object with `update` and `dispose`. A failure to start, or an answer without both, throws an evaluation error naming the behavior, whose cause is what was thrown, and leaves nothing running. A behavior that needs to wait before it is in effect is outside this decision; it would be established by an `establishAsync` of its own, decided when one is needed.
-- **The handle.** It has a `status`, `ready` from the call on and `disposed` once ended, with `update(bindings)` and `dispose()`. A failure inside the running behavior, after it started, goes to the window's error reporting; the behavior's function receives the reporter for it.
-- **Updating bindings.** `update(bindings)` replaces the bindings whole, as `create` binds a definition, so a caller states every parameter and nothing is left over from before. It is synchronous and validates first: the bindings are checked, the request is resolved again against them, and the receiver and arguments are evaluated. Any failure throws, a validation or an evaluation error, and leaves the behavior running as it was, with its earlier bindings. A resolution that would select a different member, as a fixed argument bound to another value can, is refused with a validation error, since that is another behavior to establish. Only once all of that succeeds does the behavior's `update` receive the new receiver and arguments; a failure there throws an evaluation error naming the behavior, and the behavior keeps the bindings it last accepted, since its module promises that an update that fails changed nothing. Updating a disposed behavior throws.
-- **Disposal.** `dispose()` ends the behavior once and is idempotent. It calls the behavior's `dispose`, reports a failure of it to the window's error reporting, and marks the handle `disposed` whatever happened, so nothing is left to call again. Since establishing and updating are synchronous, no work is pending when it is disposed.
+- **Activating a behavior.** `activate` is synchronous: the behavior's function receives the receiver, the arguments and the environment, starts the behavior before it returns, and answers an object with `update` and `dispose`. A failure to start, or an answer without both, throws an evaluation error naming the behavior, whose cause is what was thrown, and leaves nothing running. A behavior that needs to wait before it is in effect is outside this decision; it would be activated by an `activateAsync` of its own, decided when one is needed.
+- **The handle.** A `DomqlBehavior` has a `status`, `ready` from the call on and `disposed` once ended, with `update(bindings)` and `dispose()`. A failure inside the running behavior, after it started, goes to the window's error reporting; the behavior's function receives the reporter for it.
+- **Updating bindings.** `update(bindings)` replaces the bindings whole, as `create` binds a definition, so a caller states every parameter and nothing is left over from before. It is synchronous and validates first: the bindings are checked, the request is resolved again against them, and the receiver and arguments are evaluated. Any failure throws, a validation or an evaluation error, and leaves the behavior running as it was, with its earlier bindings. A resolution that would select a different member, as a fixed argument bound to another value can, is refused with a validation error, since that is another behavior to activate. Only once all of that succeeds does the behavior's `update` receive the new receiver and arguments; a failure there throws an evaluation error naming the behavior, and the behavior keeps the bindings it last accepted, since its module promises that an update that fails changed nothing. Updating a disposed behavior throws.
+- **Disposal.** `dispose()` ends the behavior once and is idempotent. It calls the behavior's `dispose`, reports a failure of it to the window's error reporting, and marks the handle `disposed` whatever happened, so nothing is left to call again. Since activating and updating are synchronous, no work is pending when it is disposed.
 - **The module contract.** An action's function is `(receiver, args, environment, { signal })` and answers a result or a promise of it; a behavior's function is `(receiver, args, environment, { reportError })` and answers `{ update(receiver, args), dispose() }`.
 - **Left for later:** the occurrence sources a behavior offers, which the specification subscribes to as subscriptions of their own, are a decision of their own once a behavior that offers one exists.
 
@@ -181,10 +188,10 @@ Deliver what an occurrence source reports: `eventsOf` captures what the event ca
 
 ### 6. Actions and behaviors
 
-Run an action once and receive its result, and establish, update and release a behavior whose instance belongs to its caller. Registering a module makes its capability understood; establishing a behavior creates an instance.
+Run an action once and receive its result, and activate, update and dispose of a behavior whose instance belongs to its caller. Registering a module makes its capability understood; activating a behavior creates an instance.
 
 - **Needs:** D5; independent of steps 1 to 5.
-- **Done when:** an extension's action and behavior run through their request kinds, a query never performs either, and releasing an instance leaves its module registered.
+- **Done when:** an extension's action and behavior run through their request kinds, a query never performs either, and disposing an instance leaves its module registered.
 - **State:** not started.
 
 ### 7. Live state
