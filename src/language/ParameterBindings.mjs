@@ -59,6 +59,32 @@ export class ParameterBindings {
         return this.#types.get(name);
     }
 
+    /**
+     * What resolving a definition against these bindings depends on: each name with its type, and its value where that is a string, a number, a Boolean or null, since a bound string can select what a member reads.
+     * Two bindings with one signature resolve a definition alike, so they can share its resolution.
+     */
+    get signature() {
+        return [...this.#types.keys()].sort().map(name => {
+            const value = this.#values.get(name);
+            const isPrimitive = value === null || ['string', 'number', 'boolean'].includes(typeof value);
+
+            return `${name}:${ParameterBindings.#describe(this.#types.get(name))}${isPrimitive ? `=${JSON.stringify(value)}` : ''}`;
+        }).join(';');
+    }
+
+    static #describe(type) {
+        const nullable = type.isNullable ? '?' : '';
+
+        switch (type.kind) {
+            case 'list':
+                return `list<${ParameterBindings.#describe(type.item)}>${nullable}`;
+            case 'object':
+                return `{${[...type.fields].map(([name, field]) => `${name}:${ParameterBindings.#describe(field)}`).join(',')}}${nullable}`;
+            default:
+                return `${type.kind}${nullable}`;
+        }
+    }
+
     /** The value's type: the declared one where it fits every part of the value, else the one the value reveals. */
     static #getType(name, value, declared) {
         if (declared === null) {

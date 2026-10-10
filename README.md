@@ -200,7 +200,7 @@ DOMQL is in preview and is not yet published to npm or NuGet.
 
 Available today:
 
-- Text queries and JSON definitions.
+- Text queries, JSON definitions and queries built fluently, with the result type inferred in TypeScript.
 - Binding, name and type validation.
 - Synchronous reads and asynchronous reads of maintained values.
 - Watching a query, with a snapshot each time its result changes, a baseline and then change sets, or one object kept current in place.
@@ -210,7 +210,7 @@ Available today:
 - Extensible vocabulary and observation types.
 - TypeScript declarations.
 
-Fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
+C# integration is planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
 
 ## Build and try it
 

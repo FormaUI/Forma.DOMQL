@@ -204,11 +204,386 @@ export interface DomqlParameterBindings {
  * A DOMQL query: its definition and the values its parameters are bound to.
  * It belongs to the DOMQL instance that made it, and another instance refuses it; `Domql.create` makes it again there from its definition and a plain object of bindings.
  */
-export interface DomqlQuery {
+export interface DomqlQuery<T = unknown> {
     /** The query's definition, without its bound values. */
     readonly definition: DomqlDefinition;
     readonly bindings: DomqlParameterBindings;
+    /** The type of the result the query reads, for TypeScript alone: a built query infers it, and no query holds it. */
+    readonly [domqlResult]?: { result(value: T): void };
 }
+
+declare const domqlResult: unique symbol;
+declare const domqlValue: unique symbol;
+declare const domqlType: unique symbol;
+
+/** An expression in a build, of a value of the type `V`: it records the query and holds no value. */
+export interface DomqlExpression<V> {
+    readonly [domqlValue]: V;
+}
+
+/** The value an expression is of. */
+export type DomqlValueOf<P> = P extends { readonly [domqlValue]: infer V } ? V : never;
+
+/** An expression of a number, a string, a Boolean or null, which has no members of its own. */
+export interface DomqlValueExpression<V> {
+    readonly [domqlValue]: V;
+    readonly [domqlType]: 'value';
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a shape a projection describes, whose fields are expressions of its values. */
+export type DomqlShapeExpression<S, N extends null = never> = { readonly [domqlValue]: S | N; readonly [domqlType]: 'shape' } & { readonly [K in keyof S]-?: DomqlValueExpression<S[K] | N> };
+
+/** An expression of an occurrence source, whose occurrences are expressions of the type `E`. */
+export interface DomqlOccurrenceExpression<E> {
+    readonly [domqlValue]: DomqlValueOf<E>;
+    readonly [domqlType]: 'occurrence';
+    /** A shape of each occurrence, whose fields the projection returns: the subscription's result. */
+    select<P extends DomqlProjection>(projection: (occurrence: E) => P): DomqlExpression<DomqlProjected<P>>;
+}
+
+/** What a projection returns: fields that are expressions, nested projections, or strings, numbers or null written as they are. */
+export interface DomqlProjection {
+    readonly [field: string]: DomqlExpression<unknown> | DomqlProjection | string | number | null;
+}
+
+/** The value a projection describes. */
+export type DomqlProjected<P> =
+    P extends { readonly [domqlValue]: infer V } ? V :
+    P extends string | number | null ? P :
+    P extends object ? { -readonly [K in keyof P]: DomqlProjected<P[K]> } :
+    never;
+
+/** An expression whose type resolution decides, as the build resolves the query, rather than the declarations: a member a module adds, what `get` reads, or a typed binding. Any member and any call on it answers another, which resolution then accepts or refuses. */
+export type DomqlUnresolvedExpression = DomqlExpression<unknown> & { readonly [member: string]: DomqlUnresolvedExpression } & ((...args: unknown[]) => DomqlUnresolvedExpression);
+
+/** What a build's callback receives: where its query starts. */
+export interface DomqlBuilder {
+    /** Starts the query at the document it is read in, as `@document` does. */
+    from(target: Document): DomqlDocumentExpression;
+    /** Starts the query at the window it is read in, as `@window` does. */
+    from(target: Window): DomqlWindowExpression;
+    /** Starts the query at an element, bound under a name the build gives, `p1`, `p2` and so on. */
+    from(target: Element): DomqlElementExpression;
+    /** Starts the query at a typed binding, bound under a name the build gives. */
+    from(target: DomqlTypedBinding): DomqlUnresolvedExpression;
+    /** Starts the query at an element, bound under the name the object gives it, as `q.from({ panel })`. */
+    from<B extends { readonly [name: string]: Element }>(target: B): DomqlElementExpression;
+    /** Starts the query at a typed binding, bound under the name the object gives it. */
+    from<B extends { readonly [name: string]: DomqlTypedBinding }>(target: B): DomqlUnresolvedExpression;
+}
+
+// <generated: the built-in vocabulary's expressions, by scripts/vocabulary-types.mjs>
+
+/** An expression of an `element` in a build, null where `N` is. */
+export interface DomqlElementExpression<N extends null = never> {
+    readonly [domqlValue]: Element | N;
+    readonly [domqlType]: 'element';
+    /** `rect`, a property of the built-in vocabulary. */
+    readonly rect: DomqlRectangleExpression<N | null> & { (relativeTo?: Element | DomqlExpression<Element | null>): DomqlRectangleExpression<N | null>; (named: { relativeTo?: Element | DomqlExpression<Element | null>; }): DomqlRectangleExpression<N | null>; };
+    /** `size`, a property of the built-in vocabulary. */
+    readonly size: DomqlSizeExpression<N | null>;
+    /** `clientSize`, a property of the built-in vocabulary. */
+    readonly clientSize: DomqlSizeExpression<N | null>;
+    /** `grid`, a property of the built-in vocabulary. */
+    readonly grid: DomqlGridExpression<N | null>;
+    /** `selection`, a property of the built-in vocabulary. */
+    readonly selection: DomqlSelectionExpression<N | null>;
+    /** `children`, a property of the built-in vocabulary. */
+    readonly children: DomqlListExpression<DomqlElementExpression<never>, N>;
+    /** `parent`, a property of the built-in vocabulary. */
+    readonly parent: DomqlElementExpression<N | null>;
+    /** `attributeOf`, an operation of the built-in vocabulary. */
+    attributeOf(name: string | DomqlExpression<string | null>): DomqlValueExpression<string | N | null>;
+    attributeOf(named: { name: string | DomqlExpression<string | null>; }): DomqlValueExpression<string | N | null>;
+    /** `computedStyleOf`, an operation of the built-in vocabulary. */
+    computedStyleOf(property: string | DomqlExpression<string | null>): DomqlValueExpression<string | N | null>;
+    computedStyleOf(named: { property: string | DomqlExpression<string | null>; }): DomqlValueExpression<string | N | null>;
+    /** `intersects`, an operation of the built-in vocabulary. */
+    intersects(root?: Element | null | DomqlExpression<Element | null>, margin?: number | DomqlExpression<number | null>): DomqlValueExpression<boolean | N | null>;
+    intersects(root: Element | null | DomqlExpression<Element | null>, named: { margin?: number | DomqlExpression<number | null>; }): DomqlValueExpression<boolean | N | null>;
+    intersects(named: { root?: Element | null | DomqlExpression<Element | null>; margin?: number | DomqlExpression<number | null>; }): DomqlValueExpression<boolean | N | null>;
+    /** `overlaps`, an operation of the built-in vocabulary. */
+    overlaps(other: Element | DomqlExpression<Element | null>, margin?: number | DomqlExpression<number | null>): DomqlValueExpression<boolean | N | null>;
+    overlaps(other: Element | DomqlExpression<Element | null>, named: { margin?: number | DomqlExpression<number | null>; }): DomqlValueExpression<boolean | N | null>;
+    overlaps(named: { other: Element | DomqlExpression<Element | null>; margin?: number | DomqlExpression<number | null>; }): DomqlValueExpression<boolean | N | null>;
+    /** `matches`, an operation of the built-in vocabulary. */
+    matches(selector: string | DomqlExpression<string | null>): DomqlValueExpression<boolean | N | null>;
+    matches(named: { selector: string | DomqlExpression<string | null>; }): DomqlValueExpression<boolean | N | null>;
+    /** `closest`, an operation of the built-in vocabulary. */
+    closest(selector: string | DomqlExpression<string | null>): DomqlElementExpression<N | null>;
+    closest(named: { selector: string | DomqlExpression<string | null>; }): DomqlElementExpression<N | null>;
+    /** `first`, an operation of the built-in vocabulary. */
+    first(selector: string | DomqlExpression<string | null>): DomqlElementExpression<N | null>;
+    first(named: { selector: string | DomqlExpression<string | null>; }): DomqlElementExpression<N | null>;
+    /** `all`, an operation of the built-in vocabulary. */
+    all(selector: string | DomqlExpression<string | null>): DomqlListExpression<DomqlElementExpression<never>, N>;
+    all(named: { selector: string | DomqlExpression<string | null>; }): DomqlListExpression<DomqlElementExpression<never>, N>;
+    /** The `click` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'click'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `pointerdown` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'pointerdown'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `pointerup` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'pointerup'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `keydown` events that reach the value, each a `keyboardEvent`. */
+    eventsOf(type: 'keydown'): DomqlOccurrenceExpression<DomqlKeyboardEventExpression<never>>;
+    /** The `keyup` events that reach the value, each a `keyboardEvent`. */
+    eventsOf(type: 'keyup'): DomqlOccurrenceExpression<DomqlKeyboardEventExpression<never>>;
+    /** The `drop` events that reach the value, each a `dragEvent`. */
+    eventsOf(type: 'drop'): DomqlOccurrenceExpression<DomqlDragEventExpression<never>>;
+    /** The `focus` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'focus'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `blur` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'blur'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `input` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'input'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `scroll` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'scroll'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `resize` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'resize'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** A test of the value, by the names `is` reads on it, attached, disabled, readOnly, textEditable, focused, joined by `and` and `or`. */
+    is(names: string): DomqlValueExpression<boolean | N>;
+    /** A test of the value, by the names `has` reads on it, children, selection, joined by `and` and `or`. */
+    has(names: string): DomqlValueExpression<boolean | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlElementExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `window` in a build, null where `N` is. */
+export interface DomqlWindowExpression<N extends null = never> {
+    readonly [domqlValue]: Window | N;
+    readonly [domqlType]: 'window';
+    /** `size`, a property of the built-in vocabulary. */
+    readonly size: DomqlSizeExpression<N>;
+    /** `devicePixelRatio`, a property of the built-in vocabulary. */
+    readonly devicePixelRatio: DomqlValueExpression<number | N>;
+    /** `matchesMedia`, an operation of the built-in vocabulary. */
+    matchesMedia(query: string | DomqlExpression<string | null>): DomqlValueExpression<boolean | N>;
+    matchesMedia(named: { query: string | DomqlExpression<string | null>; }): DomqlValueExpression<boolean | N>;
+    /** `supports`, an operation of the built-in vocabulary. */
+    supports(feature: 'share' | 'clipboard'): DomqlValueExpression<boolean | N>;
+    supports(named: { feature: 'share' | 'clipboard'; }): DomqlValueExpression<boolean | N>;
+    /** The `click` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'click'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `pointerdown` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'pointerdown'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `pointerup` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'pointerup'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `keydown` events that reach the value, each a `keyboardEvent`. */
+    eventsOf(type: 'keydown'): DomqlOccurrenceExpression<DomqlKeyboardEventExpression<never>>;
+    /** The `keyup` events that reach the value, each a `keyboardEvent`. */
+    eventsOf(type: 'keyup'): DomqlOccurrenceExpression<DomqlKeyboardEventExpression<never>>;
+    /** The `drop` events that reach the value, each a `dragEvent`. */
+    eventsOf(type: 'drop'): DomqlOccurrenceExpression<DomqlDragEventExpression<never>>;
+    /** The `focus` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'focus'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `blur` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'blur'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `input` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'input'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `scroll` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'scroll'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `resize` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'resize'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlWindowExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `document` in a build, null where `N` is. */
+export interface DomqlDocumentExpression<N extends null = never> {
+    readonly [domqlValue]: Document | N;
+    readonly [domqlType]: 'document';
+    /** The `click` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'click'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `pointerdown` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'pointerdown'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `pointerup` events that reach the value, each a `pointerEvent`. */
+    eventsOf(type: 'pointerup'): DomqlOccurrenceExpression<DomqlPointerEventExpression<never>>;
+    /** The `keydown` events that reach the value, each a `keyboardEvent`. */
+    eventsOf(type: 'keydown'): DomqlOccurrenceExpression<DomqlKeyboardEventExpression<never>>;
+    /** The `keyup` events that reach the value, each a `keyboardEvent`. */
+    eventsOf(type: 'keyup'): DomqlOccurrenceExpression<DomqlKeyboardEventExpression<never>>;
+    /** The `drop` events that reach the value, each a `dragEvent`. */
+    eventsOf(type: 'drop'): DomqlOccurrenceExpression<DomqlDragEventExpression<never>>;
+    /** The `focus` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'focus'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `blur` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'blur'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `input` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'input'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `scroll` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'scroll'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** The `resize` events that reach the value, each a `domEvent`. */
+    eventsOf(type: 'resize'): DomqlOccurrenceExpression<DomqlDomEventExpression<never>>;
+    /** A test of the value, by the names `is` reads on it, visible, joined by `and` and `or`. */
+    is(names: string): DomqlValueExpression<boolean | N>;
+    /** A test of the value, by the names `has` reads on it, focus, joined by `and` and `or`. */
+    has(names: string): DomqlValueExpression<boolean | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlDocumentExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `size` in a build, null where `N` is. */
+export interface DomqlSizeExpression<N extends null = never> {
+    readonly [domqlValue]: { width: number; height: number; } | N;
+    readonly [domqlType]: 'size';
+    readonly width: DomqlValueExpression<number | N>;
+    readonly height: DomqlValueExpression<number | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlSizeExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `rectangle` in a build, null where `N` is. */
+export interface DomqlRectangleExpression<N extends null = never> {
+    readonly [domqlValue]: { left: number; top: number; right: number; bottom: number; width: number; height: number; } | N;
+    readonly [domqlType]: 'rectangle';
+    readonly left: DomqlValueExpression<number | N>;
+    readonly top: DomqlValueExpression<number | N>;
+    readonly right: DomqlValueExpression<number | N>;
+    readonly bottom: DomqlValueExpression<number | N>;
+    readonly width: DomqlValueExpression<number | N>;
+    readonly height: DomqlValueExpression<number | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlRectangleExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `selection` in a build, null where `N` is. */
+export interface DomqlSelectionExpression<N extends null = never> {
+    readonly [domqlValue]: { start: number; end: number; } | N;
+    readonly [domqlType]: 'selection';
+    readonly start: DomqlValueExpression<number | N>;
+    readonly end: DomqlValueExpression<number | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlSelectionExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `grid` in a build, null where `N` is. */
+export interface DomqlGridExpression<N extends null = never> {
+    readonly [domqlValue]: { columns: number[]; } | N;
+    readonly [domqlType]: 'grid';
+    readonly columns: DomqlListExpression<DomqlValueExpression<number | never>, N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlGridExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `domEvent` in a build, null where `N` is. */
+export interface DomqlDomEventExpression<N extends null = never> {
+    readonly [domqlValue]: { target: Element | null; } | N;
+    readonly [domqlType]: 'domEvent';
+    readonly target: DomqlElementExpression<N | null>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlDomEventExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `pointerEvent` in a build, null where `N` is. */
+export interface DomqlPointerEventExpression<N extends null = never> {
+    readonly [domqlValue]: { target: Element; button: number; buttons: number; clientX: number; clientY: number; pointerType: string | null; } | N;
+    readonly [domqlType]: 'pointerEvent';
+    readonly target: DomqlElementExpression<N>;
+    readonly button: DomqlValueExpression<number | N>;
+    readonly buttons: DomqlValueExpression<number | N>;
+    readonly clientX: DomqlValueExpression<number | N>;
+    readonly clientY: DomqlValueExpression<number | N>;
+    readonly pointerType: DomqlValueExpression<string | N | null>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlPointerEventExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `keyboardEvent` in a build, null where `N` is. */
+export interface DomqlKeyboardEventExpression<N extends null = never> {
+    readonly [domqlValue]: { target: Element; key: string; code: string; } | N;
+    readonly [domqlType]: 'keyboardEvent';
+    readonly target: DomqlElementExpression<N>;
+    readonly key: DomqlValueExpression<string | N>;
+    readonly code: DomqlValueExpression<string | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlKeyboardEventExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a `dragEvent` in a build, null where `N` is. */
+export interface DomqlDragEventExpression<N extends null = never> {
+    readonly [domqlValue]: { target: Element; clientX: number; clientY: number; } | N;
+    readonly [domqlType]: 'dragEvent';
+    readonly target: DomqlElementExpression<N>;
+    readonly clientX: DomqlValueExpression<number | N>;
+    readonly clientY: DomqlValueExpression<number | N>;
+    /** A shape of the value, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (value: DomqlDragEventExpression) => P): DomqlShapeExpression<DomqlProjected<P>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** An expression of a list in a build, whose items are expressions of the type `I`, null where `N` is. */
+export interface DomqlListExpression<I, N extends null = never> {
+    readonly [domqlValue]: DomqlValueOf<I>[] | N;
+    readonly [domqlType]: 'list';
+    /** `count`, a property of the built-in vocabulary. */
+    readonly count: DomqlValueExpression<number | N>;
+    /** `first`, a property of the built-in vocabulary. */
+    readonly first: DomqlWithNull<I, N | null>;
+    /** `last`, a property of the built-in vocabulary. */
+    readonly last: DomqlWithNull<I, N | null>;
+    /** `at`, an operation of the built-in vocabulary. */
+    at(index: number | DomqlExpression<number | null>): DomqlWithNull<I, N | null>;
+    at(named: { index: number | DomqlExpression<number | null>; }): DomqlWithNull<I, N | null>;
+    /** `max`, an operation of the built-in vocabulary. */
+    max(expression: (item: I) => DomqlExpression<number | null> | number | null): DomqlValueExpression<number | N | null>;
+    max(named: { expression: (item: I) => DomqlExpression<number | null> | number | null; }): DomqlValueExpression<number | N | null>;
+    /** `min`, an operation of the built-in vocabulary. */
+    min(expression: (item: I) => DomqlExpression<number | null> | number | null): DomqlValueExpression<number | N | null>;
+    min(named: { expression: (item: I) => DomqlExpression<number | null> | number | null; }): DomqlValueExpression<number | N | null>;
+    /** `sum`, an operation of the built-in vocabulary. */
+    sum(expression: (item: I) => DomqlExpression<number | null> | number | null): DomqlValueExpression<number | N>;
+    sum(named: { expression: (item: I) => DomqlExpression<number | null> | number | null; }): DomqlValueExpression<number | N>;
+    /** `where`, an operation of the built-in vocabulary. */
+    where(expression: (item: I) => DomqlExpression<boolean | null>): DomqlListExpression<DomqlWithNull<I, never>, N>;
+    where(named: { expression: (item: I) => DomqlExpression<boolean | null>; }): DomqlListExpression<DomqlWithNull<I, never>, N>;
+    /** A shape of each item, whose fields the projection returns. */
+    select<P extends DomqlProjection>(projection: (item: I) => P): DomqlListExpression<DomqlShapeExpression<DomqlProjected<P>>, N>;
+    /** A member read by its name, as the vocabulary resolves it. */
+    get(name: string): DomqlUnresolvedExpression;
+}
+
+/** The expression `P`, of its value or null where `M` is. */
+export type DomqlWithNull<P, M extends null> =
+    P extends { readonly [domqlType]: 'element' } ? DomqlElementExpression<M> :
+    P extends { readonly [domqlType]: 'window' } ? DomqlWindowExpression<M> :
+    P extends { readonly [domqlType]: 'document' } ? DomqlDocumentExpression<M> :
+    P extends { readonly [domqlType]: 'size' } ? DomqlSizeExpression<M> :
+    P extends { readonly [domqlType]: 'rectangle' } ? DomqlRectangleExpression<M> :
+    P extends { readonly [domqlType]: 'selection' } ? DomqlSelectionExpression<M> :
+    P extends { readonly [domqlType]: 'grid' } ? DomqlGridExpression<M> :
+    P extends { readonly [domqlType]: 'domEvent' } ? DomqlDomEventExpression<M> :
+    P extends { readonly [domqlType]: 'pointerEvent' } ? DomqlPointerEventExpression<M> :
+    P extends { readonly [domqlType]: 'keyboardEvent' } ? DomqlKeyboardEventExpression<M> :
+    P extends { readonly [domqlType]: 'dragEvent' } ? DomqlDragEventExpression<M> :
+    P extends { readonly [domqlType]: 'list' } ? (P extends DomqlListExpression<infer I, null> ? DomqlListExpression<I, M> : P) :
+    P extends { readonly [domqlType]: 'shape'; readonly [domqlValue]: infer S } ? DomqlShapeExpression<Exclude<S, null>, M> :
+    P extends { readonly [domqlValue]: infer V } ? DomqlValueExpression<V | M> :
+    P;
+
+// </generated>
 
 /** A DOMQL type: a named type, a list, an occurrence source, a shape or a null, each nullable or not. */
 export interface DomqlType {
@@ -382,6 +757,9 @@ export declare class Domql {
     /** Creates a query from its definition, binding its parameters. */
     static create(definition: DomqlDefinition, bindings?: DomqlBindings): DomqlQuery;
 
+    /** Builds a query fluently: calls the callback once with the builder, whose query starts at `q.from`, and returns the query its result describes, typed by the result it reads. A misspelled member fails here, naming its part as DOMQL text. */
+    static build<R extends DomqlExpression<unknown>>(callback: (q: DomqlBuilder) => R): DomqlQuery<DomqlValueOf<R>>;
+
     /** Binds a value with the type it has, for a value that reveals none, such as null or an empty list. */
     static bind(value: unknown, type: string): DomqlTypedBinding;
 
@@ -395,13 +773,13 @@ export declare class Domql {
     static read<T = unknown>(text: string, bindings?: DomqlBindings, options?: DomqlReadOptions): T;
 
     /** Reads a query once, returning an immutable snapshot containing no live DOM references. A member maintained by an observation fails it. */
-    static read<T = unknown>(query: DomqlQuery, options?: DomqlReadOptions): T;
+    static read<T = unknown>(query: DomqlQuery<T>, options?: DomqlReadOptions): T;
 
     /** Reads a query given as its text once, waiting for the first sample of every maintained member it reads. Returns a promise of an immutable snapshot containing no live DOM references. */
     static readAsync<T = unknown>(text: string, bindings?: DomqlBindings, options?: DomqlReadAsyncOptions): Promise<T>;
 
     /** Reads a query once, waiting for the first sample of every maintained member it reads. Returns a promise of an immutable snapshot containing no live DOM references. */
-    static readAsync<T = unknown>(query: DomqlQuery, options?: DomqlReadAsyncOptions): Promise<T>;
+    static readAsync<T = unknown>(query: DomqlQuery<T>, options?: DomqlReadAsyncOptions): Promise<T>;
 
     /** Watches a query given as its text: reports its snapshot, and a snapshot that differs each time something it depends on changes. Pass `{}` as the bindings of a text that has none. */
     static watch<T = unknown>(text: string, bindings: DomqlBindings, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
@@ -413,25 +791,25 @@ export declare class Domql {
     static watch<T = unknown>(text: string, bindings: DomqlBindings, configuration: DomqlWatchLiveStateConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
-    static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
+    static watch<T = unknown>(query: DomqlQuery<T>, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query, delivering a baseline and then the change sets between its snapshots. */
-    static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
+    static watch<T = unknown>(query: DomqlQuery<T>, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query, keeping its result as live state: one object kept current in place. */
-    static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchLiveStateConfiguration<T>): DomqlWatch<T>;
+    static watch<T = unknown>(query: DomqlQuery<T>, configuration: DomqlWatchLiveStateConfiguration<T>): DomqlWatch<T>;
 
     /** Subscribes to an event source given as its text and passes each projected result to `onEvent`. Listening starts in the call. Pass `{}` as the bindings of a text that has none. */
     static subscribe<T = unknown>(text: string, bindings: DomqlBindings, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
 
     /** Subscribes to an event source and passes each projected result to `onEvent`. Listening starts in the call. */
-    static subscribe<T = unknown>(query: DomqlQuery, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
+    static subscribe<T = unknown>(query: DomqlQuery<T>, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
 
     /** Runs an action given as its text once, and returns a promise of its result, shaped by the shape that follows it where one does. A signal that aborts rejects with its reason; DOMQL never undoes what the action changed. */
     static runAsync<T = unknown>(text: string, bindings?: DomqlBindings, options?: DomqlRunAsyncOptions): Promise<T>;
 
     /** Runs an action once, and returns a promise of its result, shaped by the shape that follows it where one does. A signal that aborts rejects with its reason; DOMQL never undoes what the action changed. */
-    static runAsync<T = unknown>(query: DomqlQuery, options?: DomqlRunAsyncOptions): Promise<T>;
+    static runAsync<T = unknown>(query: DomqlQuery<T>, options?: DomqlRunAsyncOptions): Promise<T>;
 
     /** Activates a behavior given as its text, which is in effect once the call returns, and returns its handle. */
     static activate(text: string, bindings?: DomqlBindings, options?: DomqlActivateOptions): DomqlBehavior;

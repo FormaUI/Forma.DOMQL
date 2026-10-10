@@ -1,9 +1,11 @@
 /**
- * Domql — constructs, resolves, reads and watches queries, subscribes to events, runs actions and activates behaviors
+ * Domql — constructs and builds, resolves, reads and watches queries, subscribes to events, runs actions and activates behaviors
  */
 
 import { SnapshotComparer } from './snapshots/SnapshotComparer.mjs';
 import { Behavior } from './dom/Behavior.mjs';
+import { DefinitionInterning } from './builder/DefinitionInterning.mjs';
+import { QueryBuilder } from './builder/QueryBuilder.mjs';
 import { BrowserModule } from './dom/BrowserModule.mjs';
 import { Observations } from './dom/Observations.mjs';
 import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
@@ -90,8 +92,9 @@ export class Domql {
     static #moduleRegistry = new ModuleRegistry([BrowserModule.create()]);
 
     /**
-     * The resolutions of each query by the options they were made under, valid for the registry revision they were made at and released with the query.
-     * @type {WeakMap<DomqlQuery, { revision: number, byOptions: Map<string, import('./language/ResolvedDefinition.mjs').ResolvedDefinition> }>}
+     * The resolutions of each definition, by the options they were made under and the signature of the bindings they were made against, valid for the registry revision they were made at and released with the definition.
+     * Queries that share a definition, as the texts parsed alike and the queries built alike do, and whose bindings have one signature, share its resolution.
+     * @type {WeakMap<object, { revision: number, byKey: Map<string, import('./language/ResolvedDefinition.mjs').ResolvedDefinition> }>}
      */
     static #resolutionCache = new WeakMap();
 
@@ -128,6 +131,27 @@ export class Domql {
      */
     static create(definition, bindings = {}) {
         return new DomqlQuery(new DefinitionValidator().validate(definition), new ParameterBindings(bindings));
+    }
+
+    /**
+     * Builds a query fluently: calls the callback once with the builder, `q`, whose query starts at `q.from`, and returns the query the callback's result describes, a query like any other.
+     * The callback works with expressions that record the query rather than with values. The build checks the definition's structure and resolves it against the vocabulary, so a misspelled member fails here; a failure names its part as DOMQL text, since a built query has no text of its own.
+     * A target or a value the query meets is bound under a name the build gives, `p1`, `p2` and so on in the order it meets them, or under the name `q.from({ name: value })` gives it. A query built again alike shares its definition, and with it its resolution.
+     * @param {(q: { from: (target: unknown) => unknown }) => unknown} callback Describes the query, starting at `q.from`.
+     * @returns {DomqlQuery}
+     */
+    static build(callback) {
+        const { definition, bindings } = QueryBuilder.build(callback);
+
+        try {
+            const query = new DomqlQuery(DefinitionInterning.intern(new DefinitionValidator().validate(definition)), new ParameterBindings(bindings));
+
+            Domql.#resolve(query, {});
+
+            return query;
+        } catch (error) {
+            throw QueryBuilder.locate(error, definition);
+        }
     }
 
     /**
@@ -508,20 +532,20 @@ export class Domql {
 
     static #resolve(query, options) {
         const revision = Domql.#moduleRegistry.revision;
-        let kept = Domql.#resolutionCache.get(query);
+        let kept = Domql.#resolutionCache.get(query.definition);
 
         if (kept === undefined || kept.revision !== revision) {
-            kept = { revision, byOptions: new Map() };
-            Domql.#resolutionCache.set(query, kept);
+            kept = { revision, byKey: new Map() };
+            Domql.#resolutionCache.set(query.definition, kept);
         }
 
-        const key = `${options.watch === true}|${options.acceptPartialObservation === true}`;
+        const key = `${options.watch === true}|${options.acceptPartialObservation === true}|${query.bindings.signature}`;
 
-        if (!kept.byOptions.has(key)) {
-            kept.byOptions.set(key, new LanguageResolver(Domql.#moduleRegistry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolveDefinition(query.definition));
+        if (!kept.byKey.has(key)) {
+            kept.byKey.set(key, new LanguageResolver(Domql.#moduleRegistry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolveDefinition(query.definition));
         }
 
-        return kept.byOptions.get(key);
+        return kept.byKey.get(key);
     }
 
     /**

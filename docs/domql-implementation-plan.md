@@ -7,6 +7,7 @@ This plan records the steps that take DOMQL from what is built to what the [spec
 Each item is what exists and what checks it.
 
 - **The language.** Parsing text and creating queries from their definition, with the position of every mistake. Checked by the tests of parsing and of the definition.
+- **The fluent builder.** `Domql.build(q => q.from(target)…)` records the query its callback describes as expressions, binds the targets and values it meets, checks the definition and resolves it as it is built, naming a failure's part as DOMQL text, and answers a query typed by the result its projection describes; a query built again alike shares its definition and its resolution. Checked by the tests of the builder against the definitions the equivalent texts parse to, of writing a definition as text, and of the declarations, which a TypeScript caller compiles against and which a test keeps in step with the vocabulary.
 - **The vocabulary.** The built-in vocabulary declared as module data, and modules that extend it. Checked by the tests of modules, the registry and the vocabulary.
 - **Resolution.** Resolving a definition against the vocabulary and typing its result, without a browser; the resolution is kept for its query. Checked by the resolver tests and the tests of `Domql.resolve`.
 - **Reading.** `read` reads every built-in member except `intersects`, which is maintained, and fails it with an evaluation error that says so; a subscription, which ends in an occurrence source such as `eventsOf`, is listened to and never read. `readAsync` waits for the first sample of a maintained member, evaluates again as samples arrive and as what the query depends on changes, and lets go of its observations when it answers, fails or is canceled. Each evaluation records its dependencies. A read answers detached, immutable data. Checked by the evaluator tests, in a simulated DOM, and by the browser tests, in Chromium, for geometry, for state the browser decides and for the reads that wait.
@@ -18,7 +19,7 @@ Each item is what exists and what checks it.
 - **Change sets.** A watch that delivers change sets sends a baseline and then JSON Patch change sets, each acknowledged before the next is computed against the state it established, and recovers with a baseline of a new generation that nothing earlier can affect. Lists projected from elements change by element, through identities kept beside the result. A current snapshot applies each update atomically and gives a stale one no effect. Checked by the tests of computing and of applying change sets, each against expected patches and results and together, of the dispatcher and the current snapshot, and of watches delivering to a receiver.
 - **The package.** The bundle, with its TypeScript declarations checked against `Domql` and against a TypeScript caller; the READMEs' examples run as tests.
 
-What is not built: the fluent builder, the C# half and editor tooling.
+What is not built: the C# half and editor tooling.
 
 ## Decisions
 
@@ -157,6 +158,35 @@ watch.liveState; // The same object onChange receives, every time.
 
 State: **done.** Built by step 7.
 
+### D9. The fluent builder
+
+The design describes how a query is built fluently; this decision gives the builder one entry point, starts every query at `from`, and settles what the design left open.
+
+```js
+const rows = Domql.build(q => q
+    .from(table)
+    .all('tbody tr')
+    .where(row => row.intersects({ root: panel }))
+    .select(row => ({ key: row.attributeOf('data-key'), height: row.rect.height })));
+
+Domql.read(rows); // A DomqlQuery like any other.
+```
+
+- **Chosen: one entry point, `Domql.build(callback)`.** The callback receives the builder, `q`, and `build` answers a `DomqlQuery`, which every call that takes a query takes as it is. `Domql` keeps its entry points alone.
+- **Chosen: a query starts at `q.from`, as in LINQ, and `from` is the builder's one word.**
+  - `q.from(document)` and `q.from(window)` start at the roots, which stand for the document and the window the query is read in.
+  - A shape across targets starts at one and reaches the others with `q.from` inside its projection, as a nested `from` does.
+  - A string, a number or null in a projection or an argument is a literal, written as it is, and an element or other value given as an argument is bound as a parameter, as a target is. A bare `true` or `false` in a projection is refused, since `!` and `===` over an expression answer one, so a Boolean literal field is written in text.
+  - A test's names are written as text writes them after `is` or `has`: `view.is('disabled or readOnly')`.
+- **Chosen: parameter names.** `q.from(panel)`, and an element given as an argument, bind under a name the builder gives, `p1`, `p2` and so on in the order the build first meets each target, so the same build always answers the same definition, and one value given twice is one parameter. `q.from({ panel })` binds under the name the object gives instead, for a caller who rebinds the definition through `create` by a name it wrote. A typed binding is given where the value would be: `q.from({ panel: Domql.bind(null, 'element?') })`.
+- **Chosen: the builder lives in `builder/`.** The builder, the expressions that record a path, a shape or a test, and the construction of the definition and bindings they record are a folder of their own, which depends on `language/` alone. Their TypeScript declarations stay in `domql.d.ts`, the one file the package ships.
+- **Chosen: names are checked as the query is built.** `build` checks the definition's structure, refuses what the callback contract can detect, and resolves the query against the vocabulary, so a misspelled member or predicate fails on the line that builds it rather than at the first read. It costs no more than before: every call resolves the query anyway, and the resolution `build` makes is the one they reuse; a module registered later makes the next call resolve again, as the registry's revision already does.
+- **Chosen: the result's type is inferred from the projection.** An expression is typed by the vocabulary type of its value, so the editor completes the members that type has and refuses one it lacks, and `build` answers a `DomqlQuery<T>` whose `T` is the shape the projection describes: `rows` above is a `DomqlQuery<{ key: string | null; height: number | null }[]>`, and `readAsync(rows)` answers that type with no annotation. The types of the built-in vocabulary are generated from its declarations by a script, into `domql.d.ts`, and a test fails when they are out of date; an expression whose type only resolution decides, such as a member a module adds, is a `DomqlUnresolvedExpression`, on which any member and any call answers another until resolution accepts or refuses it.
+- **Chosen: rebuilding costs what rebinding does.** A query built again with other elements, as a function that builds it for its arguments does, reuses the resolution of the same definition with bindings of the same types: resolutions are kept by the definition's content and its bindings' types rather than by the query, valid for the registry revision they were made at, and released with the last definition that shares them. So the friendly way to run one query over another table is a function, and the generated names never need to be known.
+- **Chosen: a build's failure shows its part as DOMQL text.** A built query has no text of its own, so a failure names the part it is about as the text that would write it, `intersects(root: @p2)` inside `where`, beside the JSON Pointer.
+
+State: **done.** Built by step 8, with the departures it records.
+
 ## Steps
 
 A step is done when its tests pass in the gate, its documents say what it built, and its state here says so.
@@ -237,9 +267,18 @@ Deliver a watch's result as live state: one object with a stable identity that t
 
 Build queries from calls that produce the same definition text or JSON would, so they resolve and read alike.
 
-- **Needs:** nothing of the runtime; it works on definitions and resolution, which are built.
-- **Done when:** the definition a builder produces equals the one the equivalent text parses to, for every construct the language has.
-- **State:** not started.
+- **Needs:** D9; nothing of the runtime, since it works on definitions and resolution, which are built.
+- **Done when:**
+  - the definition a builder produces equals the one the equivalent text parses to, for every construct the language has, and binds its targets and argument values as D9 names them;
+  - a build refuses what the callback contract can detect and a name the vocabulary lacks, as it is built, naming the part as DOMQL text;
+  - a built query reads, watches, subscribes, runs and activates as a parsed one does;
+  - the result type of a built query is inferred in a TypeScript caller, the generated types of the built-in vocabulary match its declarations, and a module's member is reachable through the fallback;
+  - a query built again with other elements reuses the resolution of the first, which a measurement shows.
+- **State:** done. Where it departs from D9 or adds to it:
+  - `select`, `is` and `has` on an expression are the builder's shape and tests, so a member a module names `select` is read through `get`, and a plain object as a call's last argument always gives arguments by name, so a data object given last is given by name or bound first.
+  - A built query starts at `q.from`, so a shape across targets follows one of them; a callback that answers no expression is refused.
+  - A typed binding is a `DomqlUnresolvedExpression` in TypeScript, since its type is written as text, and so is the expression `get` answers.
+  - Resolutions are kept by definition rather than by query for every query, so the queries parsed from one text with bindings of one signature share theirs too; a binding's signature holds its type, and its value where that is a string, a number, a Boolean or null, since a bound string can select what a member reads.
 
 ### 9. Editor tooling
 

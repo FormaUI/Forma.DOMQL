@@ -10,7 +10,7 @@ The `formaui-net.DOMQL` NuGet package supplies the JavaScript library as a singl
 
 Available now:
 
-- Parse query text or create queries from JSON definitions.
+- Parse query text, create queries from JSON definitions, or build them fluently.
 - Validate structure, bindings, vocabulary names and types.
 - Resolve queries without reading the DOM.
 - Perform synchronous one-shot reads and receive immutable data snapshots.
@@ -110,6 +110,23 @@ Domql.read(rebound);
 The definition contains the query structure without bound values. `create` reuses it with new bindings and leaves the original query unchanged.
 
 A query belongs to the DOMQL instance that created it. A page holds more than one instance when independently bundled libraries each include DOMQL, and an instance refuses another's query with an error saying how to reuse it: pass its definition and a plain object of bindings to `create`, as in `Domql.create(otherQuery.definition, { panel })`. The receiving instance validates the definition and resolves it against its own vocabulary, so a member another instance registered is unknown to it. Bind raw values, or typed bindings this instance makes with `Domql.bind`.
+
+## Build a query fluently
+
+`build` is the third way to make a query, beside text and a definition: its callback starts at `q.from` and describes the query with members, `where` and `select`, and it returns a query like any other:
+
+```js
+const selected = Domql.build(q => q
+    .from(panel)
+    .all('[data-key]')
+    .where(item => item.matches('[aria-selected=true]'))
+    .select(item => ({ key: item.attributeOf('data-key') })));
+
+Domql.read(selected);
+// [ { key: 'a2' } ]
+```
+
+The callback runs once, as the query is built, and works with expressions that record the query rather than with values, so arithmetic or a condition over them is refused. An element it meets, as a target or an argument, is bound under a name the build gives, `p1`, `p2` and so on; `q.from({ panel })` binds it under a name of yours. A misspelled member fails as the query is built, naming the part as DOMQL text. In TypeScript the editor completes each member, and the query is typed by its result: `Domql.read(selected)` is a `{ key: string | null }[]`. Building the same query again for other elements resolves it once.
 
 ## Wait for values the browser keeps
 
@@ -311,6 +328,7 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | --- | --- |
 | `Domql.parse(text, bindings)` | Construct a query from text. |
 | `Domql.create(definition, bindings)` | Construct a query from a reusable definition. |
+| `Domql.build(q => q.from(target)…)` | Build a query fluently, typed by its result in TypeScript; names are checked as it is built. |
 | `query.definition` | Access the immutable definition without its bound values. |
 | `Domql.bind(value, type)` | Declare a binding's type explicitly. |
 | `Domql.resolve(text, bindings, options)`, `Domql.resolve(query, options)` | Check names and types without evaluating the query. |

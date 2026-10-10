@@ -2,7 +2,7 @@
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how results and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
-This design describes the whole runtime. Reading a query once, watching it as snapshots, change sets or live state, subscribing to events, running actions and activating behaviors are built; the fluent builder is not yet, and the [README](../README.md#status) states what this implementation covers.
+This design describes the whole runtime. Building a query fluently, reading it once, watching it as snapshots, change sets or live state, subscribing to events, running actions and activating behaviors are built, and the [README](../README.md#status) states what this implementation covers.
 
 ## Scope
 
@@ -174,7 +174,7 @@ A query is parsed from text, built fluently, or created from a definition, and e
 | --- | --- | --- |
 | `Domql.parse(text, bindings)` | `Domql.Parse(text, bindings)`, `Domql.Parse<T>(text, bindings)` | Parses text into a query, binding its parameters |
 | | `Domql.TryParse(…)`, `Domql.TryParse<T>(…)` | Parses text, answering false with a diagnostic and no query for text that does not follow the syntax or the structural rules |
-| `Domql.from(target)` | | Starts building a query fluently at a target |
+| `Domql.build(q => …)` | | Builds a query fluently, from the builder the callback receives |
 | `Domql.create(definition, bindings)` | `Domql.Create(definition, bindings)`, `Domql.Create<T>(definition, bindings)` | Creates a query from its definition, binding its parameters |
 | `query.definition` | `query.Definition` | The query's definition, without its bound values |
 | `Domql.runAsync(query, options)` | | Runs an action once, answering a promise of its result |
@@ -185,25 +185,25 @@ JavaScript builds fluently or parses text:
 
 ```js
 // Fluently, from a target.
-const panelState = Domql
+const panelState = Domql.build(q => q
     .from(panel)
     .select(view => ({
         size: view.size,
         hasFocus: view.matches(":focus-within")
-    }));
+    })));
 
 // A collection, filtered and shaped.
-const rows = Domql
+const rows = Domql.build(q => q
     .from(table)
     .all("tbody tr")
     .where(row => row.intersects({ root: panel }))
     .select(row => ({
         key: row.attributeOf("data-key"),
         height: row.rect.height
-    }));
+    })));
 
 // An aggregate.
-const tallest = Domql.from(table).all("tbody tr").max(row => row.rect.height);
+const tallest = Domql.build(q => q.from(table).all("tbody tr").max(row => row.rect.height));
 
 // From text, binding its parameters by name.
 const parsed = Domql.parse(`
@@ -263,29 +263,33 @@ With the bindings of the first example, the result is the following: a shape fol
 
 A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches the result's fields to the constructor parameters of `T` by name regardless of case, so a field `nearend` fills a parameter `NearEnd`, and reports an ambiguity where two fields differ only in case, since DOMQL itself tells them apart; a `DomqlQuery` answers a `DomqlSnapshot` giving structured access to its values. C# has no fluent builder and no C# type standing for each vocabulary concept: a module contributes its declarations and implementations, and the text names what the query reads. A `TryParse` checks the syntax and the structural rules that need no vocabulary, an empty shape, a duplicate field and a reserved name among them; an expected failure there answers false with a diagnostic and no query, and a vocabulary failure, such as an unknown member, arrives when the query is prepared.
 
-- **Targets.** `Domql.from(target)` starts a path at an element and binds it as a parameter the builder names, one parameter however often the same element is given; `Domql.document` and `Domql.window` start at the roots. An element or other value given as an argument is bound the same way. A caller rebinding a fluent query's definition takes the parameter names from that definition.
-- **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells a member by its DOMQL name, `row.attributeOf("data-key")` and `view.computedStyleOf("--x")`, with no conversion, and apart from the function that carries it out: renaming that function never changes the builder, and the declaration is available when a fluent query is built, while the implementation loads when it is prepared. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.
-- **Shapes.** `select` adds a shape, from a projection that receives the current value and returns an object whose properties are the shape's fields, in order. An object nested in it is a shape following no value, `Domql.from` inside it starts a path at another target, and a literal is written `Domql.value("list")`. `Domql.select({ … })` is a shape at the top level, across targets.
+- **The builder.** `Domql.build(callback)` is the one entry point: it calls the callback once with a builder, `q`, and answers the query the callback's result describes, a `DomqlQuery` like any other. A query starts at `q.from`, as one starts at `from` in LINQ, and `from` is the builder's one word; `Domql` keeps its entry points alone.
+- **Targets.** `q.from(target)` starts a path at an element and binds it as a parameter, one parameter however often the same element is given. `q.from({ panel })` binds it under the name the object gives it, `panel`, so a caller who rebinds the definition through `create` uses the name it wrote; `q.from(panel)` binds it under a name the builder gives, `p1`, `p2` and so on in the order the build first meets each target. A typed binding is given where the value would be, `q.from({ panel: Domql.bind(null, 'element?') })`. `q.from(document)` and `q.from(window)` start at the roots, which stand for the document and the window the query is read in, as `@document` and `@window` do in text.
+- **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells a member by its DOMQL name, `row.attributeOf("data-key")` and `view.computedStyleOf("--x")`, with no conversion, and apart from the function that carries it out: renaming that function never changes the builder. A string, a number, a Boolean or null given as an argument is a literal, a path is the value it reaches, an element or other value is bound as a parameter, as a target is, and a plain object as the last argument gives arguments by name, as `{ root: panel }` does.
+- **Shapes.** `select` adds a shape, from a projection that receives the current value and returns an object whose properties are the shape's fields, in order. A field is a path, a nested object, which is a shape following no value, or a string, a number or null written as it is; `q.from` inside a projection starts a path at another target, as a nested `from` does in LINQ.
 - **Expression arguments.** A list member taking an expression, such as `where`, `max`, `min` or `sum`, takes a callback receiving the item.
-- **Tests.** `view.is("attached")` and `view.has("children")` build a predicate test of the value they follow, and `Domql.and(…)` and `Domql.or(…)` combine names, so `view.is(Domql.or("disabled", "readOnly"))` is `is "disabled" or "readOnly"`.
+- **Tests.** `view.is("attached")` and `view.has("children")` build a predicate test of the value they follow, and their names are written as text writes them after `is` or `has`, so `view.is("disabled or readOnly")` is `is "disabled" or "readOnly"`, with `and` binding tighter and parentheses grouping.
+- **Checked as it is built.** `build` checks the definition's structure and resolves it against the vocabulary, so a misspelled member fails on the line that builds the query. A failure names its part as the DOMQL text that would write it and the member it is an argument of, since a built query has no text of its own.
+- **Typed as it is built.** In TypeScript an expression is typed by the vocabulary type of its value, so an editor completes its members and refuses one it lacks, and `build` answers a `DomqlQuery<T>` whose `T` is the result the projection describes, which every call that takes the query carries on. The types of the built-in vocabulary are generated from its declarations; an expression whose type only resolution decides, such as a member a module adds, is a `DomqlUnresolvedExpression`, on which any member and any call answers another until resolution accepts or refuses it.
+- **Built again for nothing.** A query built again alike shares its definition with the first, and a resolution is kept by its definition and the types of its bindings, so a function that builds a query for its arguments resolves it once however many elements it is built for.
 - **Text and definitions.** Parsing and creating bind the parameters a text or a definition names, by name, and a definition serves any binding. A text is parsed once and kept.
 
 ### The fluent callback contract
 
-A fluent callback runs once, as the query is built, against recording descriptors: a member access or a supported call builds a definition node, a projection object describes a shape, and `Domql.value(…)` is an explicit literal. It never runs against a live element, so native control flow over a descriptor decides nothing about the document:
+A fluent callback runs once, as the query is built, against expressions: each is a DOMQL expression, recorded as the definition node it is, and a member access or a supported call on it adds a node, and a projection object describes a shape. JavaScript's operators reach no property and make no call, so an expression records only what property reads and calls write; DOMQL has no operator of its own but the verbs and the `and` and `or` of a test, which the builder writes as calls, so every DOMQL expression can be built. It never runs against a live element, so native control flow over an expression decides nothing about the document:
 
 ```js
 // Unsupported: the conditional runs while the query is built.
-Domql.from(viewport).select(view => ({
-    width: view.is("attached") ? view.size.width : Domql.value(0)
-}));
+Domql.build(q => q.from(viewport).select(view => ({
+    width: view.is("attached") ? view.size.width : 0
+})));
 ```
 
-`view.is("attached")` is a descriptor, which JavaScript treats as truthy, so the first branch is recorded as though it were the whole expression. The builder's guarantee is bounded to what it can detect:
+`view.is("attached")` is an expression, which JavaScript treats as truthy, so the first branch is recorded as though it were the whole expression. The builder's guarantee is bounded to what it can detect:
 
-- It refuses converting a descriptor into a number or a string, so arithmetic, concatenation and ordering comparisons fail as the query is built.
-- It accepts a projection field only as a descriptor, a nested shape or a `Domql.value` literal, which catches `!` and `===`.
-- `&&`, `||`, `?:` and other native branching over descriptors are unsupported, and not every use of them can be detected.
+- It refuses converting an expression into a number or a string, so arithmetic, concatenation and ordering comparisons fail as the query is built.
+- It accepts a projection field only as an expression, a nested shape, a string, a number or null, and refuses `true` and `false`, which `!` and `===` over an expression answer, so a Boolean literal field is written in text.
+- `&&`, `||`, `?:` and other native branching over expressions are unsupported, and not every use of them can be detected.
 
 Any builder constructs the definition directly, never text for the parser to read again.
 

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, it, expect } from 'vitest';
 import { Domql } from '#domql/domql.js';
+import { declarationsWithTypes } from '../scripts/vocabulary-types.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const declarations = readFileSync(resolve(here, '..', 'src', 'domql.d.ts'), 'utf8');
@@ -16,6 +17,11 @@ describe('the declarations', () => {
         const declared = [...new Set([...body.matchAll(/^\s{4}static (?:readonly )?(\w+)/gm)].map(match => match[1]))].sort();
 
         expect(declared).toEqual(runtime);
+    });
+
+    it('hold the expression types the built-in vocabulary generates, as they are now', async () => {
+        // A failure here means the vocabulary changed: run `node scripts/vocabulary-types.mjs` from the repository's root.
+        expect(declarations).toBe(await declarationsWithTypes());
     });
 
     it('accept how a TypeScript caller uses the library, and refuse its misuse', () => {

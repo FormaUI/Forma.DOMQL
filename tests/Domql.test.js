@@ -591,12 +591,19 @@ describe('Domql reads', () => {
             expect(Domql.read(query)).toBe(4);
         });
 
-        it('is made again for other options and for other bindings', () => {
+        it('is made again for other options, and for bindings of other types or other selecting values', () => {
             const query = Domql.parse('@panel.size', { panel });
             const before = Domql.resolve(query);
 
             expect(Domql.resolve(query, { watch: true })).not.toBe(before);
-            expect(Domql.resolve(Domql.parse('@panel.size', { panel }))).not.toBe(before);
+            expect(Domql.resolve(Domql.parse('@panel.size', { panel: Domql.bind(null, 'element?') }))).not.toBe(before);
+            expect(Domql.resolve('@panel.eventsOf(@type) { button }', { panel, type: 'click' })).not.toBe(Domql.resolve('@panel.eventsOf(@type) { button }', { panel, type: 'pointerdown' }));
+        });
+
+        it('is shared by the queries of one definition whose bindings have the same types', () => {
+            const other = document.createElement('div');
+
+            expect(Domql.resolve(Domql.parse('@panel.size', { panel: other }))).toBe(Domql.resolve(Domql.parse('@panel.size', { panel })));
         });
 
         it('is not kept for a query that fails to resolve', () => {
