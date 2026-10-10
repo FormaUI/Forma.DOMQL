@@ -25,7 +25,7 @@ describe('the declarations', () => {
     });
 
     it('accept how a TypeScript caller uses the library, and refuse its misuse', () => {
-        const program = ts.createProgram([resolve(here, 'types', 'usage.ts')], {
+        const program = ts.createProgram([resolve(here, '_types', 'usage.ts')], {
             strict: true,
             noEmit: true,
             target: ts.ScriptTarget.ES2022,

@@ -8,7 +8,7 @@ const packageReadme = readFileSync(resolve(here, '..', 'nuget', 'README.md'), 'u
 const repositoryReadme = readFileSync(resolve(here, '..', 'README.md'), 'utf8');
 
 /** A fixture: the text of a README block, kept as it is written there. */
-const fixture = name => readFileSync(resolve(here, 'readme', name), 'utf8').trim();
+const fixture = name => readFileSync(resolve(here, '_examples', name), 'utf8').trim();
 
 /** The fenced blocks of a language in a document, in order. */
 const blocks = (document, language) => [...document.matchAll(new RegExp('```' + language + '\\n([\\s\\S]*?)```', 'g'))].map(match => match[1].trim());

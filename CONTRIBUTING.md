@@ -20,10 +20,10 @@ npm test
 
 `./build.ps1` is the gate. It runs the tests, bundles `src/`, builds the package project with no warnings and checks the formatting. A change is ready when the gate passes. CI runs the gate, with the browser tests, on Linux for every push to `main` and every pull request.
 
-- Add or change a test for every module you add or change. Tests live in `tests/`, mirror the folders of `src/`, and test through the public API, `Domql`.
+- Add or change a test for every module you add or change. Tests live in `tests/`, mirror the folders of `src/`, and test through the public API, `Domql`; what they read or compile, rather than run, is kept in the underscore folders beside them.
 - Give a test that registers a module its own `ModuleRegistry`, or its own copy of `Domql`, so tests pass in any order.
 - Use simulated-DOM tests for structure and attributes. The test environment lays nothing out, so a test of layout, geometry or state the browser decides goes in a `*.browser.js` file beside the tests of the same code, which runs in headless Chromium: `./build.ps1 -Browser`, or `npm run test:browser` from `tests/`.
-- An example in the package README is a test: it is kept as a fixture in `tests/readme/`, and a change to the README's examples changes the fixtures and the answers they expect.
+- An example in the package README is a test: it is kept as a fixture in `tests/_examples/`, and a change to the README's examples changes the fixtures and the answers they expect.
 - Write code as the surrounding code is written. `.editorconfig` is the authority on style, and every compiler warning is a build failure.
 
 ## Commit

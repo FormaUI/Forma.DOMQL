@@ -39,6 +39,7 @@ The language knows only the DOM, and nothing here refers to a consumer of it.
 
 - Do add or change a test for every module you add or change, in `tests/`, and run them with `npm test` from that folder.
 - Do put a test where the code it tests is, `tests/` following `src/` folder for folder, and name a test of layout, geometry or state the browser decides `*.browser.js`, beside the others, which runs in headless Chromium with `npm run test:browser` or `./build.ps1 -Browser`; the happy-dom tests lay nothing out.
+- Do keep what a test reads or compiles, rather than runs, in an underscore folder of `tests/`, so every other folder there follows `src/`: the package README's examples and the document both READMEs query in `tests/_examples/`, and the TypeScript caller in `tests/_types/`.
 - Do test through the public surface, `Domql` and what it returns, and assert exact definitions, error kinds and locations.
 - Don't wait on the clock for work a test controls.
 
