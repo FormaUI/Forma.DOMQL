@@ -618,14 +618,11 @@ export class QueryEvaluator {
             const items = [];
             let hasIdentities = false;
 
-            // A hole stays a hole, as a copy of the list keeps it.
-            value.forEach((item, index) => {
-                detached[index] = this.#detach(item);
-                items[index] = this.#detachedIdentities;
+            for (const item of value) {
+                detached.push(this.#detach(item));
+                items.push(this.#detachedIdentities);
                 hasIdentities ||= this.#detachedIdentities !== null;
-            });
-            detached.length = value.length;
-            items.length = value.length;
+            }
 
             const elements = this.#elementsOf.get(value) ?? null;
 
