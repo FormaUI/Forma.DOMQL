@@ -86,6 +86,59 @@ describe('LanguageResolver', () => {
         });
     });
 
+    describe('actions and behaviors', () => {
+        /** A module whose one member, named for it, is an action or a behavior on an element. */
+        const member = (name, kind, result) => new DomqlModule(name, {
+            members: [{ name, function: name, kind, on: 'element', parameters: [], result, changes: 'unobserved', reads: 'fresh' }],
+        });
+        const registry = new ModuleRegistry([Vocabulary.module, member('step', 'action', 'boolean'), member('pick', 'action', 'element'), member('focusTrap', 'behavior', 'null')]);
+        const resolveWith = text => {
+            const query = Domql.parse(text, { panel });
+
+            return new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
+        };
+        const failureWith = text => {
+            try {
+                resolveWith(text);
+            } catch (error) {
+                expect(error.kind).toBe('validation');
+
+                return error;
+            }
+
+            throw new Error('The request was resolved');
+        };
+
+        it('resolves an action as an action request, typed by its result', () => {
+            const resolved = resolveWith('@panel.step');
+
+            expect(resolved.kind).toBe('action');
+            expect(resolved.type.toString()).toBe('boolean');
+        });
+
+        it('shapes the result of an action by the shape that follows it, which stays an action request', () => {
+            const resolved = resolveWith('@panel.pick { id: attributeOf "id" }');
+
+            expect(resolved.kind).toBe('action');
+            expect(resolved.type.toString()).toBe('{ id: string? }');
+        });
+
+        it('refuses an action whose result is no data, unless a shape follows it', () => {
+            expect(failureWith('@panel.pick').message).toContain('no data');
+        });
+
+        it('resolves a behavior as a behavior request, which takes no shape', () => {
+            expect(resolveWith('@panel.focusTrap').kind).toBe('behavior');
+            expect(failureWith('@panel.focusTrap { id: attributeOf "id" }').message).toContain('A behavior request ends its path and takes no shape');
+        });
+
+        it('refuses a member after an action, and an action or a behavior inside a query', () => {
+            expect(failureWith('@panel.step.count').message).toContain('follows an action');
+            expect(failureWith('{ moved: @panel.step }').message).toContain('is an action');
+            expect(failureWith('@panel.matches(selector: @panel.focusTrap)').message).toContain('is a behavior');
+        });
+    });
+
     describe('receivers', () => {
         it('refuses a member the receiver does not declare', () => {
             const error = failure('@panel.devicePixelRatio');

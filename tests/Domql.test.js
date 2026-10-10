@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { Domql } from '#domql/domql.js';
 import { DomqlError } from '#domql/language/DomqlError.mjs';
 import { ParsedTexts } from '#domql/language/ParsedTexts.mjs';
@@ -900,5 +900,169 @@ describe('Domql readAsync', () => {
             expect((await failure).message).toBe('not needed');
             expect(reported.map(error => error.message)).toEqual(['stuck']);
         });
+    });
+});
+
+describe('Domql runAsync', () => {
+    // Each test loads its own copy of Domql, with a registry of its own.
+    let isolated;
+    let panel;
+    let reported;
+    let runs;
+    let pending;
+
+    /** An action module: its one member, named for it, on an element, carried out by the function. */
+    const action = (name, implementation, { parameters = [], result = 'boolean' } = {}) => isolated.createModule(name, {
+        members: [{ name, function: name, kind: 'action', on: 'element', parameters, result, changes: 'unobserved', reads: 'fresh' }],
+    }, { [name]: implementation });
+
+    const label = [{ name: 'label', kind: 'value', type: 'string', required: true, nulls: 'propagate' }];
+
+    beforeEach(async () => {
+        vi.resetModules();
+        ({ Domql: isolated } = await import('#domql/domql.js'));
+        document.body.innerHTML = '<div id="panel"><b id="first"></b></div>';
+        panel = document.getElementById('panel');
+        reported = [];
+        runs = [];
+        pending = null;
+        window.reportError = error => reported.push(error);
+
+        // Marks its element and answers whether the mark changed.
+        isolated.registerModule(action('mark', (element, { label }, _environment, { signal }) => {
+            runs.push({ element, label, signal });
+
+            const changed = element.dataset.mark !== label;
+
+            element.dataset.mark = label;
+
+            return changed;
+        }, { parameters: label }));
+
+        // Answers a promise the test settles, after marking its element as started.
+        isolated.registerModule(action('slow', (element, _args, _environment, { signal }) => {
+            element.dataset.state = 'started';
+            runs.push({ element, signal });
+
+            return new Promise((resolve, reject) => { pending = { resolve, reject }; });
+        }));
+
+        isolated.registerModule(action('pick', element => element.firstElementChild, { result: 'element?' }));
+        isolated.registerModule(action('broken', element => {
+            element.dataset.state = 'half';
+
+            throw new Error('jammed');
+        }));
+        isolated.registerModule(action('wrong', () => 'yes'));
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('runs an action once and returns its result, as text or as a request', async () => {
+        expect(await isolated.runAsync('@panel.mark(@label)', { panel, label: 'seen' })).toBe(true);
+        expect(await isolated.runAsync(isolated.parse('@panel.mark("seen")', { panel }))).toBe(false);
+        expect(panel.dataset.mark).toBe('seen');
+        expect(runs.map(run => run.label)).toEqual(['seen', 'seen']);
+    });
+
+    it('waits for a result the action promises, and gives the action a signal even where the caller gave none', async () => {
+        const running = isolated.runAsync('@panel.slow', { panel });
+
+        await Promise.resolve();
+        pending.resolve(true);
+
+        expect(await running).toBe(true);
+        expect(runs[0].signal).toBeInstanceOf(AbortSignal);
+        expect(runs[0].signal.aborted).toBe(false);
+    });
+
+    it('shapes the result by the shape that follows the action, as immutable data', async () => {
+        const result = await isolated.runAsync('@panel.pick { id: attributeOf "id" }', { panel });
+
+        expect(result).toEqual({ id: 'first' });
+        expect(Object.isFrozen(result)).toBe(true);
+    });
+
+    it('runs nothing where the receiver is null, and answers null', async () => {
+        expect(await isolated.runAsync('@item.mark("seen")', { item: isolated.bind(null, 'element?') })).toBeNull();
+        expect(runs).toEqual([]);
+    });
+
+    it('rejects a result of another type than the action declares, naming the action', async () => {
+        await expect(isolated.runAsync('@panel.wrong', { panel })).rejects.toThrow(expect.objectContaining({ kind: 'evaluation', message: expect.stringContaining("The action 'wrong' answered \"yes\", and it declares boolean") }));
+    });
+
+    it('rejects a failure of the action with what it threw as the cause, and leaves what it changed', async () => {
+        const error = await isolated.runAsync('@panel.broken', { panel }).catch(failure => failure);
+
+        expect(error).toMatchObject({ kind: 'evaluation', message: expect.stringContaining("The action 'broken' failed: jammed") });
+        expect(error.cause.message).toBe('jammed');
+        expect(panel.dataset.state).toBe('half');
+        expect(reported).toEqual([]);
+    });
+
+    it('rejects a failure the action promises, whatever it is', async () => {
+        const running = isolated.runAsync('@panel.slow', { panel }).catch(failure => failure);
+
+        await Promise.resolve();
+        pending.reject(null);
+
+        const error = await running;
+
+        expect(error).toMatchObject({ kind: 'evaluation', message: expect.stringContaining("The action 'slow' failed: null") });
+        expect(error.cause).toBeNull();
+    });
+
+    it('rejects with the reason of a signal already aborted, and runs nothing', async () => {
+        const controller = new AbortController();
+
+        controller.abort(new Error('not now'));
+
+        await expect(isolated.runAsync('@panel.mark("seen")', { panel }, { signal: controller.signal })).rejects.toThrow('not now');
+        expect(runs).toEqual([]);
+    });
+
+    it('rejects at once with the reason of a signal that aborts while the action runs, which learns of it, and discards its result', async () => {
+        const controller = new AbortController();
+        const running = isolated.runAsync('@panel.slow', { panel }, { signal: controller.signal }).catch(failure => failure);
+
+        await Promise.resolve();
+        controller.abort(new Error('stop'));
+
+        expect((await running).message).toBe('stop');
+        expect(runs[0].signal.aborted).toBe(true);
+        expect(panel.dataset.state).toBe('started');
+
+        pending.resolve(true);
+        await Promise.resolve();
+
+        expect(reported).toEqual([]);
+    });
+
+    it('reports a failure that arrives after the run was canceled, since no caller waits for it', async () => {
+        const controller = new AbortController();
+        const running = isolated.runAsync('@panel.slow', { panel }, { signal: controller.signal }).catch(failure => failure);
+
+        await Promise.resolve();
+        controller.abort(new Error('stop'));
+        await running;
+        pending.reject(new Error('late'));
+        await new Promise(resolve => setTimeout(resolve));
+
+        expect(reported).toHaveLength(1);
+        expect(reported[0]).toMatchObject({ kind: 'evaluation', message: expect.stringContaining("The action 'slow' failed: late") });
+    });
+
+    it('is refused for a request of another kind, and an action request is refused by the other calls', async () => {
+        await expect(isolated.runAsync('@panel.children.count', { panel })).rejects.toThrow(expect.objectContaining({ kind: 'validation', message: expect.stringContaining('A query request is not run') }));
+        expect(getError(() => isolated.read('@panel.mark("seen")', { panel }))).toMatchObject({ kind: 'validation', message: expect.stringContaining('An action request is not read') });
+        expect(runs).toEqual([]);
+    });
+
+    it('rejects where its receiver or arguments cannot be evaluated, and runs nothing', async () => {
+        await expect(isolated.runAsync('@panel.first("[").mark("seen")', { panel })).rejects.toThrow(expect.objectContaining({ kind: 'evaluation', message: expect.stringContaining("The member 'first' failed") }));
+        expect(runs).toEqual([]);
     });
 });

@@ -41,7 +41,7 @@ export class LanguageResolver {
 
         const resultType = result.kind === 'subscription' && result.type.kind === 'occurrence' ? result.type.item : result.type;
 
-        if ((result.kind === 'query' || result.kind === 'subscription') && !this.#isData(resultType)) {
+        if (result.kind !== 'behavior' && !this.#isData(resultType)) {
             this.#fail(`The result would hold ${resultType}, which is no data; shape it into the facts it needs`, '/query');
         }
 
@@ -77,7 +77,7 @@ export class LanguageResolver {
         }
 
         if (subject.kind !== 'query') {
-            this.#fail(`'${verb}' tests ${subject.kind === 'subscription' ? 'an occurrence source' : `an ${subject.kind}`}, which is no value`, pointer);
+            this.#fail(`'${verb}' tests ${LanguageResolver.#nameOf(subject.kind)}, which is no value`, pointer);
         }
 
         if (subject.type.kind === 'null') {
@@ -144,7 +144,7 @@ export class LanguageResolver {
         }
 
         if (receiver.kind !== 'query') {
-            this.#fail(`'${node.name}' follows ${receiver.kind === 'subscription' ? 'an occurrence source' : `an ${receiver.kind}`}, which takes no members`, pointer);
+            this.#fail(`'${node.name}' follows ${LanguageResolver.#nameOf(receiver.kind)}, which takes no members`, pointer);
         }
 
         if (receiverType.kind === 'null') {
@@ -314,7 +314,7 @@ export class LanguageResolver {
 
     #requireQuery(result, parameter, declaration, pointer) {
         if (result.kind !== 'query') {
-            this.#fail(`The argument '${parameter.name}' of '${declaration.name}' is ${result.kind === 'subscription' ? 'an occurrence source' : `an ${result.kind}`}, and an argument is a value`, pointer);
+            this.#fail(`The argument '${parameter.name}' of '${declaration.name}' is ${LanguageResolver.#nameOf(result.kind)}, and an argument is a value`, pointer);
         }
     }
 
@@ -385,9 +385,12 @@ export class LanguageResolver {
     #shape(node, pointer, scope) {
         const target = node.target === undefined ? null : this.#node(node.target, `${pointer}/target`, scope);
 
-        if (target?.kind === 'action' || target?.kind === 'behavior') {
-            this.#fail(`A ${target.kind} request ends its path and takes no shape`, pointer);
+        if (target?.kind === 'behavior') {
+            this.#fail('A behavior request ends its path and takes no shape', pointer);
         }
+
+        // A shape that follows an action shapes its result, and the request stays an action.
+        const kind = target?.kind === 'action' ? 'action' : 'query';
 
         let current = scope.current;
 
@@ -407,7 +410,7 @@ export class LanguageResolver {
             const result = this.#node(field.value, `${fieldPointer}/value`, { current });
 
             if (result.kind !== 'query') {
-                this.#fail(`The field '${name}' is ${result.kind === 'subscription' ? 'an occurrence source' : `an ${result.kind}`}, and a field is a value`, `${fieldPointer}/value`);
+                this.#fail(`The field '${name}' is ${LanguageResolver.#nameOf(result.kind)}, and a field is a value`, `${fieldPointer}/value`);
             }
 
             if (!this.#isData(result.type)) {
@@ -421,14 +424,14 @@ export class LanguageResolver {
         const isNullable = target?.type.isNullable === true;
 
         if (target?.type.kind === 'list') {
-            return { type: Type.list(shape, isNullable), kind: 'query', isFixed: false };
+            return { type: Type.list(shape, isNullable), kind, isFixed: false };
         }
 
         if (target?.type.kind === 'occurrence') {
             return { type: Type.occurrence(shape, isNullable), kind: 'subscription', isFixed: false };
         }
 
-        return { type: isNullable ? shape.toNullable() : shape, kind: 'query', isFixed: false };
+        return { type: isNullable ? shape.toNullable() : shape, kind, isFixed: false };
     }
 
     #checkWatch() {
@@ -483,6 +486,18 @@ export class LanguageResolver {
 
     #fail(message, pointer) {
         throw DomqlError.validation(message, this.#locations?.locate(pointer) ?? { pointer });
+    }
+
+    /** What a request of the kind is, for a message: a subscription is an occurrence source. */
+    static #nameOf(kind) {
+        switch (kind) {
+            case 'subscription':
+                return 'an occurrence source';
+            case 'action':
+                return 'an action';
+            default:
+                return `a ${kind}`;
+        }
     }
 
     static #kindOf(declaration) {

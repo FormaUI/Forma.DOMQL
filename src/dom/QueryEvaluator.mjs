@@ -25,7 +25,7 @@ export class QueryEvaluator {
     /** What the evaluation in progress records, or null where none does. @type {{ observations: import('./Observations.mjs').Observations, onChange: () => void, holdsAll: boolean, dependencies: object[], sessions: object[], unheld: object[], isPending: boolean } | null} */
     #recording = null;
 
-    /** The occurrence the projection in progress is evaluated against, and where its source stands in the query, or null outside a projection. @type {{ pointer: string, value: unknown } | null} */
+    /** The value that stands for the member the request ends in while its projection is evaluated, an occurrence or an action's result, and where that member stands, or null outside a projection. @type {{ pointer: string, value: unknown } | null} */
     #occurrence = null;
 
     /**
@@ -69,27 +69,77 @@ export class QueryEvaluator {
      * @returns {{ name: string, start: Function, capture: (occurrence: unknown) => unknown, receiver: unknown, args: Record<string, unknown>, environment: Environment, location: object } | null}
      */
     resolveSource() {
-        if (this.#resolvedDefinition.kind !== 'subscription') {
-            this.#fail(`A ${this.#resolvedDefinition.kind} request is not listened to`, '/query');
+        const call = this.#resolveCall('subscription', 'listened to');
+
+        return call.args === null ? null : { name: call.name, start: call.implementation, capture: occurrence => this.#capture(occurrence, call.pointer), receiver: call.receiver, args: call.args, environment: call.environment, location: call.location };
+    }
+
+    /**
+     * Resolves the action the request ends in into what runs it: the action's name, the function that carries it out, the receiver and arguments it is called with and the environment, and where it stands, for a failure to name.
+     * The receiver and arguments are evaluated once, now, as a read evaluates them; where one of them is null the action is not run, and the answer is null.
+     * @returns {{ name: string, run: Function, receiver: unknown, args: Record<string, unknown>, environment: Environment, location: object } | null}
+     */
+    resolveAction() {
+        const call = this.#resolveCall('action', 'run');
+
+        return call.args === null ? null : { name: call.name, run: call.implementation, receiver: call.receiver, args: call.args, environment: call.environment, location: call.location };
+    }
+
+    /**
+     * Resolves the behavior the request ends in into what activates it: the behavior's declaration and name, the function that carries it out, the receiver and arguments it is called with and the environment, and where it stands, for a failure to name.
+     * The receiver and arguments are evaluated now, as a read evaluates them; where one of them is null there is nothing to activate, and the arguments are null.
+     * @returns {{ declaration: object, name: string, activate: Function, receiver: unknown, args: Record<string, unknown> | null, environment: Environment, location: object }}
+     */
+    resolveBehavior() {
+        const call = this.#resolveCall('behavior', 'activated');
+
+        return { declaration: call.declaration, name: call.name, activate: call.implementation, receiver: call.receiver, args: call.args, environment: call.environment, location: call.location };
+    }
+
+    /**
+     * The result of an action, checked against the type the action declares and shaped by the shape that follows it, if one does: an immutable snapshot containing no live DOM references.
+     * The shape is evaluated as a read evaluates a query, so a member maintained by an observation fails it. A result of another type, or a shape that fails, throws an evaluation error.
+     * @param {unknown} result What the action's function answered, or null for an action that was not run, since its receiver or an argument was null.
+     * @param {{ wasRun?: boolean }} [run] Whether the action was run, so its result is checked against the type it declares.
+     */
+    projectResult(result, { wasRun = true } = {}) {
+        const { pointer } = this.#endNode();
+        const { declaration, type } = this.#resolvedDefinition.getResolution(pointer);
+
+        if (wasRun && !this.#conforms(result, type)) {
+            this.#fail(`The action '${declaration.name}' answered ${QueryEvaluator.#describe(result)}, and it declares ${type}`, pointer);
         }
 
-        const { node, pointer } = this.#sourceNode();
+        this.#occurrence = { pointer, value: result };
+
+        try {
+            this.#elementsOf = new WeakMap();
+
+            return this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null))[0];
+        } finally {
+            this.#occurrence = null;
+        }
+    }
+
+    /** The member the request ends in, evaluated up to its call: its declaration, the function that carries it out, and its receiver and arguments, which are null where the receiver or an argument is. */
+    #resolveCall(kind, use) {
+        if (this.#resolvedDefinition.kind !== kind) {
+            this.#fail(`A ${this.#resolvedDefinition.kind} request is not ${use}`, '/query');
+        }
+
+        const { node, pointer } = this.#endNode();
         const resolution = this.#resolvedDefinition.getResolution(pointer);
         const { declaration } = resolution;
         const receiver = this.#evaluate(node.target, `${pointer}/target`, null);
         const args = receiver === null ? null : this.#arguments(resolution, null);
 
-        if (args === null) {
-            return null;
-        }
+        const implementation = this.#moduleRegistry.getFunction(declaration);
 
-        const start = this.#moduleRegistry.getFunction(declaration);
-
-        if (start === undefined) {
+        if (implementation === undefined) {
             this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
         }
 
-        return { name: declaration.name, start, capture: occurrence => this.#capture(occurrence, pointer), receiver, args, environment: this.#environment, location: this.#locate(pointer) };
+        return { declaration, name: declaration.name, implementation, receiver, args, environment: this.#environment, location: this.#locate(pointer), pointer };
     }
 
     /**
@@ -101,7 +151,7 @@ export class QueryEvaluator {
      */
     project(occurrence, { observations }) {
         return this.#record({ observations, onChange: () => {}, holdsAll: false, waits: false }, () => {
-            const { pointer } = this.#sourceNode();
+            const { pointer } = this.#endNode();
 
             this.#occurrence = { pointer, value: occurrence };
 
@@ -208,7 +258,7 @@ export class QueryEvaluator {
     }
 
     #member(node, pointer, current) {
-        // A projection stands the occurrence where its source is, so the source is never read.
+        // A projection stands the occurrence or the result where its member is, so that member is never read again.
         if (pointer === this.#occurrence?.pointer) {
             return this.#occurrence.value;
         }
@@ -389,8 +439,8 @@ export class QueryEvaluator {
         return session;
     }
 
-    /** The occurrence source a subscription ends in, and where it stands: the shapes of a subscription each follow the one before, and the first follows the source. */
-    #sourceNode() {
+    /** The member a subscription, an action or a behavior request ends in, and where it stands: the shapes of a request each follow the one before, and the first follows that member. */
+    #endNode() {
         let node = this.#resolvedDefinition.definition.query;
         let pointer = '/query';
 

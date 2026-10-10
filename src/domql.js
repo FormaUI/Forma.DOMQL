@@ -1,8 +1,9 @@
 /**
- * Domql — constructs, resolves, reads and watches queries, and subscribes to events
+ * Domql — constructs, resolves, reads and watches queries, subscribes to events, runs actions and activates behaviors
  */
 
 import { SnapshotComparer } from './snapshots/SnapshotComparer.mjs';
+import { Behavior } from './dom/Behavior.mjs';
 import { BrowserModule } from './dom/BrowserModule.mjs';
 import { Observations } from './dom/Observations.mjs';
 import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
@@ -41,6 +42,19 @@ import { TypedBinding } from './language/TypedBinding.mjs';
  */
 
 /**
+ * How an action is run.
+ * @typedef {object} DomqlRunAsyncOptions
+ * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for; by default the environment's.
+ * @property {AbortSignal} [signal] Cancels the run: the promise rejects with the signal's reason at once, and the action learns of it through the signal it is given.
+ */
+
+/**
+ * How a behavior is activated.
+ * @typedef {object} DomqlActivateOptions
+ * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for; by default the environment's.
+ */
+
+/**
  * How a query is watched.
  * @typedef {object} DomqlWatchConfiguration
  * @property {(update: unknown) => unknown} onChange Receives each snapshot, which shares what did not change with the snapshot before it, or, where the watch delivers change sets, each baseline and change set. What it returns is not awaited.
@@ -65,6 +79,8 @@ const READ = { name: 'read', kind: 'query', use: 'read', trailing: 'options' };
 const READ_ASYNC = { name: 'readAsync', kind: 'query', use: 'read', trailing: 'options' };
 const WATCH = { name: 'watch', kind: 'query', use: 'watched', trailing: 'configuration' };
 const SUBSCRIBE = { name: 'subscribe', kind: 'subscription', use: 'subscribed to', trailing: 'configuration' };
+const RUN_ASYNC = { name: 'runAsync', kind: 'action', use: 'run', trailing: 'options' };
+const ACTIVATE = { name: 'activate', kind: 'behavior', use: 'activated', trailing: 'options' };
 
 /** When a watch evaluates after a change, and what it delivers. */
 const WATCH_SCHEDULES = ['frame', 'immediate'];
@@ -326,6 +342,115 @@ export class Domql {
             observations: Domql.#getObservations(window),
             reportError: Domql.#createErrorReporter(window),
             configuration: { onEvent, onError },
+        });
+    }
+
+    /**
+     * Runs an action once and returns a promise of its result, an immutable snapshot containing no live DOM references, shaped by the shape that follows the action where one does.
+     * The receiver and arguments are evaluated first; a failure there rejects and runs nothing, and where one of them is null the action is not run and its result is null. The action's function receives the signal, and may return its result or a promise of it, which must be of the type the action declares.
+     * A failure of the action rejects with an evaluation error whose cause is what it threw. A signal that aborts rejects with its reason at once; the action learns of it through the signal, its result is then discarded, and a failure it reports afterwards goes to the window's error reporting. DOMQL never undoes what an action changed.
+     *
+     * @overload
+     * @param {string} text The action request's text, parsed as `parse` parses it, through the same cache.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
+     * @param {DomqlRunAsyncOptions} [options] How the action is run.
+     * @returns {Promise<unknown>}
+     *
+     * @overload
+     * @param {DomqlQuery} query The action request.
+     * @param {DomqlRunAsyncOptions} [options] How the action is run.
+     * @returns {Promise<unknown>}
+     */
+    static async runAsync(input, ...rest) {
+        const { query, options } = Domql.#normalizeArguments(RUN_ASYNC, input, rest);
+        const { window = globalThis.window, signal } = options ?? {};
+
+        signal?.throwIfAborted();
+
+        const evaluator = Domql.#createEvaluator(query, Domql.#resolveFor(RUN_ASYNC, query), window);
+        const action = evaluator.resolveAction();
+
+        if (action === null) {
+            return evaluator.projectResult(null, { wasRun: false });
+        }
+
+        const reportError = Domql.#createErrorReporter(window);
+        const fail = error => DomqlError.evaluation(`The action '${action.name}' failed: ${error?.message ?? String(error)}`, action.location, { cause: error });
+
+        return new Promise((resolve, reject) => {
+            let isSettled = false;
+
+            const settle = outcome => {
+                isSettled = true;
+                signal?.removeEventListener('abort', cancel);
+                outcome();
+            };
+            const cancel = () => settle(() => reject(signal.reason));
+            let pending;
+
+            signal?.addEventListener('abort', cancel, { once: true });
+
+            try {
+                pending = action.run(action.receiver, action.args, action.environment, { signal: signal ?? new AbortController().signal });
+            } catch (error) {
+                settle(() => reject(fail(error)));
+
+                return;
+            }
+
+            Promise.resolve(pending).then(result => {
+                // A result that arrives after the run was canceled is discarded.
+                if (isSettled) {
+                    return;
+                }
+
+                let value;
+
+                try {
+                    value = evaluator.projectResult(result);
+                } catch (error) {
+                    settle(() => reject(error));
+
+                    return;
+                }
+
+                settle(() => resolve(value));
+            }, error => {
+                // No caller waits for a failure that arrives after the run was canceled, so it goes to the error reporting.
+                if (isSettled) {
+                    reportError(fail(error));
+                } else {
+                    settle(() => reject(fail(error)));
+                }
+            });
+        });
+    }
+
+    /**
+     * Activates a behavior, which is in effect once the call returns, and returns its handle, which belongs to the caller. Disposing the handle ends the behavior and leaves its module registered.
+     * The receiver and arguments are evaluated now; where one of them is null there is nothing to activate until an update supplies one. A behavior that cannot activate fails the call and leaves nothing running.
+     *
+     * @overload
+     * @param {string} text The behavior request's text, parsed as `parse` parses it, through the same cache.
+     * @param {Record<string, unknown>} [bindings] Values or typed bindings supplied by parameter name.
+     * @param {DomqlActivateOptions} [options] How the behavior is activated.
+     * @returns {Behavior}
+     *
+     * @overload
+     * @param {DomqlQuery} query The behavior request.
+     * @param {DomqlActivateOptions} [options] How the behavior is activated.
+     * @returns {Behavior}
+     */
+    static activate(input, ...rest) {
+        const { query, options } = Domql.#normalizeArguments(ACTIVATE, input, rest);
+        const { window = globalThis.window } = options ?? {};
+        const resolveBehavior = request => Domql.#createEvaluator(request, Domql.#resolveFor(ACTIVATE, request), window).resolveBehavior();
+
+        return new Behavior({
+            call: resolveBehavior(query),
+            // An update binds the same definition anew, so it is validated and resolved as the first bindings were.
+            prepare: bindings => resolveBehavior(new DomqlQuery(query.definition, new ParameterBindings(bindings))),
+            reportError: Domql.#createErrorReporter(window),
         });
     }
 

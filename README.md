@@ -205,11 +205,12 @@ Available today:
 - Synchronous reads and asynchronous reads of maintained values.
 - Watching a query, with a snapshot each time its result changes, or a baseline and then change sets.
 - Subscribing to events, with the projection of each one.
+- Running actions once, and activating behaviors that stay in effect until disposed.
 - Immutable snapshots.
 - Extensible vocabulary and observation types.
 - TypeScript declarations.
 
-Actions, behaviors, live state, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
+Live state, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
 
 ## Build and try it
 

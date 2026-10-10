@@ -22,6 +22,30 @@ export interface DomqlReadAsyncOptions extends DomqlReadOptions {
     signal?: AbortSignal;
 }
 
+/** How an action is run. */
+export interface DomqlRunAsyncOptions {
+    /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
+    window?: Window;
+    /** Cancels the run: the promise rejects with the signal's reason at once, and the action learns of it through the signal it is given. */
+    signal?: AbortSignal;
+}
+
+/** How a behavior is activated. */
+export interface DomqlActivateOptions {
+    /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
+    window?: Window;
+}
+
+/** A behavior the caller activated: it is in effect from the call that activated it until it is disposed. */
+export interface DomqlBehavior {
+    /** `ready` while it is in effect, and `disposed` once it is ended. */
+    readonly status: 'ready' | 'disposed';
+    /** Replaces the bindings the behavior runs with, whole. A failure throws and leaves the behavior running as it was; bindings that select another behavior are refused. */
+    update(bindings: DomqlBindings): void;
+    /** Ends the behavior and leaves its module registered. Disposing again does nothing. */
+    dispose(): void;
+}
+
 /** How a query is watched. */
 export interface DomqlWatchConfiguration<T = unknown> {
     /** Receives each snapshot, the first as the baseline: an immutable result that shares what did not change with the snapshot before it. What it returns is not awaited. */
@@ -322,6 +346,8 @@ export interface DomqlModuleContents {
  * The functions that carry a module's members, predicates and observation types out, by the key each declaration names.
  * A member or a predicate takes its receiver, its arguments by name and the environment, and a member that reads maintained values also its samples, in the order its declaration names the observations.
  * A source takes its receiver, its arguments and the environment, and the function it delivers each occurrence to, and returns an object whose `stop` ends the listening.
+ * An action takes its receiver, its arguments, the environment and `{ signal }`, and returns its result or a promise of it.
+ * A behavior takes its receiver, its arguments, the environment and `{ reportError }`, starts before it returns, and returns an object whose `update(receiver, args)` applies new arguments and whose `dispose` ends it.
  * An observation type takes the request, the function it calls when something may have changed and the environment, and returns an object whose `stop` ends the observation and, for a maintained one, whose `sample` returns its latest sample.
  */
 export type DomqlModuleFunctions = Record<string, (...args: any[]) => unknown>;
@@ -381,6 +407,18 @@ export declare class Domql {
 
     /** Subscribes to an event source and passes each projected result to `onEvent`. Listening starts in the call. */
     static subscribe<T = unknown>(query: DomqlQuery, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
+
+    /** Runs an action given as its text once, and returns a promise of its result, shaped by the shape that follows it where one does. A signal that aborts rejects with its reason; DOMQL never undoes what the action changed. */
+    static runAsync<T = unknown>(text: string, bindings?: DomqlBindings, options?: DomqlRunAsyncOptions): Promise<T>;
+
+    /** Runs an action once, and returns a promise of its result, shaped by the shape that follows it where one does. A signal that aborts rejects with its reason; DOMQL never undoes what the action changed. */
+    static runAsync<T = unknown>(query: DomqlQuery, options?: DomqlRunAsyncOptions): Promise<T>;
+
+    /** Activates a behavior given as its text, which is in effect once the call returns, and returns its handle. */
+    static activate(text: string, bindings?: DomqlBindings, options?: DomqlActivateOptions): DomqlBehavior;
+
+    /** Activates a behavior, which is in effect once the call returns, and returns its handle. */
+    static activate(query: DomqlQuery, options?: DomqlActivateOptions): DomqlBehavior;
 
     /** Creates the current snapshot a watch's change sets build. */
     static createSnapshot<T = unknown>(): DomqlCurrentSnapshot<T>;

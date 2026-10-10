@@ -13,10 +13,11 @@ Each item is what exists and what checks it.
 - **Observations.** The built-in vocabulary names the observations that cover its members' changes, as types a module declares, and observations are started, shared and ended through sessions. There is no public API for them yet. Checked by the tests of declarations, of the sessions and of the browser observers, and in Chromium by a test of each type of observation reporting a change.
 - **Watching.** `Domql.watch` evaluates a query, reports its snapshot, and evaluates again when what the result depends on changes, at the next animation frame or in the task that reported the change, reporting a snapshot that differs and sharing the branches of the last that did not. A watch follows the document, keeps its dependencies through a failed evaluation, recovers, and is refreshed and disposed through its handle. Checked by the tests of watches and of comparing snapshots, in a simulated DOM, and in Chromium by a watch of a size and of a maintained member.
 - **Subscribing.** `Domql.subscribe` answers an event listener, which starts a subscription's occurrence source in the call and, at each occurrence, captures the fields its event type declares and evaluates the shape that follows the source, inside the source's delivery, handing the immutable result to its callback. A maintained member answers its latest sample, or null while it is pending, and is never waited for; the event listener keeps the sessions its last successful projection read, keeps them through a projection that fails, and lets go of everything when disposed. Checked by the tests of projection and of event listeners, in a simulated DOM, and in Chromium by an event listener of clicks and of a maintained member across occurrences.
+- **Actions and behaviors.** `Domql.runAsync` runs an action once, after evaluating its receiver and arguments, and answers a promise of its result, checked against the type the action declares and shaped by a shape that follows it; a signal cancels it, and nothing an action changed is undone. `Domql.activate` puts a behavior into effect in the call and answers a `DomqlBehavior`, whose `update` replaces its bindings whole, validating them before anything changes, and whose `dispose` ends it once. Checked by the tests of resolving actions and behaviors, of `runAsync`, and of behaviors, in a simulated DOM, and by the README's examples.
 - **Change sets.** A watch that delivers change sets sends a baseline and then JSON Patch change sets, each acknowledged before the next is computed against the state it established, and recovers with a baseline of a new generation that nothing earlier can affect. Lists projected from elements change by element, through identities kept beside the result. A current snapshot applies each update atomically and gives a stale one no effect. Checked by the tests of computing and of applying change sets, each against expected patches and results and together, of the dispatcher and the current snapshot, and of watches delivering to a receiver.
 - **The package.** The bundle, with its TypeScript declarations checked against `Domql` and against a TypeScript caller; the READMEs' examples run as tests.
 
-What is not built: live state, actions and behaviors, the fluent builder, the C# half and editor tooling.
+What is not built: live state, the fluent builder, the C# half and editor tooling.
 
 ## Decisions
 
@@ -92,7 +93,7 @@ focusTrap.update({ dialog: anotherDialog });
 focusTrap.dispose(); // Stops trapping focus.
 ```
 
-- **Recommended: two entry points, each taking options.** `Domql.runAsync` runs an action once and answers a promise of its result; `Domql.activate` answers a `DomqlBehavior`, the handle of the behavior it puts into effect, which belongs to the caller that activated it, and disposing it leaves its module registered. Neither needs a callback, so each takes options, every one of which has a default: `runAsync` takes `window` and `signal`, and `activate` takes `window`. A query never runs an action or activates a behavior.
+- **Chosen: two entry points, each taking options.** `Domql.runAsync` runs an action once and answers a promise of its result; `Domql.activate` answers a `DomqlBehavior`, the handle of the behavior it puts into effect, which belongs to the caller that activated it, and disposing it leaves its module registered. Neither needs a callback, so each takes options, every one of which has a default: `runAsync` takes `window` and `signal`, and `activate` takes `window`. A query never runs an action or activates a behavior.
 - **The request's kind.** Each refuses a request of another kind with a validation error after resolution and before anything is evaluated or started, as reading, watching and subscribing do: `runAsync` takes an action request, `activate` a behavior request, and the other calls refuse both.
 - **Text.** Each takes a request or its text, as the other entry points do: `(text, bindings?, options?)` parses the text through the same cache as `parse`, and `(query, options?)` reuses a request.
 - **Running an action.**
@@ -108,7 +109,7 @@ focusTrap.dispose(); // Stops trapping focus.
 - **The module contract.** An action's function is `(receiver, args, environment, { signal })` and answers a result or a promise of it; a behavior's function is `(receiver, args, environment, { reportError })` and answers `{ update(receiver, args), dispose() }`.
 - **Left for later:** the occurrence sources a behavior offers, which the specification subscribes to as subscriptions of their own, are a decision of their own once a behavior that offers one exists.
 
-State: open. Needed by step 6.
+State: **done.** Built by step 6, with the departures it records.
 
 ### D6. Predicate tests and parenthesized arguments
 
@@ -192,7 +193,12 @@ Run an action once and receive its result, and activate, update and dispose of a
 
 - **Needs:** D5; independent of steps 1 to 5.
 - **Done when:** an extension's action and behavior run through their request kinds, a query never performs either, and disposing an instance leaves its module registered.
-- **State:** not started.
+- **State:** done. Where it departs from D5 or adds to it:
+  - A shape that follows an action shapes its result, as the specification allows, and is evaluated as a read evaluates a query, so a member maintained by an observation fails it. Resolution had refused that shape before.
+  - An action whose receiver or an argument is null is not run, and its result is null, as a member's is.
+  - A behavior whose receiver or an argument is null has nothing to activate: the handle is `ready` with no instance, an update that supplies a receiver activates one, and an update that leaves it null disposes the one that ran.
+  - A failure of an action names the action and what it threw; a failure of a behavior's activation or update names the behavior, with what it threw as the cause.
+  - The check that refuses bindings selecting a different member is in place, though no request the vocabulary allows today can reach another behavior by its bindings.
 
 ### 7. Live state
 

@@ -17,9 +17,8 @@ Available now:
 - Wait for values the browser keeps, such as `intersects`, with `readAsync`.
 - Watch a query and receive a snapshot each time its result changes.
 - Subscribe to events and receive the projection of each one.
+- Run actions once and activate behaviors that stay in effect until disposed.
 - Extend the vocabulary through modules.
-
-Actions and behaviors are planned. A vocabulary declaration alone does not make those runtime capabilities available.
 
 ## Install and load
 
@@ -301,6 +300,8 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.watch(text, bindings, configuration)`, `Domql.watch(query, configuration)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Returns a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
 | `Domql.subscribe(text, bindings, configuration)`, `Domql.subscribe(query, configuration)` | Subscribe to an event source: `onEvent` receives each projected result, evaluated as the event is dispatched. Returns an event listener with `status` and `dispose()`. |
 | `Domql.createSnapshot()` | Create the current snapshot a watch with `updateStrategy: 'changeSet'` builds: `apply(update)` applies a baseline or a change set atomically and answers `accepted`, `stale` or `failed`, which the host reports to the watch through `acknowledge(update)` or `recover()`, and `value` is the snapshot last accepted. |
+| `Domql.runAsync(text, bindings, options)`, `Domql.runAsync(query, options)` | Run an action once. Returns a promise of its result, shaped by a shape that follows the action; `signal` cancels it, and what the action changed stays changed. |
+| `Domql.activate(text, bindings, options)`, `Domql.activate(query, options)` | Activate a behavior, in effect once the call returns. Returns a handle with `status`, `update(bindings)` and `dispose()`. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 
 `resolve` checks a query without a browser and without reading anything:
@@ -379,12 +380,90 @@ Domql.read(Domql.parse('@panel.metrics { childCount }', { panel }));
 
 The result can change, so it is not declared `constant`. This module names no observation and therefore declares `unobserved`: it supports reads, without promising watch support. Register a module once during setup, rather than before each read.
 
-Modules can also declare event types, predicates, supported feature names and occurrence sources. A source's function takes the receiver, the arguments, the environment and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening; each occurrence is captured as the fields its event type declares. Declaring actions or behaviors does not implement the runtime features listed as planned above.
+Modules can also declare event types, predicates, supported feature names and occurrence sources. A source's function takes the receiver, the arguments, the environment and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening; each occurrence is captured as the fields its event type declares. An action or a behavior is a member a module declares, as the next section shows.
+
+## Run actions and activate behaviors
+
+An action is an operation carried out once. `runAsync` evaluates its receiver and arguments, calls its function, which may return a promise, and returns a promise of the result:
+
+```js
+Domql.registerModule(Domql.createModule('mark', {
+    members: [{
+        name: 'mark',
+        function: 'mark',
+        kind: 'action',
+        on: 'element',
+        parameters: [{ name: 'label', kind: 'value', type: 'string', required: true, nulls: 'propagate' }],
+        result: 'boolean',
+        changes: 'unobserved',
+        reads: 'fresh'
+    }]
+}, {
+    mark: (element, { label }) => {
+        const changed = element.dataset.mark !== label;
+
+        element.dataset.mark = label;
+
+        return changed;
+    }
+}));
+
+await Domql.runAsync('@panel.mark("reviewed")', { panel });
+// true
+```
+
+A shape can follow an action to shape its result. Pass a `signal` to cancel the run: the promise rejects with the signal's reason, and the action is told through the signal it receives. DOMQL never undoes what an action changed, including when it fails.
+
+A behavior stays in effect until it is disposed. `activate` puts it into effect before it returns, and the handle it returns updates it with new bindings or ends it:
+
+```js
+Domql.registerModule(Domql.createModule('highlight', {
+    members: [{
+        name: 'highlight',
+        function: 'highlight',
+        kind: 'behavior',
+        on: 'element',
+        parameters: [{ name: 'color', kind: 'value', type: 'string', required: true, nulls: 'propagate' }],
+        result: 'null',
+        changes: 'unobserved',
+        reads: 'fresh'
+    }]
+}, {
+    highlight: (element, { color }) => {
+        let current = element;
+
+        current.dataset.highlight = color;
+
+        return {
+            update: (target, { color: next }) => {
+                delete current.dataset.highlight;
+                current = target;
+                current.dataset.highlight = next;
+            },
+            dispose: () => delete current.dataset.highlight
+        };
+    }
+}));
+
+const highlight = Domql.activate('@panel.highlight(@color)', { panel, color: 'gold' });
+console.log(panel.dataset.highlight);
+// 'gold'
+
+highlight.update({ panel, color: 'teal' });
+console.log(panel.dataset.highlight);
+// 'teal'
+
+highlight.dispose();
+console.log(panel.dataset.highlight);
+// undefined
+```
+
+`update` replaces the bindings whole and checks them before anything changes, so a failed update leaves the behavior running as it was. Disposing a behavior leaves its module registered.
 
 ## Learn more
 
 - [Repository README](https://github.com/FormaUI/Forma.DOMQL): scope, build and test workflow, and the components to work in.
 - [Language specification](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-specification.md): syntax, types, null semantics and vocabulary contracts.
-- [Runtime design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md): resolution, evaluation, modules, watching and subscribing to events.
+- [Runtime design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md): resolution, evaluation, modules, watching, subscribing to events, actions and behaviors.
 
 The specification and design cover the intended system. Refer to the current capabilities above for what this package implements today.

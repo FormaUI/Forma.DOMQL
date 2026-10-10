@@ -48,6 +48,8 @@ const examples = [
         answers: [['validation'], ["The argument 'name' of 'attributeOf' expects string and finds number", '(line 1, column 20, at /query/arguments/0/value)']],
     },
     { file: '14-module.js', observed: 'reads', answers: [['{ childCount: 3 }']] },
+    { file: '15-run-action.js', observed: 'reads', answers: [['true']] },
+    { file: '16-activate-behavior.js', observed: 'printed', answers: [["'gold'"], ["'teal'"], ['undefined']] },
 ];
 
 /** Gives each element with an inline height a layout box of that height, since the test environment lays nothing out. */
@@ -73,7 +75,7 @@ describe('the package README', () => {
         const printed = [];
         const watches = [];
 
-        // The examples call Domql as the README writes it: every read it answers is kept, and every watch it makes is disposed when they end.
+        // The examples call Domql as the README writes it: every read and action result it answers is kept, and every watch it makes is disposed when they end.
         const Domql = new Proxy(real, {
             get: (target, key) => {
                 switch (key) {
@@ -81,6 +83,8 @@ describe('the package README', () => {
                         return (...args) => { const answer = target.read(...args); reads.push(answer); return answer; };
                     case 'readAsync':
                         return async (...args) => { const answer = await target.readAsync(...args); reads.push(answer); return answer; };
+                    case 'runAsync':
+                        return async (...args) => { const answer = await target.runAsync(...args); reads.push(answer); return answer; };
                     case 'watch':
                         return (...args) => { const watch = target.watch(...args); watches.push(watch); return watch; };
                     default:
