@@ -16,9 +16,10 @@ Available now:
 - Perform synchronous one-shot reads and receive immutable data snapshots.
 - Wait for values the browser keeps, such as `intersects`, with `readAsync`.
 - Watch a query and receive a snapshot each time its result changes.
+- Subscribe to events and receive the projection of each one.
 - Extend the vocabulary through modules.
 
-Listening to occurrences, actions and behaviors are planned. A vocabulary declaration alone does not make those runtime capabilities available.
+Actions and behaviors are planned. A vocabulary declaration alone does not make those runtime capabilities available.
 
 ## Install and load
 
@@ -142,6 +143,27 @@ watch.dispose();
 ```
 
 A watch evaluates again on its own at the next animation frame after something it reads changes. `refreshAsync` evaluates now and settles once the snapshot has been handed to `onChange`, which is how the example waits between its steps. `dispose` ends the watch and lets go of its observations. Pass `onError` to hear of a failed evaluation or a failing callback; the watch keeps running.
+
+## Subscribe to events
+
+`subscribe` evaluates the shape that follows an occurrence source, such as `eventsOf`, for each event, and hands `onEvent` the result:
+
+```js
+const clicks = Domql.subscribe(`
+    @panel.eventsOf("click") {
+        key: target.closest("[data-key]").attributeOf("data-key")
+    }
+`, { panel }, {
+    onEvent: click => console.log(click.key)
+});
+
+panel.querySelector('[data-key="a2"]').click();
+// 'a2'
+
+clicks.dispose();
+```
+
+The shape reads what the event carried, such as its `target`, `button` or `clientX`, and anything else a parameter reaches, at the moment the event is dispatched. The event listener it answers starts listening in the call, observes events as they reach the receiver and leaves their course to the page. A value the browser keeps, such as `intersects`, is null until the browser first reports it, and is never waited for. Pass `onError` to hear of a failed projection or a failing callback; the event listener keeps listening until `dispose` ends it.
 
 ## The language
 
@@ -277,6 +299,7 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.readAsync(query, options)`, `Domql.readAsync(text, bindings, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
 | `Domql.watch(query, options)`, `Domql.watch(text, bindings, options)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
+| `Domql.subscribe(query, options)`, `Domql.subscribe(text, bindings, options)` | Subscribe to an occurrence source: `onEvent` receives the projection of each event, evaluated as it is dispatched. Answers an event listener with `status` and `dispose()`. |
 | `Domql.createSnapshot()` | Create the current snapshot a watch with `updateStrategy: 'changeSet'` builds: `apply(update)` applies a baseline or a change set atomically and answers `accepted`, `stale` or `failed`, which the host reports to the watch through `acknowledge(update)` or `recover()`, and `value` is the snapshot last accepted. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 
@@ -356,12 +379,12 @@ Domql.read(Domql.parse('@panel.metrics { childCount }', { panel }));
 
 The result can change, so it is not declared `constant`. This module names no observation and therefore declares `unobserved`: it supports reads, without promising watch support. Register a module once during setup, rather than before each read.
 
-Modules can also declare event types, predicates and supported feature names. Declaring actions, behaviors or sources does not implement the runtime features listed as planned above.
+Modules can also declare event types, predicates, supported feature names and occurrence sources. A source's function takes the receiver, the arguments, the environment and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening; each occurrence is captured as the fields its event type declares. Declaring actions or behaviors does not implement the runtime features listed as planned above.
 
 ## Learn more
 
 - [Repository README](https://github.com/FormaUI/Forma.DOMQL): scope, build and test workflow, and the components to work in.
 - [Language specification](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-specification.md): syntax, types, null semantics and vocabulary contracts.
-- [Runtime design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md): resolution, evaluation, modules and watching and planned occurrence behavior.
+- [Runtime design](https://github.com/FormaUI/Forma.DOMQL/blob/main/docs/domql-design.md): resolution, evaluation, modules, watching and subscribing to events.
 
 The specification and design cover the intended system. Refer to the current capabilities above for what this package implements today.

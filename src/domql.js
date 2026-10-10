@@ -6,6 +6,7 @@ import { SnapshotComparer } from './snapshots/SnapshotComparer.mjs';
 import { BrowserModule } from './dom/BrowserModule.mjs';
 import { Observations } from './dom/Observations.mjs';
 import { QueryEvaluator } from './dom/QueryEvaluator.mjs';
+import { EventListener } from './dom/EventListener.mjs';
 import { Watch } from './dom/Watch.mjs';
 import { CurrentSnapshot } from './snapshots/CurrentSnapshot.mjs';
 import { DefinitionValidator } from './language/DefinitionValidator.mjs';
@@ -43,22 +44,30 @@ import { TypedBinding } from './language/TypedBinding.mjs';
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
  */
 
+/**
+ * How an event listener listens to a subscription.
+ * @typedef {object} SubscribeOptions
+ * @property {(result: unknown) => unknown} onEvent Receives the result of each event's projection, immutable data, in the task the event is delivered in. What it returns is not awaited.
+ * @property {(error: unknown) => unknown} [onError] Receives a failure of a capture, of a projection and of `onEvent`; by default they go to the window's error reporting.
+ * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
+ */
+
 /** When a watch evaluates after a change, and how it updates its caller. */
 const WATCH_SCHEDULES = ['frame', 'immediate'];
 const WATCH_UPDATE_STRATEGIES = ['snapshot', 'changeSet'];
 
 export class Domql {
+    /** Creates the current snapshot a watch's change sets build: it applies each update atomically to the snapshot it was computed against and gives a stale one no effect. */
+    static createSnapshot() {
+        return new CurrentSnapshot();
+    }
+
     /**
      * Creates a module from the vocabulary it declares and the functions that carry the members out.
      * @param {string} name The module's name.
      * @param {object} contents What the module declares.
      * @param {Record<string, Function> | null} functions The functions the members name.
      */
-    /** Creates the current snapshot a watch's change sets build: it applies each update atomically to the snapshot it was computed against and gives a stale one no effect. */
-    static createSnapshot() {
-        return new CurrentSnapshot();
-    }
-
     static createModule(name, contents, functions = null) {
         return new DomqlModule(name, contents, functions);
     }
@@ -231,9 +240,40 @@ export class Domql {
             observations: Domql.#observationsOf(window),
             comparer: new SnapshotComparer(resolved),
             window,
-            reportError: error => (window.reportError ? window.reportError(error) : console.error(error)),
+            reportError: Domql.#reportErrorOf(window),
             options: { schedule, updateStrategy, onChange, onError },
         });
+    }
+
+    /**
+     * Subscribes to a subscription's occurrence source, answering the event listener that listens to it: at each event the source delivers, evaluates the shape that follows the source against it, in the task the source delivers it in, and hands the result to `onEvent`.
+     * Listening starts in the call, so an event that follows it is heard, and a source that cannot start fails the call. The source's receiver and arguments are evaluated once, as listening starts.
+     * @param {DomqlQuery | string} request The subscription, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
+     * @param {...(Record<string, unknown> | SubscribeOptions)} rest For a text, its bindings and then its options; for a subscription, its options.
+     */
+    static subscribe(request, ...rest) {
+        const { query, options } = Domql.#requestOf(request, rest);
+        const { onEvent, onError, window = globalThis.window } = options ?? {};
+
+        if (typeof onEvent !== 'function') {
+            throw DomqlError.structure('An event listener takes the function that receives the result of each event, as onEvent', {});
+        }
+
+        if (onError !== undefined && typeof onError !== 'function') {
+            throw DomqlError.structure('The error callback of an event listener is a function', {});
+        }
+
+        return new EventListener({
+            evaluator: Domql.#evaluatorOf(query, window),
+            observations: Domql.#observationsOf(window),
+            reportError: Domql.#reportErrorOf(window),
+            options: { onEvent, onError },
+        });
+    }
+
+    /** The window's error reporting, which a failure no callback receives reaches. */
+    static #reportErrorOf(window) {
+        return error => (window.reportError ? window.reportError(error) : console.error(error));
     }
 
     /**

@@ -1,5 +1,5 @@
 /**
- * QueryEvaluator — reads a resolved query once, answering detached data
+ * QueryEvaluator — evaluates a resolved request, answering detached data: a query as it reads now, and a subscription's projection of each occurrence its source delivers
  */
 
 import { DomqlError } from '../language/DomqlError.mjs';
@@ -24,6 +24,9 @@ export class QueryEvaluator {
 
     /** What the evaluation in progress records, or null where none does. @type {{ observations: import('./Observations.mjs').Observations, onChange: () => void, holdsAll: boolean, dependencies: object[], sessions: object[], unheld: object[], isPending: boolean } | null} */
     #recording = null;
+
+    /** The occurrence the projection in progress is evaluated against, and where its source stands in the query, or null outside a projection. @type {{ pointer: string, value: unknown } | null} */
+    #occurrence = null;
 
     /**
      * @param {import('../language/vocabulary/ModuleRegistry.mjs').ModuleRegistry} moduleRegistry The vocabulary the request was resolved against.
@@ -56,6 +59,66 @@ export class QueryEvaluator {
      * @param {boolean} [recording.holdsAll] Whether every dependency's observation is held, as a watch holds them, rather than those a pending evaluation waits on.
      */
     evaluate({ observations, onChange, holdsAll = false }) {
+        return this.#record({ observations, onChange, holdsAll, waits: true }, () => this.#result());
+    }
+
+    /**
+     * Resolves the occurrence source the subscription ends in into what starts it: the source's name, the function that carries it out, the receiver and arguments it is called with and the environment, how each occurrence it delivers is captured, and where it stands, for a failure to name.
+     * The receiver and arguments are evaluated once, now; where one of them is null there is nothing to listen to, and the answer is null.
+     * `capture` answers an occurrence as the fields its type declares, read as it is called: a field the occurrence does not carry as a value its type admits is null where the type is nullable, and fails the capture where it is not; an occurrence of a type with no fields is taken whole, where it is of its type.
+     * @returns {{ name: string, start: Function, capture: (occurrence: unknown) => unknown, receiver: unknown, args: Record<string, unknown>, environment: Environment, location: object } | null}
+     */
+    resolveSource() {
+        if (this.#resolvedDefinition.kind !== 'subscription') {
+            this.#fail(`A ${this.#resolvedDefinition.kind} request is not listened to`, '/query');
+        }
+
+        const { node, pointer } = this.#sourceNode();
+        const resolution = this.#resolvedDefinition.getResolution(pointer);
+        const { declaration } = resolution;
+        const receiver = this.#evaluate(node.target, `${pointer}/target`, null);
+        const args = receiver === null ? null : this.#arguments(resolution, null);
+
+        if (args === null) {
+            return null;
+        }
+
+        const start = this.#moduleRegistry.getFunction(declaration);
+
+        if (start === undefined) {
+            this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
+        }
+
+        return { name: declaration.name, start, capture: occurrence => this.#capture(occurrence, pointer), receiver, args, environment: this.#environment, location: this.#locate(pointer) };
+    }
+
+    /**
+     * Evaluates the shape that follows the occurrence source against one occurrence, as its source captured it, and records the observations its maintained members read.
+     * A maintained member answers its latest sample, or null while the sample is pending, and is never waited for; the evaluation holds the sessions that keep its samples, so the caller keeps them for the next occurrence and disposes the evaluation once it has the next one. A failure ends the evaluation without throwing.
+     * @param {unknown} occurrence The occurrence, as `capture` answered it.
+     * @param {object} recording Where the dependencies are observed.
+     * @param {import('./Observations.mjs').Observations} recording.observations The observations of the window the subscription listens in.
+     */
+    project(occurrence, { observations }) {
+        return this.#record({ observations, onChange: () => {}, holdsAll: false, waits: false }, () => {
+            const { pointer } = this.#sourceNode();
+
+            this.#occurrence = { pointer, value: occurrence };
+
+            try {
+                this.#elementsOf = new WeakMap();
+
+                const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null));
+
+                return { value, identities };
+            } finally {
+                this.#occurrence = null;
+            }
+        });
+    }
+
+    /** Runs an evaluation that records what it depends on, answering the evaluation; one that waits holds what a pending result waits on, and lets a failure seen through a pending member pass. */
+    #record({ observations, onChange, holdsAll, waits }, produce) {
         const recording = { observations, onChange, holdsAll, dependencies: [], sessions: [], unheld: [], isPending: false };
         let value;
         let identities = null;
@@ -64,15 +127,15 @@ export class QueryEvaluator {
         this.#recording = recording;
 
         try {
-            ({ value, identities } = this.#result());
+            ({ value, identities } = produce());
         } catch (failure) {
             // A member read through a pending one saw null where a sample will be, so its failure says nothing until the sample arrives.
-            error = recording.isPending ? null : failure;
+            error = waits && recording.isPending ? null : failure;
         } finally {
             this.#recording = null;
         }
 
-        if (recording.isPending) {
+        if (waits && recording.isPending) {
             try {
                 // The pending result waits on whatever changes the evaluation depended on, so it holds them now.
                 for (const request of recording.unheld) {
@@ -145,6 +208,11 @@ export class QueryEvaluator {
     }
 
     #member(node, pointer, current) {
+        // A projection stands the occurrence where its source is, so the source is never read.
+        if (pointer === this.#occurrence?.pointer) {
+            return this.#occurrence.value;
+        }
+
         const receiver = node.target === undefined ? current : this.#evaluate(node.target, `${pointer}/target`, current);
 
         if (receiver === null) {
@@ -231,7 +299,7 @@ export class QueryEvaluator {
         try {
             value = implementation(receiver, args, this.#environment, samples);
         } catch (error) {
-            throw DomqlError.evaluation(`The member '${declaration.name}' failed: ${error.message}`, this.#locate(pointer), { cause: error });
+            throw DomqlError.evaluation(`The member '${declaration.name}' failed: ${error?.message ?? String(error)}`, this.#locate(pointer), { cause: error });
         }
 
         if (!this.#conforms(value, type)) {
@@ -319,6 +387,51 @@ export class QueryEvaluator {
         sessions.push(session);
 
         return session;
+    }
+
+    /** The occurrence source a subscription ends in, and where it stands: the shapes of a subscription each follow the one before, and the first follows the source. */
+    #sourceNode() {
+        let node = this.#resolvedDefinition.definition.query;
+        let pointer = '/query';
+
+        while (node.kind === 'shape') {
+            node = node.target;
+            pointer = `${pointer}/target`;
+        }
+
+        return { node, pointer };
+    }
+
+    /** The occurrence as the fields its type declares, read now, so a projection never holds what the source delivered. */
+    #capture(occurrence, pointer) {
+        const { declaration, type } = this.#resolvedDefinition.getResolution(pointer);
+        const item = type.item;
+        const structure = item.kind === 'named' ? this.#moduleRegistry.getType(item.name) : undefined;
+
+        if (structure === undefined) {
+            if (!this.#conforms(occurrence, item)) {
+                this.#fail(`The source '${declaration.name}' delivered ${QueryEvaluator.#describe(occurrence)}, and its occurrences are ${item}`, pointer);
+            }
+
+            return occurrence;
+        }
+
+        const captured = {};
+
+        for (const [name, text] of Object.entries(structure.fields)) {
+            const fieldType = Type.parse(text);
+            const value = occurrence?.[name];
+
+            if (this.#conforms(value, fieldType)) {
+                captured[name] = value;
+            } else if (fieldType.isNullable) {
+                captured[name] = null;
+            } else {
+                this.#fail(`The source '${declaration.name}' delivered an occurrence whose '${name}' is ${QueryEvaluator.#describe(value)}, and its type declares ${fieldType}`, pointer);
+            }
+        }
+
+        return captured;
     }
 
     #shape(node, pointer, current) {
@@ -415,7 +528,6 @@ export class QueryEvaluator {
         }
     }
 
-    /** A copy of the data sharing no structure with the original, frozen. */
     /**
      * A frozen copy of the data sharing no structure with the original, and the identities that follow its shape: for a list projected from elements, the element each item came from, and null where nothing beneath holds one.
      * @returns {[unknown, import('../snapshots/SnapshotPatcher.mjs').Identities]}

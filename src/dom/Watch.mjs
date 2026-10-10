@@ -4,6 +4,7 @@
 
 import { SnapshotDispatcher } from '../snapshots/SnapshotDispatcher.mjs';
 import { DomqlError } from '../language/DomqlError.mjs';
+import { CallbackDispatcher } from './CallbackDispatcher.mjs';
 
 export class Watch {
     #evaluator;
@@ -11,9 +12,7 @@ export class Watch {
     #comparer;
     #window;
     #schedule;
-    #onChange;
-    #onError;
-    #reportError;
+    #callbackDispatcher;
 
     /** `pending` until the first snapshot is available, `ready` while the watch has a current one, `failed` after an evaluation fails, and `disposed` once it is ended. @type {'pending' | 'ready' | 'failed' | 'disposed'} */
     #status = 'pending';
@@ -65,18 +64,10 @@ export class Watch {
         this.#comparer = comparer;
         this.#window = window;
         this.#schedule = schedule;
-        this.#onChange = onChange;
-        this.#onError = onError;
-        this.#reportError = error => {
-            try {
-                reportError(error);
-            } catch {
-                // Nothing is left to report to.
-            }
-        };
+        this.#callbackDispatcher = new CallbackDispatcher({ onUpdate: onChange, onError, reportError, isDisposed: () => this.#status === 'disposed' });
 
         if (updateStrategy === 'changeSet') {
-            this.#snapshotDispatcher = new SnapshotDispatcher(update => this.#deliver(update));
+            this.#snapshotDispatcher = new SnapshotDispatcher(update => this.#callbackDispatcher.dispatch(update));
         }
 
         // The first evaluation follows the caller receiving the handle, so no callback runs before it has one.
@@ -236,7 +227,7 @@ export class Watch {
             this.#failedEvaluation = queryEvaluation;
             this.#status = 'failed';
             this.#needsDelivery = true;
-            this.#fail(queryEvaluation.error);
+            this.#callbackDispatcher.handleError(queryEvaluation.error);
 
             for (const { reject } of waiting) {
                 reject(queryEvaluation.error);
@@ -267,7 +258,7 @@ export class Watch {
         if (isReported && this.#snapshotDispatcher !== null) {
             this.#snapshotDispatcher.dispatch(next, queryEvaluation.identities, isDue);
         } else if (isReported) {
-            this.#deliver(next);
+            this.#callbackDispatcher.dispatch(next);
         }
 
         for (const { resolve } of waiting) {
@@ -284,40 +275,6 @@ export class Watch {
 
         for (const old of before) {
             old?.dispose();
-        }
-    }
-
-    #deliver(update) {
-        if (this.#status === 'disposed') {
-            return;
-        }
-
-        try {
-            Watch.#observe(this.#onChange(update), error => this.#fail(error));
-        } catch (error) {
-            this.#fail(error);
-        }
-    }
-
-    /** Reports a failure to the error callback, whose own failure goes to the diagnostic boundary and calls nothing again. */
-    #fail(error) {
-        if (this.#onError === undefined || this.#status === 'disposed') {
-            this.#reportError(error);
-
-            return;
-        }
-
-        try {
-            Watch.#observe(this.#onError(error), failure => this.#reportError(failure));
-        } catch (failure) {
-            this.#reportError(failure);
-        }
-    }
-
-    /** Hands the rejection of a promise a callback returned to `report`, without waiting for it. */
-    static #observe(result, report) {
-        if (typeof result?.then === 'function') {
-            result.then(undefined, report);
         }
     }
 }

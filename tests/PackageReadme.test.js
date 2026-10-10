@@ -30,23 +30,24 @@ const examples = [
     { file: '02-read-again.js', observed: 'reads', answers: [['3'], ['0']] },
     { file: '03-read-async.js', observed: 'reads', answers: [['true']] },
     { file: '04-watch.js', observed: 'printed', answers: [['0'], ['1']] },
-    { file: '05-paths.js', observed: 'reads', answers: [['3'], ['3'], ['true']] },
-    { file: '06-shapes.js', observed: 'reads', answers: [['{ count: 3, attached: true, children: true }']] },
+    { file: '05-subscribe.js', observed: 'printed', answers: [["'a2'"]] },
+    { file: '06-paths.js', observed: 'reads', answers: [['3'], ['3'], ['true']] },
+    { file: '07-shapes.js', observed: 'reads', answers: [['{ count: 3, attached: true, children: true }']] },
     {
-        file: '07-shapes-of-lists.js',
+        file: '08-shapes-of-lists.js',
         observed: 'reads',
         answers: [['[', "  { key: 'a1', selected: false },", "  { key: 'a2', selected: true },", "  { key: 'a3', selected: false }", ']']],
     },
-    { file: '08-lists.js', observed: 'reads', answers: [['1'], ['64']] },
-    { file: '09-null.js', observed: 'reads', answers: [['null']] },
-    { file: '10-bindings.js', observed: 'reads', answers: [['{ panel: null, ids: [] }']] },
-    { file: '11-resolve.js', observed: 'inspected', inspect: '[resolved.kind, resolved.type.toString()]', answers: [["'query'"], ["'number?'"]] },
+    { file: '09-lists.js', observed: 'reads', answers: [['1'], ['64']] },
+    { file: '10-null.js', observed: 'reads', answers: [['null']] },
+    { file: '11-bindings.js', observed: 'reads', answers: [['{ panel: null, ids: [] }']] },
+    { file: '12-resolve.js', observed: 'inspected', inspect: '[resolved.kind, resolved.type.toString()]', answers: [["'query'"], ["'number?'"]] },
     {
-        file: '12-errors.js',
+        file: '13-errors.js',
         observed: 'logged',
         answers: [['validation'], ["The argument 'name' of 'attributeOf' expects string and finds number", '(line 1, column 20, at /query/arguments/0/value)']],
     },
-    { file: '13-module.js', observed: 'reads', answers: [['{ childCount: 3 }']] },
+    { file: '14-module.js', observed: 'reads', answers: [['{ childCount: 3 }']] },
 ];
 
 /** Gives each element with an inline height a layout box of that height, since the test environment lays nothing out. */

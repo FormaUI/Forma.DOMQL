@@ -87,8 +87,10 @@ export class Vocabulary {
                 { name: 'rectangle', fields: { left: 'number', top: 'number', right: 'number', bottom: 'number', width: 'number', height: 'number' } },
                 { name: 'selection', fields: { start: 'number', end: 'number' } },
                 { name: 'grid', fields: { columns: 'list<number>' } },
-                { name: 'domEvent', fields: { target: 'element' } },
-                { name: 'pointerEvent', fields: { target: 'element', button: 'number', buttons: 'number', clientX: 'number', clientY: 'number', pointerType: 'string' } },
+                // An event such as scroll or resize can target the document or the window, which is no element.
+                { name: 'domEvent', fields: { target: 'element?' } },
+                // A browser that dispatches a click as a mouse event gives it no pointer type.
+                { name: 'pointerEvent', fields: { target: 'element', button: 'number', buttons: 'number', clientX: 'number', clientY: 'number', pointerType: 'string?' } },
                 { name: 'keyboardEvent', fields: { target: 'element', key: 'string', code: 'string' } },
                 { name: 'dragEvent', fields: { target: 'element', clientX: 'number', clientY: 'number' } },
             ],

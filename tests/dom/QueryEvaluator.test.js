@@ -413,6 +413,15 @@ describe('QueryEvaluator', () => {
             expect(error.cause).toBeInstanceOf(Error);
         });
 
+        it('fail where a member throws what is no error, keeping it as the cause', () => {
+            const error = failureWith(propertyModule('nothing', () => {
+                throw null;
+            }), '@panel.nothing', { panel });
+
+            expect(error.message).toContain("The member 'nothing' failed: null");
+            expect(error.cause).toBeNull();
+        });
+
         it('refuse a member maintained by an observation', () => {
             expect(failure('@item.intersects', { item: items[0] }).message).toContain("The member 'intersects' is maintained by an observation");
         });
@@ -602,6 +611,141 @@ describe('QueryEvaluator evaluation', () => {
             await new Promise(resolve => setTimeout(resolve));
 
             expect(changes).toBe(1);
+        });
+    });
+});
+
+describe('QueryEvaluator projection', () => {
+    let panel;
+    let observations;
+    let started;
+
+    beforeEach(() => {
+        document.body.innerHTML = '<div id="panel"><i></i></div>';
+        panel = document.getElementById('panel');
+        started = [];
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    /** A module whose source `ticks` delivers occurrences of the type it declares, and records each start. */
+    const ticks = payload => new DomqlModule('ticks', {
+        types: [{ name: 'tick', fields: { at: 'number', label: 'string?' } }],
+        eventTypes: [{ name: 'tick', payload }],
+        members: [{ name: 'ticks', function: 'ticks', kind: 'source', on: 'element', parameters: [{ name: 'type', kind: 'value', type: 'string', required: true, fixed: true, selects: 'occurrence', nulls: 'propagate' }], result: 'occurrence<@selected>', changes: 'constant', reads: 'captured' }],
+    }, {
+        ticks: () => {
+            started.push(true);
+
+            return { stop: () => {} };
+        },
+    });
+
+    const evaluatorOf = (text, bindings = {}, modules = []) => {
+        const registry = new ModuleRegistry([BrowserModule.create(), ...modules]);
+        const query = Domql.parse(text, bindings);
+        const resolved = new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
+
+        observations = new Observations(registry, { window, document });
+
+        return new QueryEvaluator(registry, resolved, query.bindings, { window, document }, null);
+    };
+
+    const failureOf = call => {
+        try {
+            call();
+        } catch (error) {
+            return error;
+        }
+
+        throw new Error('The call threw nothing');
+    };
+
+    /** Captures the occurrence as the subscription's source does, and projects it. */
+    const projectionOf = (evaluator, occurrence) => evaluator.project(evaluator.resolveSource().capture(occurrence), { observations });
+
+    describe('the source', () => {
+        it('resolves into what starts it: the function, and the receiver and arguments evaluated now', () => {
+            const source = evaluatorOf('@panel.ticks("tick") { at }', { panel }, [ticks('tick')]).resolveSource();
+
+            expect(source).toMatchObject({ name: 'ticks', receiver: panel, args: { type: 'tick' }, environment: { window, document } });
+            expect(typeof source.start).toBe('function');
+            expect(started).toEqual([]);
+        });
+
+        it('is null where its receiver is, since there is nothing to listen to', () => {
+            expect(evaluatorOf('@panel.first(".none").ticks("tick") { at }', { panel }, [ticks('tick')]).resolveSource()).toBeNull();
+        });
+
+        it('is refused for a request that is not a subscription', () => {
+            expect(failureOf(() => evaluatorOf('@panel.children.count', { panel }).resolveSource())).toMatchObject({ kind: 'evaluation', message: expect.stringContaining('A query request is not listened to') });
+        });
+
+        it('captures an occurrence as the fields its type declares, a nullable one it does not carry as null', () => {
+            const { capture } = evaluatorOf('@panel.ticks("tick") { at, label }', { panel }, [ticks('tick')]).resolveSource();
+
+            expect(capture({ at: 1, label: 'first', extra: true })).toEqual({ at: 1, label: 'first' });
+            expect(capture({ at: 1 })).toEqual({ at: 1, label: null });
+            expect(capture({ at: 1, label: 7 })).toEqual({ at: 1, label: null });
+        });
+
+        it('fails a capture where the occurrence carries no value a field that is not nullable admits', () => {
+            const { capture } = evaluatorOf('@panel.ticks("tick") { at }', { panel }, [ticks('tick')]).resolveSource();
+
+            expect(failureOf(() => capture({ at: 'soon' }))).toMatchObject({ kind: 'evaluation', message: expect.stringContaining("The source 'ticks' delivered an occurrence whose 'at' is \"soon\", and its type declares number") });
+            expect(failureOf(() => capture(null))).toMatchObject({ kind: 'evaluation' });
+        });
+
+        it('takes an occurrence whole where its type declares no fields, and fails one that is not of its type', () => {
+            const { capture } = evaluatorOf('@panel.ticks("tick")', { panel }, [ticks('number')]).resolveSource();
+
+            expect(capture(5)).toBe(5);
+            expect(failureOf(() => capture('five'))).toMatchObject({ kind: 'evaluation', message: expect.stringContaining("The source 'ticks' delivered \"five\", and its occurrences are number") });
+        });
+
+        it('captures a native event with its target, and null for a target that is no element', () => {
+            const { capture } = evaluatorOf('@document.eventsOf("scroll") { id: target.attributeOf("id") }').resolveSource();
+
+            expect(capture(new window.Event('scroll'))).toEqual({ target: null });
+            expect(capture({ target: panel })).toEqual({ target: panel });
+            expect(capture({ target: document })).toEqual({ target: null });
+        });
+    });
+
+    describe('an occurrence', () => {
+        it('is projected through the shape that follows its source, as detached, immutable data', () => {
+            const evaluator = evaluatorOf('@panel.ticks("tick") { at, label, count: @panel.children.count }', { panel }, [ticks('tick')]);
+            const projection = projectionOf(evaluator, { at: 3, label: 'third' });
+
+            expect(projection.error).toBeNull();
+            expect(projection.value).toEqual({ at: 3, label: 'third', count: 1 });
+            expect(Object.isFrozen(projection.value)).toBe(true);
+        });
+
+        it('reads what it captured, and the document as it is', () => {
+            const evaluator = evaluatorOf('@document.eventsOf("scroll") { id: target.attributeOf("id") }');
+
+            expect(projectionOf(evaluator, { target: panel }).value).toEqual({ id: 'panel' });
+            expect(projectionOf(evaluator, { target: document }).value).toEqual({ id: null });
+        });
+
+        it('fails its projection where a member fails, without throwing', () => {
+            const evaluator = evaluatorOf('@panel.ticks("tick") { match: @panel.matches("[") }', { panel }, [ticks('tick')]);
+            const projection = projectionOf(evaluator, { at: 1 });
+
+            expect(projection.value).toBeUndefined();
+            expect(projection.error).toMatchObject({ kind: 'evaluation', message: expect.stringContaining("The member 'matches' failed") });
+        });
+
+        it('stands for its source, which the projection never starts or reads', () => {
+            const evaluator = evaluatorOf('@panel.ticks("tick") { at }', { panel }, [ticks('tick')]);
+
+            projectionOf(evaluator, { at: 1 });
+            projectionOf(evaluator, { at: 2 });
+
+            expect(started).toEqual([]);
         });
     });
 });

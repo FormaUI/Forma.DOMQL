@@ -13,7 +13,7 @@ const EDITABLE_VALUES = new Set(['', 'true', 'plaintext-only']);
 
 export class VocabularyFunctions {
     /**
-     * Each function takes the receiver, the arguments by parameter name, and the environment the request is read in.
+     * Each function takes the receiver, the arguments by parameter name, and the environment the request is read in; a source also takes the function it delivers each occurrence to, and answers what stops it.
      * @type {Record<string, (receiver: unknown, args: Record<string, any>, environment: { window: Window, document: Document }) => unknown>}
      */
     static get functions() {
@@ -62,7 +62,12 @@ export class VocabularyFunctions {
             min: (items, { expression }) => VocabularyFunctions.#extreme(items, expression, Math.min),
             sum: (items, { expression }) => VocabularyFunctions.#numbers(items, expression).reduce((total, number) => total + number, 0),
             where: (items, { expression }) => items.filter(item => expression(item) === true),
-            eventsOf: () => VocabularyFunctions.#unavailable('it is an occurrence source, which is listened to and never read'),
+            eventsOf: (target, { type }, _environment, deliver) => {
+                // Listening observes each event as it reaches the target, and a passive listener leaves its course to the page.
+                target.addEventListener(type, deliver, { passive: true });
+
+                return { stop: () => target.removeEventListener(type, deliver) };
+            },
 
             isAttached: element => element.isConnected,
             isDisabled: element => element.matches(':disabled'),
@@ -74,11 +79,6 @@ export class VocabularyFunctions {
             hasSelection: element => VocabularyFunctions.#hasSelection(element),
             hasFocus: document => document.hasFocus(),
         };
-    }
-
-    /** Fails the call of a member that cannot be read here, naming why. */
-    static #unavailable(reason) {
-        throw new Error(reason);
     }
 
     /** Whether the element has a layout box: it is attached and the browser generates a box for it, which it does not for `display: none` or `display: contents`. A box of no size is still a box. */

@@ -108,5 +108,37 @@ describe('Domql readAsync in a browser', () => {
 
             expect(snapshots).toEqual([{ width: 200, height: 40 }]);
         });
+
+        describe('subscribe', () => {
+            const listeners = [];
+
+            afterEach(() => {
+                listeners.splice(0).forEach(listener => listener.dispose());
+            });
+
+            it('delivers the projection of a click, with what the event carried', () => {
+                const results = [];
+
+                listeners.push(Domql.subscribe('@panel.eventsOf("click") { id: target.attributeOf("id"), button, height: target.size.height }', { panel }, { onEvent: result => results.push(result) }));
+                inside.click();
+
+                expect(results).toEqual([{ id: 'inside', button: 0, height: 40 }]);
+            });
+
+            it('answers null for a member the browser has not reported yet, and its sample at a later occurrence', async () => {
+                const results = [];
+
+                listeners.push(Domql.subscribe('@panel.eventsOf("click") { near: @item.intersects(root: @panel) }', { panel, item: outside }, { onEvent: result => results.push(result) }));
+
+                panel.click();
+                await frame();
+                panel.click();
+                panel.scrollTop = 420;
+                await frame();
+                panel.click();
+
+                expect(results).toEqual([{ near: null }, { near: false }, { near: true }]);
+            });
+        });
     });
 });

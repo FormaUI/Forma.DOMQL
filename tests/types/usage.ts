@@ -1,6 +1,6 @@
 // How a TypeScript caller uses DOMQL, which the declarations must accept; the test compiles this file.
 import { Domql } from '../../src/domql.js';
-import type { DefinitionNode, DomqlError, DomqlModule, DomqlCurrentSnapshot, DomqlWatch, ModuleContents, ModuleFunctions, PredicateNames, ResolvedDefinition, SnapshotBaseline, SnapshotChangeSet, SnapshotUpdate } from '../../src/domql.js';
+import type { DefinitionNode, DomqlError, DomqlEventListener, DomqlModule, DomqlCurrentSnapshot, DomqlWatch, ModuleContents, ModuleFunctions, PredicateNames, ResolvedDefinition, SnapshotBaseline, SnapshotChangeSet, SnapshotUpdate } from '../../src/domql.js';
 
 const panel = document.createElement('div');
 
@@ -70,6 +70,30 @@ const shorthandResolved: ResolvedDefinition = Domql.resolve('@panel.children.cou
 // @ts-expect-error A query is given as a query or its text.
 Domql.read(42);
 
+const clicks: DomqlEventListener<{ x: number }> = Domql.subscribe<{ x: number }>(Domql.parse('@panel.eventsOf("click") { x: clientX }', { panel }), {
+    onEvent: click => click.x,
+    onError: error => console.error(error),
+});
+const keys: DomqlEventListener<{ key: string }> = Domql.subscribe<{ key: string }>('@panel.eventsOf("keydown") { key }', { panel }, { onEvent: press => press.key, window });
+const listening: 'ready' | 'disposed' = clicks.status;
+
+keys.dispose();
+
+// @ts-expect-error An event listener takes the function that receives each event's result.
+Domql.subscribe(query, {});
+
+// @ts-expect-error The callback of an event listener is onEvent.
+Domql.subscribe(query, { onChange: () => {} });
+
+// A source takes the function it delivers each occurrence to, and answers what stops it.
+const sourceFunctions: ModuleFunctions = {
+    beats: (element: Element, _args: Record<string, unknown>, _environment: { window: Window }, deliver: (occurrence: unknown) => void) => {
+        const timer = setInterval(() => deliver({ n: element.childElementCount }), 1000);
+
+        return { stop: () => clearInterval(timer) };
+    },
+};
+
 // @ts-expect-error A watch takes the function that receives its snapshots.
 Domql.watch(query, {});
 
@@ -124,4 +148,4 @@ Domql.parse(42);
 // @ts-expect-error A member is one of the kinds the language has.
 Domql.createModule('bad', { members: [{ name: 'bad', function: 'bad', kind: 'method', on: 'element', result: 'number', changes: 'constant', reads: 'fresh' }] });
 
-export { count, anything, kind, typeText };
+export { count, anything, kind, typeText, listening, sourceFunctions };

@@ -633,6 +633,7 @@ describe('Domql instances', () => {
         expect(getError(() => Domql.read(query))).toMatchObject({ kind: 'structure', message });
         expect(getError(() => Domql.resolve(query))).toMatchObject({ kind: 'structure', message });
         expect(getError(() => Domql.watch(query, { onChange: () => {} }))).toMatchObject({ kind: 'structure', message });
+        expect(getError(() => Domql.subscribe(other.parse('@panel.eventsOf("click") { button }', { panel }), { onEvent: () => {} }))).toMatchObject({ kind: 'structure', message });
         await expect(Domql.readAsync(query)).rejects.toThrow(message);
     });
 

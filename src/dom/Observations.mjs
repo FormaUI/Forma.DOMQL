@@ -177,7 +177,7 @@ export class Observations {
         try {
             observation = start(request, notify, this.#environment);
         } catch (error) {
-            throw DomqlError.evaluation(`The observation '${type.name}' failed to start: ${error.message}`, {}, { cause: error });
+            throw DomqlError.evaluation(`The observation '${type.name}' failed to start: ${error?.message ?? String(error)}`, {}, { cause: error });
         }
 
         if (typeof observation?.stop !== 'function' || (type.contract === 'maintained' && typeof observation.sample !== 'function')) {

@@ -34,7 +34,10 @@ export class QueryEvaluation {
         return this.#isDisposed;
     }
 
-    /** Disposes every session the evaluation holds, so the observations only it needed stop. Disposing again does nothing. */
+    /**
+     * Disposes every session the evaluation holds, so the observations only it needed stop. Disposing again does nothing.
+     * Every session is disposed even where one fails to be, and the first failure is thrown once all of them have been.
+     */
     dispose() {
         if (this.#isDisposed) {
             return;
@@ -42,8 +45,18 @@ export class QueryEvaluation {
 
         this.#isDisposed = true;
 
+        let failure = null;
+
         for (const session of this.#sessions) {
-            session.dispose();
+            try {
+                session.dispose();
+            } catch (error) {
+                failure ??= { error };
+            }
+        }
+
+        if (failure !== null) {
+            throw failure.error;
         }
     }
 }

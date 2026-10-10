@@ -204,11 +204,12 @@ Available today:
 - Binding, name and type validation.
 - Synchronous reads and asynchronous reads of maintained values.
 - Watching a query, with a snapshot each time its result changes, or a baseline and then change sets.
+- Subscribing to events, with the projection of each one.
 - Immutable snapshots.
 - Extensible vocabulary and observation types.
 - TypeScript declarations.
 
-Occurrence delivery, actions, behaviors, live state, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
+Actions, behaviors, live state, fluent construction and C# integration are planned. The [implementation plan](docs/domql-implementation-plan.md) tracks their progress.
 
 ## Build and try it
 
@@ -238,7 +239,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution gu
 
 - [Library guide](nuget/README.md) — loading DOMQL, using its API and extending it.
 - [Language specification](docs/domql-specification.md) — syntax, types and vocabulary contracts.
-- [Runtime design](docs/domql-design.md) — resolution, evaluation, watching and observation sessions.
+- [Runtime design](docs/domql-design.md) — resolution, evaluation, watching, subscribing to events and observation sessions.
 - [Implementation plan](docs/domql-implementation-plan.md) — completed work and upcoming capabilities.
 
 ## License

@@ -46,6 +46,24 @@ export interface ChangeSetWatchOptions<T = unknown> extends Omit<WatchOptions<T>
     onChange: (update: SnapshotUpdate<T>) => unknown;
 }
 
+/** How an event listener listens to a subscription. */
+export interface SubscribeOptions<T = unknown> {
+    /** Receives the result of each event's projection, immutable data, in the task the event is delivered in. What it returns is not awaited. */
+    onEvent: (result: T) => unknown;
+    /** Receives a failure of a capture, of a projection and of `onEvent`; by default they go to the window's error reporting. A failure of this callback goes there too. */
+    onError?: (error: unknown) => unknown;
+    /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
+    window?: Window;
+}
+
+/** An event listener: it listens from the call that creates it until it is disposed. Its result type is the one its events are projected to. */
+export interface DomqlEventListener<T = unknown> {
+    /** `ready` while it listens, and `disposed` once it is ended. */
+    readonly status: 'ready' | 'disposed';
+    /** Stops listening, disposes every session and prevents any new callback invocation; a callback already running may finish. Disposing again does nothing. */
+    dispose(): void;
+}
+
 /** One operation of a change set: a JSON Patch operation limited to replace, add, remove and move, whose paths are JSON Pointers into the result. */
 export type ChangeOperation =
     | { readonly op: 'replace' | 'add'; readonly path: string; readonly value: unknown }
@@ -300,8 +318,13 @@ export interface ModuleContents {
     observationTypes?: ObservationTypeDeclaration[];
 }
 
-/** The functions that carry a module's members and predicates out, by the key each declaration names. A member that reads maintained values is also given their samples, in the order its declaration names the observations. */
-export type ModuleFunctions = Record<string, (receiver: any, args: Record<string, any>, environment: { window: Window; document: Document }, samples: readonly unknown[]) => unknown>;
+/**
+ * The functions that carry a module's members, predicates and observation types out, by the key each declaration names.
+ * A member or a predicate takes its receiver, its arguments by name and the environment, and a member that reads maintained values also its samples, in the order its declaration names the observations.
+ * A source takes its receiver, its arguments and the environment, and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening.
+ * An observation type takes the request, the function it calls when something may have changed and the environment, and answers an object whose `stop` ends the observation and, for a maintained one, whose `sample` answers its latest sample.
+ */
+export type ModuleFunctions = Record<string, (...args: any[]) => unknown>;
 
 /** A vocabulary's members as data, and the functions that carry them out. */
 export interface DomqlModule {
@@ -352,6 +375,12 @@ export declare class Domql {
 
     /** Watches a query given as its text, delivering a baseline and then the change sets between its snapshots. */
     static watch<T = unknown>(text: string, bindings: ParameterValues, options: ChangeSetWatchOptions<T>): DomqlWatch<T>;
+
+    /** Subscribes to a subscription's occurrence source: at each event it delivers, evaluates the shape that follows the source against it and hands the result to `onEvent`. Listening starts in the call. */
+    static subscribe<T = unknown>(query: DomqlQuery, options: SubscribeOptions<T>): DomqlEventListener<T>;
+
+    /** Subscribes to a subscription given as its text, with the bindings between the text and the options. */
+    static subscribe<T = unknown>(text: string, bindings: ParameterValues, options: SubscribeOptions<T>): DomqlEventListener<T>;
 
     /** Creates the current snapshot a watch's change sets build. */
     static createSnapshot<T = unknown>(): DomqlCurrentSnapshot<T>;
