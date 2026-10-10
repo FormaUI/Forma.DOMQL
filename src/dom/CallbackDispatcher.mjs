@@ -9,18 +9,18 @@ export class CallbackDispatcher {
     #isDisposed;
 
     /**
-     * @param {object} options Callback and lifecycle configuration.
-     * @param {(value: unknown) => unknown} options.onUpdate
+     * @param {object} callbacks The callbacks, and the lifecycle of their owner.
+     * @param {(value: unknown) => unknown} callbacks.onUpdate
      * Receives each update. Returned promises are not awaited;
      * their rejections are passed to onError.
-     * @param {((error: unknown) => unknown)} [options.onError]
+     * @param {((error: unknown) => unknown)} [callbacks.onError]
      * Handles evaluation and onUpdate errors. If omitted, errors go
      * directly to reportError.
-     * @param {(error: unknown) => void} options.reportError
+     * @param {(error: unknown) => void} callbacks.reportError
      * Reports errors when onError is absent, fails, or cannot be called
      * because the owner is disposed. Must be synchronous.
      * Exceptions thrown by this reporter are swallowed.
-     * @param {() => boolean} options.isDisposed
+     * @param {() => boolean} callbacks.isDisposed
      * Whether the owner is disposed. Once disposed, neither onUpdate
      * nor onError is invoked.
      */

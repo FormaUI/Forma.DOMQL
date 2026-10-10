@@ -298,8 +298,8 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.read(query, options)`, `Domql.read(text, bindings, options)` | Read once, optionally using an explicitly supplied `window`. A member kept by an observation, such as `intersects`, fails it. |
 | `Domql.readAsync(query, options)`, `Domql.readAsync(text, bindings, options)` | Read once, waiting for the first sample of every member kept by an observation. Answers a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
-| `Domql.watch(query, options)`, `Domql.watch(text, bindings, options)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
-| `Domql.subscribe(query, options)`, `Domql.subscribe(text, bindings, options)` | Subscribe to an occurrence source: `onEvent` receives the projection of each event, evaluated as it is dispatched. Answers an event listener with `status` and `dispose()`. |
+| `Domql.watch(query, configuration)`, `Domql.watch(text, bindings, configuration)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Answers a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
+| `Domql.subscribe(query, configuration)`, `Domql.subscribe(text, bindings, configuration)` | Subscribe to an occurrence source: `onEvent` receives the projection of each event, evaluated as it is dispatched. Answers an event listener with `status` and `dispose()`. |
 | `Domql.createSnapshot()` | Create the current snapshot a watch with `updateStrategy: 'changeSet'` builds: `apply(update)` applies a baseline or a change set atomically and answers `accepted`, `stale` or `failed`, which the host reports to the watch through `acknowledge(update)` or `recover()`, and `value` is the snapshot last accepted. |
 | `Domql.registerModule(module)` | Make a module available to query resolution. |
 

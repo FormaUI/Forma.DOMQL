@@ -3,7 +3,7 @@
  */
 
 /** How a query will be carried out, which resolution checks it against. */
-export interface ResolveOptions {
+export interface DomqlResolveOptions {
     /** Whether the query will be watched. */
     watch?: boolean;
     /** Whether a watch accepts members whose changes its observations only partly cover. */
@@ -11,19 +11,19 @@ export interface ResolveOptions {
 }
 
 /** What a read uses. */
-export interface ReadOptions {
+export interface DomqlReadOptions {
     /** The window `@window` stands for, and whose document `@document` stands for; by default the environment's. */
     window?: Window;
 }
 
 /** What a read that waits uses. */
-export interface ReadAsyncOptions extends ReadOptions {
+export interface DomqlReadAsyncOptions extends DomqlReadOptions {
     /** Cancels the read, which then fails with the signal's reason. */
     signal?: AbortSignal;
 }
 
 /** How a query is watched. */
-export interface WatchOptions<T = unknown> {
+export interface DomqlWatchConfiguration<T = unknown> {
     /** Receives each snapshot, the first as the baseline: an immutable result that shares what did not change with the snapshot before it. What it returns is not awaited. */
     onChange: (snapshot: T) => unknown;
     /** Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting. A failure of this callback goes there too. */
@@ -39,15 +39,15 @@ export interface WatchOptions<T = unknown> {
 }
 
 /** How a query is watched when its snapshots are delivered as a baseline and then change sets. */
-export interface ChangeSetWatchOptions<T = unknown> extends Omit<WatchOptions<T>, 'onChange' | 'updateStrategy'> {
+export interface DomqlWatchChangeSetConfiguration<T = unknown> extends Omit<DomqlWatchConfiguration<T>, 'onChange' | 'updateStrategy'> {
     /** Delivers a baseline and then the change sets between snapshots, each sent once the one before it is acknowledged. */
     updateStrategy: 'changeSet';
     /** Receives each update, for the host to apply to a current snapshot; the host acknowledges one that applied, and recovers the watch where one failed or the snapshot was lost. */
-    onChange: (update: SnapshotUpdate<T>) => unknown;
+    onChange: (update: DomqlSnapshotUpdate<T>) => unknown;
 }
 
 /** How an event listener listens to a subscription. */
-export interface SubscribeOptions<T = unknown> {
+export interface DomqlSubscribeConfiguration<T = unknown> {
     /** Receives the result of each event's projection, immutable data, in the task the event is delivered in. What it returns is not awaited. */
     onEvent: (result: T) => unknown;
     /** Receives a failure of a capture, of a projection and of `onEvent`; by default they go to the window's error reporting. A failure of this callback goes there too. */
@@ -65,13 +65,13 @@ export interface DomqlEventListener<T = unknown> {
 }
 
 /** One operation of a change set: a JSON Patch operation limited to replace, add, remove and move, whose paths are JSON Pointers into the result. */
-export type ChangeOperation =
+export type DomqlChangeOperation =
     | { readonly op: 'replace' | 'add'; readonly path: string; readonly value: unknown }
     | { readonly op: 'remove'; readonly path: string }
     | { readonly op: 'move'; readonly from: string; readonly path: string };
 
 /** The complete result that starts a generation of updates, at revision 0. */
-export interface SnapshotBaseline<T = unknown> {
+export interface DomqlSnapshotBaseline<T = unknown> {
     readonly kind: 'baseline';
     readonly generation: number;
     readonly from: null;
@@ -80,16 +80,16 @@ export interface SnapshotBaseline<T = unknown> {
 }
 
 /** The changes from one revision of a generation to the next, relative to the snapshot at the first. */
-export interface SnapshotChangeSet {
+export interface DomqlSnapshotChangeSet {
     readonly kind: 'changeSet';
     readonly generation: number;
     readonly from: number;
     readonly to: number;
-    readonly patch: readonly ChangeOperation[];
+    readonly patch: readonly DomqlChangeOperation[];
 }
 
 /** An update of a snapshot, whatever carries it: a baseline or a change set. */
-export type SnapshotUpdate<T = unknown> = SnapshotBaseline<T> | SnapshotChangeSet;
+export type DomqlSnapshotUpdate<T = unknown> = DomqlSnapshotBaseline<T> | DomqlSnapshotChangeSet;
 
 /** The current snapshot a watch's change sets build on the receiving side. */
 export interface DomqlCurrentSnapshot<T = unknown> {
@@ -100,7 +100,7 @@ export interface DomqlCurrentSnapshot<T = unknown> {
     /** The revision of the state within its generation, or null before the first baseline. */
     readonly revision: number | null;
     /** Applies an update atomically: `accepted` where it applied, to acknowledge; `stale` where it belongs to an older generation or revision, which changes nothing; `failed` where it cannot apply, which leaves the snapshot as it was and asks for recovery. */
-    apply(update: SnapshotUpdate<T>): 'accepted' | 'stale' | 'failed';
+    apply(update: DomqlSnapshotUpdate<T>): 'accepted' | 'stale' | 'failed';
 }
 
 /** A watch: the handle of a query kept current. */
@@ -114,51 +114,51 @@ export interface DomqlWatch<T = unknown> {
     /** Ends the watch: cancels what it scheduled, disposes every observation session and prevents any new callback invocation. A callback already running may finish. */
     dispose(): void;
     /** Confirms that the receiver applied a delivery of a watch that delivers change sets, so the next change set is computed against the state it established; a delivery recovery abandoned changes nothing. A watch that delivers snapshots refuses it. */
-    acknowledge(update: SnapshotUpdate<T>): void;
+    acknowledge(update: DomqlSnapshotUpdate<T>): void;
     /** Abandons the current generation of a watch that delivers change sets, and sends the current snapshot as a new baseline. A watch that delivers snapshots refuses it. */
     recover(): void;
 }
 
 /** A DOMQL definition: the JSON document that records a query's meaning, without the values its parameters are bound to. */
-export interface Definition {
+export interface DomqlDefinition {
     readonly version: number;
-    readonly query: DefinitionNode;
+    readonly query: DomqlDefinitionNode;
 }
 
 /** A node of a definition. */
-export type DefinitionNode =
+export type DomqlDefinitionNode =
     | { readonly kind: 'literal'; readonly value: string | number | boolean | null }
     | { readonly kind: 'parameter'; readonly name: string }
-    | { readonly kind: 'member'; readonly target?: DefinitionNode; readonly name: string; readonly arguments: readonly DefinitionEntry[] }
-    | { readonly kind: 'shape'; readonly target?: DefinitionNode; readonly fields: readonly DefinitionEntry[] }
-    | { readonly kind: 'predicate'; readonly verb: 'is' | 'has'; readonly target?: DefinitionNode; readonly test: PredicateNames };
+    | { readonly kind: 'member'; readonly target?: DomqlDefinitionNode; readonly name: string; readonly arguments: readonly DomqlDefinitionEntry[] }
+    | { readonly kind: 'shape'; readonly target?: DomqlDefinitionNode; readonly fields: readonly DomqlDefinitionEntry[] }
+    | { readonly kind: 'predicate'; readonly verb: 'is' | 'has'; readonly target?: DomqlDefinitionNode; readonly test: DomqlPredicateNames };
 
 /** The predicate names a test reads: a string, a parameter, or an and or an or of two or more of them. */
-export type PredicateNames =
+export type DomqlPredicateNames =
     | { readonly kind: 'literal'; readonly value: string }
     | { readonly kind: 'parameter'; readonly name: string }
-    | { readonly kind: 'and' | 'or'; readonly operands: readonly PredicateNames[] };
+    | { readonly kind: 'and' | 'or'; readonly operands: readonly DomqlPredicateNames[] };
 
 /** An argument of a member or a field of a shape, with the name written for it, if any. */
-export interface DefinitionEntry {
+export interface DomqlDefinitionEntry {
     readonly name?: string;
-    readonly value: DefinitionNode;
+    readonly value: DomqlDefinitionNode;
 }
 
 /** A value bound with the type its caller declares for it, as `Domql.bind` answers. */
-export interface TypedBinding {
+export interface DomqlTypedBinding {
     readonly value: unknown;
     /** The declared type, in DOMQL's type notation. */
     readonly type: string;
 }
 
 /** What a query's parameters are bound to. */
-export interface ParameterValues {
-    [name: string]: unknown | TypedBinding;
+export interface DomqlParameterValues {
+    [name: string]: unknown | DomqlTypedBinding;
 }
 
 /** The values a query's parameters are bound to, by name. */
-export interface ParameterBindings {
+export interface DomqlParameterBindings {
     has(name: string): boolean;
     get(name: string): unknown;
 }
@@ -169,28 +169,28 @@ export interface ParameterBindings {
  */
 export interface DomqlQuery {
     /** The query's definition, without its bound values. */
-    readonly definition: Definition;
-    readonly bindings: ParameterBindings;
+    readonly definition: DomqlDefinition;
+    readonly bindings: DomqlParameterBindings;
 }
 
 /** A DOMQL type: a named type, a list, an occurrence source, a shape or a null, each nullable or not. */
-export interface Type {
+export interface DomqlType {
     readonly kind: 'named' | 'list' | 'occurrence' | 'shape' | 'variable' | 'null';
     readonly name: string | null;
-    readonly item: Type | null;
-    readonly fields: ReadonlyMap<string, Type> | null;
+    readonly item: DomqlType | null;
+    readonly fields: ReadonlyMap<string, DomqlType> | null;
     readonly isNullable: boolean;
     /** The type in DOMQL's notation, such as `number?` or `list<element>`. */
     toString(): string;
 }
 
 /** A query resolved against the registered vocabulary. */
-export interface ResolvedDefinition {
-    readonly definition: Definition;
+export interface DomqlResolvedDefinition {
+    readonly definition: DomqlDefinition;
     /** The kind of request: a query, a subscription, an action or a behavior request. */
     readonly kind: 'query' | 'subscription' | 'action' | 'behavior';
     /** The type of the request's result. */
-    readonly type: Type;
+    readonly type: DomqlType;
     /** The declarations the request uses, with where each is used. */
     readonly usedMembers: readonly { readonly declaration: object; readonly pointer: string }[];
     /** What the member node at the JSON Pointer resolved to. */
@@ -217,30 +217,30 @@ export interface DomqlError extends Error {
 }
 
 /** How a member changes. */
-export type ChangeCategory = 'constant' | 'observable' | 'partly-observable' | 'unobserved' | 'derived';
+export type DomqlChangeCategory = 'constant' | 'observable' | 'partly-observable' | 'unobserved' | 'derived';
 
 /** How a member reads. */
-export type ReadingMode = 'fresh' | 'maintained' | 'captured' | 'derived';
+export type DomqlReadingMode = 'fresh' | 'maintained' | 'captured' | 'derived';
 
 /** A reference to the argument a call gives for a parameter of the member. */
-export interface ArgumentReference {
+export interface DomqlArgumentReference {
     argument: string;
 }
 
 /** A value an observation gives: a literal, a list of values, or an argument of the member. */
-export type ObservationValue = string | number | boolean | null | ArgumentReference | ObservationValue[];
+export type DomqlObservationValue = string | number | boolean | null | DomqlArgumentReference | DomqlObservationValue[];
 
 /** An observation that covers a member's changes: its type, what it observes, and the arguments its type takes. */
-export interface ObservationDeclaration {
+export interface DomqlObservationDeclaration {
     /** The name of the type of observation, which a module declares. */
     type: string;
     /** What it observes: the receiver, the window, the document, or the argument of the member that names it. */
-    of: 'receiver' | 'window' | 'document' | ArgumentReference;
-    [argument: string]: ObservationValue | undefined;
+    of: 'receiver' | 'window' | 'document' | DomqlArgumentReference;
+    [argument: string]: DomqlObservationValue | undefined;
 }
 
 /** A type of observation: what its observations provide, and the function that starts one. */
-export interface ObservationTypeDeclaration {
+export interface DomqlObservationTypeDeclaration {
     name: string;
     /** A signal that a result may have changed, or a sampled value a member reads. */
     contract: 'invalidation' | 'maintained';
@@ -253,7 +253,7 @@ export interface ObservationTypeDeclaration {
 }
 
 /** A parameter of a member. */
-export interface ParameterDeclaration {
+export interface DomqlParameterDeclaration {
     name: string;
     kind: 'value' | 'expression';
     /** The parameter's type, in DOMQL's notation. */
@@ -271,7 +271,7 @@ export interface ParameterDeclaration {
 }
 
 /** A property, operation, source, action or behavior a module adds. */
-export interface MemberDeclaration {
+export interface DomqlMemberDeclaration {
     /** The DOMQL name. */
     name: string;
     /** The key of the function that carries it out, among the module's functions. */
@@ -279,43 +279,43 @@ export interface MemberDeclaration {
     kind: 'property' | 'operation' | 'source' | 'action' | 'behavior';
     /** The types it applies to, in DOMQL's notation. */
     on: string | string[];
-    parameters?: ParameterDeclaration[];
+    parameters?: DomqlParameterDeclaration[];
     /** The type of its result, in DOMQL's notation. */
     result: string;
-    changes: ChangeCategory;
-    reads: ReadingMode;
+    changes: DomqlChangeCategory;
+    reads: DomqlReadingMode;
     /** The changes a partly observable member's observations miss. */
     misses?: string;
     /** How far a number it answers may move before a watch reports a different snapshot; the number must change by more, and exactly where it is not declared. */
     tolerance?: number;
     /** The observations that cover its changes, which an observable or partly observable member names and no other does. */
-    observations?: ObservationDeclaration[];
+    observations?: DomqlObservationDeclaration[];
 }
 
 /** A predicate that `is` or `has` reads. */
-export interface PredicateDeclaration {
+export interface DomqlPredicateDeclaration {
     verb: 'is' | 'has';
     name: string;
     function: string;
     on: string | string[];
-    changes: ChangeCategory;
-    reads: ReadingMode;
+    changes: DomqlChangeCategory;
+    reads: DomqlReadingMode;
     misses?: string;
-    observations?: ObservationDeclaration[];
+    observations?: DomqlObservationDeclaration[];
 }
 
 /** What a module declares. */
-export interface ModuleContents {
-    members?: MemberDeclaration[];
+export interface DomqlModuleContents {
+    members?: DomqlMemberDeclaration[];
     /** The structured types it declares, each with its fields' types. */
     types?: { name: string; fields: Record<string, string> }[];
     /** The event types it declares, each with the type of its occurrences. */
     eventTypes?: { name: string; payload: string }[];
-    predicates?: PredicateDeclaration[];
+    predicates?: DomqlPredicateDeclaration[];
     /** The features `supports` names. */
     features?: string[];
     /** The types of observation it declares. */
-    observationTypes?: ObservationTypeDeclaration[];
+    observationTypes?: DomqlObservationTypeDeclaration[];
 }
 
 /**
@@ -324,13 +324,13 @@ export interface ModuleContents {
  * A source takes its receiver, its arguments and the environment, and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening.
  * An observation type takes the request, the function it calls when something may have changed and the environment, and answers an object whose `stop` ends the observation and, for a maintained one, whose `sample` answers its latest sample.
  */
-export type ModuleFunctions = Record<string, (...args: any[]) => unknown>;
+export type DomqlModuleFunctions = Record<string, (...args: any[]) => unknown>;
 
 /** A vocabulary's members as data, and the functions that carry them out. */
 export interface DomqlModule {
     readonly name: string;
-    readonly members: readonly MemberDeclaration[];
-    readonly functions: ModuleFunctions | null;
+    readonly members: readonly DomqlMemberDeclaration[];
+    readonly functions: DomqlModuleFunctions | null;
 }
 
 export declare class Domql {
@@ -338,55 +338,55 @@ export declare class Domql {
     static readonly specificationVersion: string;
 
     /** Parses text into a query, binding its parameters. */
-    static parse(text: string, bindings?: ParameterValues): DomqlQuery;
+    static parse(text: string, bindings?: DomqlParameterValues): DomqlQuery;
 
     /** Creates a query from its definition, binding its parameters. */
-    static create(definition: Definition, bindings?: ParameterValues): DomqlQuery;
+    static create(definition: DomqlDefinition, bindings?: DomqlParameterValues): DomqlQuery;
 
     /** Binds a value with the type it has, for a value that reveals none, such as null or an empty list. */
-    static bind(value: unknown, type: string): TypedBinding;
+    static bind(value: unknown, type: string): DomqlTypedBinding;
 
     /** Resolves a query against the registered vocabulary and types it, without evaluating anything. */
-    static resolve(query: DomqlQuery, options?: ResolveOptions): ResolvedDefinition;
+    static resolve(query: DomqlQuery, options?: DomqlResolveOptions): DomqlResolvedDefinition;
 
     /** Resolves a query given as its text, parsed as `parse` parses it, through the same cache. */
-    static resolve(text: string, bindings?: ParameterValues, options?: ResolveOptions): ResolvedDefinition;
+    static resolve(text: string, bindings?: DomqlParameterValues, options?: DomqlResolveOptions): DomqlResolvedDefinition;
 
     /** Reads a query once, answering immutable data that holds nothing of the document. A member maintained by an observation fails it. */
-    static read<T = unknown>(query: DomqlQuery, options?: ReadOptions): T;
+    static read<T = unknown>(query: DomqlQuery, options?: DomqlReadOptions): T;
 
     /** Reads a query given as its text, parsed as `parse` parses it, through the same cache. */
-    static read<T = unknown>(text: string, bindings?: ParameterValues, options?: ReadOptions): T;
+    static read<T = unknown>(text: string, bindings?: DomqlParameterValues, options?: DomqlReadOptions): T;
 
     /** Reads a query once, waiting for the first sample of every maintained member it reads, and answers immutable data that holds nothing of the document. */
-    static readAsync<T = unknown>(query: DomqlQuery, options?: ReadAsyncOptions): Promise<T>;
+    static readAsync<T = unknown>(query: DomqlQuery, options?: DomqlReadAsyncOptions): Promise<T>;
 
     /** Reads a query given as its text, waiting as `readAsync` waits. */
-    static readAsync<T = unknown>(text: string, bindings?: ParameterValues, options?: ReadAsyncOptions): Promise<T>;
+    static readAsync<T = unknown>(text: string, bindings?: DomqlParameterValues, options?: DomqlReadAsyncOptions): Promise<T>;
 
     /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
-    static watch<T = unknown>(query: DomqlQuery, options: WatchOptions<T>): DomqlWatch<T>;
+    static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query, delivering a baseline and then the change sets between its snapshots. */
-    static watch<T = unknown>(query: DomqlQuery, options: ChangeSetWatchOptions<T>): DomqlWatch<T>;
+    static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
 
-    /** Watches a query given as its text, with the bindings between the text and the options. */
-    static watch<T = unknown>(text: string, bindings: ParameterValues, options: WatchOptions<T>): DomqlWatch<T>;
+    /** Watches a query given as its text, with the bindings between the text and the configuration. */
+    static watch<T = unknown>(text: string, bindings: DomqlParameterValues, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query given as its text, delivering a baseline and then the change sets between its snapshots. */
-    static watch<T = unknown>(text: string, bindings: ParameterValues, options: ChangeSetWatchOptions<T>): DomqlWatch<T>;
+    static watch<T = unknown>(text: string, bindings: DomqlParameterValues, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
 
     /** Subscribes to a subscription's occurrence source: at each event it delivers, evaluates the shape that follows the source against it and hands the result to `onEvent`. Listening starts in the call. */
-    static subscribe<T = unknown>(query: DomqlQuery, options: SubscribeOptions<T>): DomqlEventListener<T>;
+    static subscribe<T = unknown>(query: DomqlQuery, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
 
-    /** Subscribes to a subscription given as its text, with the bindings between the text and the options. */
-    static subscribe<T = unknown>(text: string, bindings: ParameterValues, options: SubscribeOptions<T>): DomqlEventListener<T>;
+    /** Subscribes to a subscription given as its text, with the bindings between the text and the configuration. */
+    static subscribe<T = unknown>(text: string, bindings: DomqlParameterValues, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;
 
     /** Creates the current snapshot a watch's change sets build. */
     static createSnapshot<T = unknown>(): DomqlCurrentSnapshot<T>;
 
     /** Creates a module from the vocabulary it declares and the functions that carry the declarations out. */
-    static createModule(name: string, contents: ModuleContents, functions?: ModuleFunctions | null): DomqlModule;
+    static createModule(name: string, contents: DomqlModuleContents, functions?: DomqlModuleFunctions | null): DomqlModule;
 
     /** Registers a module's vocabulary, which every query resolved afterwards may use. */
     static registerModule(module: DomqlModule): void;

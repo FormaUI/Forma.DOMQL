@@ -26,15 +26,15 @@ export class EventListener {
     /**
      * Starts listening, so an occurrence delivered once the constructor returns is heard; a source that cannot start fails it.
      * A source may deliver while it starts: those occurrences are captured and projected at once, and their callbacks run once the caller has the event listener, before those of any later occurrence.
-     * @param {object} configuration What the event listener listens to and how.
-     * @param {import('./QueryEvaluator.mjs').QueryEvaluator} configuration.evaluator Evaluates the subscription.
-     * @param {import('./Observations.mjs').Observations} configuration.observations The observations of the window, which the projections hold sessions on.
-     * @param {(error: unknown) => void} configuration.reportError The diagnostic reporting boundary, which a failure of `onError` reaches and an error reaches where there is no `onError`.
-     * @param {object} configuration.options What the caller chose.
-     * @param {(result: unknown) => unknown} configuration.options.onEvent Receives the result of each event's projection. What it returns is not awaited.
-     * @param {((error: unknown) => unknown) | undefined} configuration.options.onError Receives a failure of a capture, of a projection and of `onEvent`; by default they go to the diagnostic reporting boundary.
+     * @param {object} dependencies What the event listener listens to, and what it works with.
+     * @param {import('./QueryEvaluator.mjs').QueryEvaluator} dependencies.evaluator Evaluates the subscription.
+     * @param {import('./Observations.mjs').Observations} dependencies.observations The observations of the window, which the projections hold sessions on.
+     * @param {(error: unknown) => void} dependencies.reportError The diagnostic reporting boundary, which a failure of `onError` reaches and an error reaches where there is no `onError`.
+     * @param {object} dependencies.configuration The subscription configuration the caller chose.
+     * @param {(result: unknown) => unknown} dependencies.configuration.onEvent Receives the result of each event's projection. What it returns is not awaited.
+     * @param {((error: unknown) => unknown) | undefined} dependencies.configuration.onError Receives a failure of a capture, of a projection and of `onEvent`; by default they go to the diagnostic reporting boundary.
      */
-    constructor({ evaluator, observations, reportError, options: { onEvent, onError } }) {
+    constructor({ evaluator, observations, reportError, configuration: { onEvent, onError } }) {
         this.#evaluator = evaluator;
         this.#observations = observations;
         this.#callbackDispatcher = new CallbackDispatcher({ onUpdate: onEvent, onError, reportError, isDisposed: () => this.#status === 'disposed' });

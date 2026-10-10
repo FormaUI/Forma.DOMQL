@@ -1,6 +1,6 @@
 // How a TypeScript caller uses DOMQL, which the declarations must accept; the test compiles this file.
 import { Domql } from '../../src/domql.js';
-import type { DefinitionNode, DomqlError, DomqlEventListener, DomqlModule, DomqlCurrentSnapshot, DomqlWatch, ModuleContents, ModuleFunctions, PredicateNames, ResolvedDefinition, SnapshotBaseline, SnapshotChangeSet, SnapshotUpdate } from '../../src/domql.js';
+import type { DomqlDefinitionNode, DomqlError, DomqlEventListener, DomqlModule, DomqlCurrentSnapshot, DomqlReadAsyncOptions, DomqlSubscribeConfiguration, DomqlWatch, DomqlWatchChangeSetConfiguration, DomqlWatchConfiguration, DomqlModuleContents, DomqlModuleFunctions, DomqlPredicateNames, DomqlResolvedDefinition, DomqlSnapshotBaseline, DomqlSnapshotChangeSet, DomqlSnapshotUpdate } from '../../src/domql.js';
 
 const panel = document.createElement('div');
 
@@ -30,11 +30,11 @@ const lastSnapshot: { count: number } | null = watch.lastSnapshot;
 const refreshed: Promise<void> = watch.refreshAsync();
 watch.dispose();
 
-const resolved: ResolvedDefinition = Domql.resolve(created, { watch: true, acceptPartialObservation: true });
+const resolved: DomqlResolvedDefinition = Domql.resolve(created, { watch: true, acceptPartialObservation: true });
 const kind: 'query' | 'subscription' | 'action' | 'behavior' = resolved.kind;
 const typeText: string = resolved.type.toString();
 
-const contents: ModuleContents = {
+const contents: DomqlModuleContents = {
     types: [{ name: 'childMetrics', fields: { childCount: 'number' } }],
     members: [{ name: 'metrics', function: 'readMetrics', kind: 'property', on: 'element', parameters: [], result: 'childMetrics', changes: 'unobserved', reads: 'fresh', tolerance: 0.5 }],
     eventTypes: [{ name: 'chart-selected', payload: 'number' }],
@@ -42,7 +42,7 @@ const contents: ModuleContents = {
     features: ['share'],
     observationTypes: [{ name: 'chartsChanged', contract: 'maintained', identity: ['root'], shared: true, function: 'observeCharts' }],
 };
-const functions: ModuleFunctions = {
+const functions: DomqlModuleFunctions = {
     readMetrics: (element: Element) => ({ childCount: element.children.length }),
     isPlotted: () => true,
 };
@@ -65,7 +65,7 @@ try {
 const shorthand: number = Domql.read<number>('@panel.children.count', { panel });
 const shorthandAsync: Promise<number> = Domql.readAsync<number>('@panel.children.count', { panel }, { window, signal: new AbortController().signal });
 const shorthandWatch: DomqlWatch<number> = Domql.watch<number>('@panel.children.count', { panel }, { onChange: count => count });
-const shorthandResolved: ResolvedDefinition = Domql.resolve('@panel.children.count', { panel }, { watch: true });
+const shorthandResolved: DomqlResolvedDefinition = Domql.resolve('@panel.children.count', { panel }, { watch: true });
 
 // @ts-expect-error A query is given as a query or its text.
 Domql.read(42);
@@ -86,7 +86,7 @@ Domql.subscribe(query, {});
 Domql.subscribe(query, { onChange: () => {} });
 
 // A source takes the function it delivers each occurrence to, and answers what stops it.
-const sourceFunctions: ModuleFunctions = {
+const sourceFunctions: DomqlModuleFunctions = {
     beats: (element: Element, _args: Record<string, unknown>, _environment: { window: Window }, deliver: (occurrence: unknown) => void) => {
         const timer = setInterval(() => deliver({ n: element.childElementCount }), 1000);
 
@@ -103,12 +103,12 @@ Domql.watch(query, { onChange: () => {}, schedule: 'later' });
 const current: DomqlCurrentSnapshot<{ count: number }> = Domql.createSnapshot<{ count: number }>();
 const changing: DomqlWatch<{ count: number }> = Domql.watch<{ count: number }>(query, {
     updateStrategy: 'changeSet',
-    onChange: (update: SnapshotUpdate<{ count: number }>) => {
+    onChange: (update: DomqlSnapshotUpdate<{ count: number }>) => {
         if (update.kind === 'baseline') {
-            const baseline: SnapshotBaseline<{ count: number }> = update;
+            const baseline: DomqlSnapshotBaseline<{ count: number }> = update;
             const whole: { count: number } = baseline.snapshot;
         } else {
-            const changeSet: SnapshotChangeSet = update;
+            const changeSet: DomqlSnapshotChangeSet = update;
             const operations: number = changeSet.patch.length;
         }
 
@@ -126,7 +126,7 @@ const changing: DomqlWatch<{ count: number }> = Domql.watch<{ count: number }>(q
 Domql.watch<{ count: number }>(query, { onChange: snapshot => snapshot.count });
 
 // @ts-expect-error A watch that delivers snapshots hands over no update.
-Domql.watch<{ count: number }>(query, { onChange: (update: SnapshotUpdate<{ count: number }>) => update.kind });
+Domql.watch<{ count: number }>(query, { onChange: (update: DomqlSnapshotUpdate<{ count: number }>) => update.kind });
 const latest: { count: number } | null = current.value;
 
 // @ts-expect-error The update strategy of a watch is snapshots or change sets.
@@ -136,16 +136,27 @@ const tested = Domql.parse('@panel is "attached" or ("disabled" and "focused")',
 
 if (tested.kind === 'predicate') {
     const verb: 'is' | 'has' = tested.verb;
-    const names: PredicateNames = tested.test;
+    const names: DomqlPredicateNames = tested.test;
 }
 
 // @ts-expect-error A test reads its names under is or has.
-const misread: DefinitionNode = { kind: 'predicate', verb: 'was', test: { kind: 'literal', value: 'attached' } };
+const misread: DomqlDefinitionNode = { kind: 'predicate', verb: 'was', test: { kind: 'literal', value: 'attached' } };
 
 // @ts-expect-error A query's text is a string.
 Domql.parse(42);
 
 // @ts-expect-error A member is one of the kinds the language has.
 Domql.createModule('bad', { members: [{ name: 'bad', function: 'bad', kind: 'method', on: 'element', result: 'number', changes: 'constant', reads: 'fresh' }] });
+
+// The configurations a watch and a subscription take, and the options of a read, by their names.
+const watching: DomqlWatchConfiguration<number> = { onChange: count => count, schedule: 'immediate' };
+const changeSetWatching: DomqlWatchChangeSetConfiguration<number> = { updateStrategy: 'changeSet', onChange: update => update.kind };
+const subscribing: DomqlSubscribeConfiguration<{ key: string }> = { onEvent: press => press.key };
+const reading: DomqlReadAsyncOptions = { window, signal: new AbortController().signal };
+
+Domql.watch<number>(query, watching);
+Domql.watch<number>(query, changeSetWatching);
+Domql.subscribe<{ key: string }>('@panel.eventsOf("keydown") { key }', { panel }, subscribing);
+Domql.readAsync(query, reading);
 
 export { count, anything, kind, typeText, listening, sourceFunctions };

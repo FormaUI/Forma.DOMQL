@@ -46,19 +46,19 @@ export class Watch {
     #snapshotDispatcher = null;
 
     /**
-     * @param {object} configuration What the watch keeps current and how.
-     * @param {import('./QueryEvaluator.mjs').QueryEvaluator} configuration.evaluator Evaluates the query.
-     * @param {import('./Observations.mjs').Observations} configuration.observations The observations of the window, which the watch holds sessions on.
-     * @param {import('../snapshots/SnapshotComparer.mjs').SnapshotComparer} configuration.comparer Compares the snapshots.
-     * @param {Window} configuration.window The window the watch belongs to.
-     * @param {(error: unknown) => void} configuration.reportError The diagnostic reporting boundary, which a failure of `onError` reaches and an error reaches where there is no `onError`.
-     * @param {object} configuration.options What the caller chose.
-     * @param {'frame' | 'immediate'} configuration.options.schedule When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
-     * @param {'snapshot' | 'changeSet'} configuration.options.updateStrategy How the watch updates its caller, and so what `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged before the next.
-     * @param {(update: unknown) => unknown} configuration.options.onChange Receives each snapshot, or, where the watch delivers change sets, each baseline and change set, the first as the baseline. What it returns is not awaited.
-     * @param {((error: unknown) => unknown) | undefined} configuration.options.onError Receives a failure of an evaluation and of `onChange`; by default they go to the diagnostic reporting boundary.
+     * @param {object} dependencies What the watch keeps current, and what it works with.
+     * @param {import('./QueryEvaluator.mjs').QueryEvaluator} dependencies.evaluator Evaluates the query.
+     * @param {import('./Observations.mjs').Observations} dependencies.observations The observations of the window, which the watch holds sessions on.
+     * @param {import('../snapshots/SnapshotComparer.mjs').SnapshotComparer} dependencies.comparer Compares the snapshots.
+     * @param {Window} dependencies.window The window the watch belongs to.
+     * @param {(error: unknown) => void} dependencies.reportError The diagnostic reporting boundary, which a failure of `onError` reaches and an error reaches where there is no `onError`.
+     * @param {object} dependencies.configuration The watch configuration the caller chose.
+     * @param {'frame' | 'immediate'} dependencies.configuration.schedule When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
+     * @param {'snapshot' | 'changeSet'} dependencies.configuration.updateStrategy How the watch updates its caller, and so what `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged before the next.
+     * @param {(update: unknown) => unknown} dependencies.configuration.onChange Receives each snapshot, or, where the watch delivers change sets, each baseline and change set, the first as the baseline. What it returns is not awaited.
+     * @param {((error: unknown) => unknown) | undefined} dependencies.configuration.onError Receives a failure of an evaluation and of `onChange`; by default they go to the diagnostic reporting boundary.
      */
-    constructor({ evaluator, observations, comparer, window, reportError, options: { schedule, updateStrategy = 'snapshot', onChange, onError } }) {
+    constructor({ evaluator, observations, comparer, window, reportError, configuration: { schedule, updateStrategy = 'snapshot', onChange, onError } }) {
         this.#evaluator = evaluator;
         this.#observations = observations;
         this.#comparer = comparer;

@@ -22,20 +22,20 @@ import { TypedBinding } from './language/TypedBinding.mjs';
 
 /**
  * How a read is carried out.
- * @typedef {object} ReadOptions
+ * @typedef {object} DomqlReadOptions
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for; by default the environment's.
  */
 
 /**
  * How a read that waits is carried out.
- * @typedef {object} ReadAsyncOptions
+ * @typedef {object} DomqlReadAsyncOptions
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for; by default the environment's.
  * @property {AbortSignal} [signal] Cancels the read, which then fails with the signal's reason.
  */
 
 /**
  * How a query is watched.
- * @typedef {object} WatchOptions
+ * @typedef {object} DomqlWatchConfiguration
  * @property {(update: unknown) => unknown} onChange Receives each snapshot, an immutable result that shares what did not change with the snapshot before it, or, where the watch delivers change sets, each baseline and change set. What it returns is not awaited.
  * @property {(error: unknown) => unknown} [onError] Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting.
  * @property {'frame' | 'immediate'} [schedule] When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
@@ -46,7 +46,7 @@ import { TypedBinding } from './language/TypedBinding.mjs';
 
 /**
  * How an event listener listens to a subscription.
- * @typedef {object} SubscribeOptions
+ * @typedef {object} DomqlSubscribeConfiguration
  * @property {(result: unknown) => unknown} onEvent Receives the result of each event's projection, immutable data, in the task the event is delivered in. What it returns is not awaited.
  * @property {(error: unknown) => unknown} [onError] Receives a failure of a capture, of a projection and of `onEvent`; by default they go to the window's error reporting.
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
@@ -129,7 +129,7 @@ export class Domql {
      * Reads a query once, answering immutable data that holds nothing of the document.
      * A member maintained by an observation fails the read, since its first sample cannot arrive during it; `readAsync` waits for it.
      * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
-     * @param {...(Record<string, unknown> | ReadOptions)} rest For a text, its bindings and then its options; for a query, its options.
+     * @param {...(Record<string, unknown> | DomqlReadOptions)} rest For a text, its bindings and then its options; for a query, its options.
      */
     static read(request, ...rest) {
         const { query, options } = Domql.#requestOf(request, rest);
@@ -142,7 +142,7 @@ export class Domql {
      * Reads a query once, waiting for the first sample of every maintained member it reads, and answers a promise of immutable data that holds nothing of the document.
      * The query is evaluated again as samples arrive and as what it depends on changes, until an evaluation reads no pending member; every observation it started is let go when the read answers, fails or is canceled.
      * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
-     * @param {...(Record<string, unknown> | ReadAsyncOptions)} rest For a text, its bindings and then its options; for a query, its options.
+     * @param {...(Record<string, unknown> | DomqlReadAsyncOptions)} rest For a text, its bindings and then its options; for a query, its options.
      */
     static async readAsync(request, ...rest) {
         const { query, options } = Domql.#requestOf(request, rest);
@@ -201,11 +201,11 @@ export class Domql {
      * Watches a query: evaluates it, reports a snapshot of the result, and evaluates again when something the result depends on changes, reporting a snapshot that differs from the last.
      * The first snapshot is reported after the call returns, as the baseline, through the same callback as every later one.
      * @param {DomqlQuery | string} request The query, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
-     * @param {...(Record<string, unknown> | WatchOptions)} rest For a text, its bindings and then its options; for a query, its options.
+     * @param {...(Record<string, unknown> | DomqlWatchConfiguration)} rest For a text, its bindings and then its configuration; for a query, its configuration.
      */
     static watch(request, ...rest) {
-        const { query, options } = Domql.#requestOf(request, rest);
-        const { onChange, onError, schedule = 'frame', updateStrategy = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = options ?? {};
+        const { query, options: configuration } = Domql.#requestOf(request, rest);
+        const { onChange, onError, schedule = 'frame', updateStrategy = 'snapshot', acceptPartialObservation = false, window = globalThis.window } = configuration ?? {};
 
         if (typeof onChange !== 'function') {
             throw DomqlError.structure('A watch takes the function that receives its snapshots, as onChange', {});
@@ -241,7 +241,7 @@ export class Domql {
             comparer: new SnapshotComparer(resolved),
             window,
             reportError: Domql.#reportErrorOf(window),
-            options: { schedule, updateStrategy, onChange, onError },
+            configuration: { schedule, updateStrategy, onChange, onError },
         });
     }
 
@@ -249,11 +249,11 @@ export class Domql {
      * Subscribes to a subscription's occurrence source, answering the event listener that listens to it: at each event the source delivers, evaluates the shape that follows the source against it, in the task the source delivers it in, and hands the result to `onEvent`.
      * Listening starts in the call, so an event that follows it is heard, and a source that cannot start fails the call. The source's receiver and arguments are evaluated once, as listening starts.
      * @param {DomqlQuery | string} request The subscription, or its text, which is parsed as `parse` parses it, through the same cache, with the bindings that follow it.
-     * @param {...(Record<string, unknown> | SubscribeOptions)} rest For a text, its bindings and then its options; for a subscription, its options.
+     * @param {...(Record<string, unknown> | DomqlSubscribeConfiguration)} rest For a text, its bindings and then its configuration; for a subscription, its configuration.
      */
     static subscribe(request, ...rest) {
-        const { query, options } = Domql.#requestOf(request, rest);
-        const { onEvent, onError, window = globalThis.window } = options ?? {};
+        const { query, options: configuration } = Domql.#requestOf(request, rest);
+        const { onEvent, onError, window = globalThis.window } = configuration ?? {};
 
         if (typeof onEvent !== 'function') {
             throw DomqlError.structure('An event listener takes the function that receives the result of each event, as onEvent', {});
@@ -267,7 +267,7 @@ export class Domql {
             evaluator: Domql.#evaluatorOf(query, window),
             observations: Domql.#observationsOf(window),
             reportError: Domql.#reportErrorOf(window),
-            options: { onEvent, onError },
+            configuration: { onEvent, onError },
         });
     }
 
@@ -277,7 +277,7 @@ export class Domql {
     }
 
     /**
-     * The query a call names, parsed where it is given as text, and the options that follow it: the bindings come between a text and its options, and a query carries its own.
+     * The query a call names, parsed where it is given as text, and the options or the configuration that follow it: the bindings come between a text and what follows them, and a query carries its own.
      * A query belongs to the DOMQL instance that made it, and another instance, such as one an independently bundled library carries, refuses it; `create` makes it again from its definition and raw bindings, validated and resolved against this instance's own vocabulary.
      */
     static #requestOf(request, rest) {
