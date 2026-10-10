@@ -519,7 +519,7 @@ export class QueryEvaluator {
             case 'variable':
                 return true;
             case 'list':
-                return Array.isArray(value) && value.every(item => this.#conforms(item, type.item));
+                return Array.isArray(value) && QueryEvaluator.#holeOf(value) === -1 && value.every(item => this.#conforms(item, type.item));
             case 'shape':
                 return QueryEvaluator.#isRecord(value) && [...type.fields].every(([name, field]) => this.#conforms(value[name], field));
             default:
@@ -566,6 +566,17 @@ export class QueryEvaluator {
         return typeof value === 'object' && value !== null && !Array.isArray(value);
     }
 
+    /** The first index of the list that holds no value, or -1 where every index holds one. */
+    static #holeOf(list) {
+        for (let index = 0; index < list.length; index++) {
+            if (!(index in list)) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     /** What the value is, for a message: nothing, a node, or its data where it has any. */
     static #describe(value) {
         if (value === undefined) {
@@ -574,6 +585,12 @@ export class QueryEvaluator {
 
         if (typeof value?.nodeType === 'number') {
             return value.nodeType === 1 ? 'an element' : 'a node';
+        }
+
+        const hole = Array.isArray(value) ? QueryEvaluator.#holeOf(value) : -1;
+
+        if (hole !== -1) {
+            return `a list with a hole at index ${hole}`;
         }
 
         try {

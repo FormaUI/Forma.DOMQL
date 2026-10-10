@@ -436,6 +436,14 @@ describe('QueryEvaluator', () => {
             expect(error.message).toContain('answered "seven", and it declares number');
         });
 
+        it('report a module that answers a list with a hole, which holds no value there', () => {
+            const gappy = new DomqlModule('gappy', {
+                members: [{ name: 'gappy', function: 'gappy', kind: 'property', on: 'element', parameters: [], result: 'list<number?>', changes: 'constant', reads: 'fresh' }],
+            }, { gappy: () => [1, , 2] });
+
+            expect(failureWith(gappy, '@panel.gappy', { panel }).message).toContain('answered a list with a hole at index 1, and it declares list<number?>');
+        });
+
         it('name an element a module answers where a number is declared', () => {
             expect(failureWith(propertyModule('leaking', element => element), '@panel.leaking', { panel }).message).toContain('answered an element, and it declares number');
         });

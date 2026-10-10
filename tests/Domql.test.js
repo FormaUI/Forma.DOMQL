@@ -402,6 +402,20 @@ describe('Domql', () => {
         });
 
         it.each([
+            ['first', [, 1]],
+            ['in the middle', [1, , 2]],
+            ['last', [1, 2, ,]],
+            ['in a list an object holds', { ids: [1, , 2] }],
+            ['in a list of a typed binding', Domql.bind([1, , 2], 'list<number>')],
+        ])('refuses a list with a hole %s, which holds no value there', (_, value) => {
+            const error = getError(() => Domql.parse('@target', { target: value }));
+
+            expect(error).toBeInstanceOf(DomqlError);
+            expect(error.kind).toBe('structure');
+            expect(error.location).toEqual({ binding: 'target' });
+        });
+
+        it.each([
             ['an unavailable element', null, 'element?'],
             ['an empty list', [], 'list<number>'],
             ['a list holding a null', [1, null], 'list<number?>'],

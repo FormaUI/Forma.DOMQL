@@ -36,7 +36,7 @@ export class ParameterBindings {
             }
 
             if (!ParameterBindings.#isBindable(value, new Set())) {
-                throw DomqlError.structure('A binding is an element, or data: a number, a string, a Boolean, null, a list or an object', { binding: name });
+                throw DomqlError.structure('A binding is an element, or data: a number, a string, a Boolean, null, a list holding a value at every index, or an object', { binding: name });
             }
 
             this.#types.set(name, ParameterBindings.#getType(name, value, isTyped ? binding.type : null));
@@ -128,6 +128,17 @@ export class ParameterBindings {
         return ParameterBindings.#isData(value, ancestors);
     }
 
+    /** Whether the list has a hole, an index that holds no value. */
+    static #hasHole(list) {
+        for (let index = 0; index < list.length; index++) {
+            if (!(index in list)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     static #isData(value, ancestors) {
         if (value === null || typeof value === 'string' || typeof value === 'boolean') {
             return true;
@@ -142,6 +153,10 @@ export class ParameterBindings {
         }
 
         if (!Array.isArray(value) && !ParameterBindings.#isPlainObject(value)) {
+            return false;
+        }
+
+        if (Array.isArray(value) && ParameterBindings.#hasHole(value)) {
             return false;
         }
 

@@ -361,6 +361,22 @@ describe('LanguageResolver', () => {
             expect(resolved.getResolution('/query/test/operands/1/operands/1').predicate.name).toBe('focused');
         });
 
+        it.each([
+            ['the result', '@panel.loose'],
+            ['a field', '@panel { v: loose }'],
+            ['an argument', '@panel.children.at(@panel.loose)'],
+            ['an expression', '@panel.children.where(loose).count'],
+            ['a receiver', '@panel.loose.count'],
+            ['a subject', '@panel.loose is "attached"'],
+        ])('refuse a type variable no receiver binds as %s, so its value never reaches a result', (_, text) => {
+            const registry = new ModuleRegistry([Vocabulary.module, new DomqlModule('loose', {
+                members: [{ name: 'loose', function: 'loose', kind: 'property', on: 'element', parameters: [], result: 'T', changes: 'constant', reads: 'fresh' }],
+            }, null)]);
+            const query = Domql.parse(text, { panel });
+
+            expect(() => new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition)).toThrow(expect.objectContaining({ kind: 'validation', message: expect.stringMatching(/\bT\b/) }));
+        });
+
         it('find each node, by the node itself, with its pointer and its resolution', () => {
             const resolved = resolve('@panel.all("i") { h: size.height, on: is "attached" or "focused" }');
             const { query } = resolved.definition;
