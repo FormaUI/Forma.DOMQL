@@ -628,6 +628,27 @@ describe('Domql modules', () => {
         members: [{ name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
     }, { [name]: () => 7 });
 
+    it('fail inside an item of a list where the failing member is written', () => {
+        isolated.registerModule(isolated.createModule('weight', {
+            members: [{ name: 'weight', function: 'weight', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+        }, {
+            weight: element => {
+                if (element.hasAttribute('aria-selected')) {
+                    throw new Error('heavy');
+                }
+
+                return 1;
+            },
+        }));
+        document.body.innerHTML = '<div id="panel"><div data-key="a1"></div><div data-key="a2" aria-selected="true"></div></div>';
+
+        const error = getError(() => isolated.read('@panel.all("[data-key]") {\n    key: attributeOf "data-key",\n    weight: weight\n}', { panel: document.getElementById('panel') }));
+
+        expect(error.kind).toBe('evaluation');
+        expect(error.location).toEqual({ pointer: '/query/fields/1/value', offset: 72, line: 3, column: 13 });
+        document.body.innerHTML = '';
+    });
+
     it('make the members they declare available to the queries resolved afterwards', () => {
         const element = document.createElement('div');
 

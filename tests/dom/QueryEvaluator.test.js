@@ -505,6 +505,15 @@ describe('QueryEvaluator evaluation', () => {
             expect(measured.every(dependency => dependency.observations[0].type === 'resize')).toBe(true);
         });
 
+        it('stand where each member is written, inside the items of a list and the operands of a test', () => {
+            const evaluation = evaluate('@panel.all("i") { h: rect.height, on: is "attached" or "focused" }', { panel });
+
+            expect(evaluation.dependencies.map(dependency => [dependency.member, dependency.pointer])).toEqual([
+                ['all', '/query/target'],
+                ...rows.flatMap(() => [['rect', '/query/fields/0/value/target'], ['attached', '/query/fields/1/value/test/operands/0']]),
+            ]);
+        });
+
         it('include those of an argument that is a value of its own', () => {
             const evaluation = evaluate('@row.overlaps(@panel.parent)', { row: rows[0], panel });
             const overlaps = evaluation.dependencies.find(dependency => dependency.member === 'overlaps');

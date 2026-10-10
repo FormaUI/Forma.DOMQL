@@ -9,8 +9,11 @@ export class ResolvedDefinition {
     #resolutions;
     #usedMembers;
 
+    /** Each node of the definition's query, by the node itself, with its JSON Pointer and what it resolved to. @type {Map<object, { pointer: string, resolution: object | undefined }>} */
+    #nodes = new Map();
+
     /**
-     * @param {object} definition The request's definition.
+     * @param {object} definition The request's definition, whose every node is an object of its own.
      * @param {'query' | 'subscription' | 'action' | 'behavior'} kind The request's kind.
      * @param {import('./Type.mjs').Type} type The type of its result.
      * @param {Map<string, object>} resolutions What each member node, by its JSON Pointer, resolved to.
@@ -22,6 +25,7 @@ export class ResolvedDefinition {
         this.#type = type;
         this.#resolutions = resolutions;
         this.#usedMembers = Object.freeze([...usedMembers]);
+        this.#index(definition.query, '/query');
     }
 
     /** The request's definition. */
@@ -47,5 +51,46 @@ export class ResolvedDefinition {
     /** What the member node at the pointer resolved to. */
     getResolution(pointer) {
         return this.#resolutions.get(pointer);
+    }
+
+    /**
+     * What the node of the definition resolved to.
+     * @internal
+     */
+    resolutionOf(node) {
+        return this.#nodes.get(node)?.resolution;
+    }
+
+    /**
+     * The JSON Pointer of the node of the definition.
+     * @internal
+     */
+    pointerOf(node) {
+        return this.#nodes.get(node)?.pointer;
+    }
+
+    /** Records the node at the pointer and every node beneath it, each with its pointer and its resolution. */
+    #index(node, pointer) {
+        this.#nodes.set(node, { pointer, resolution: this.#resolutions.get(pointer) });
+
+        if (node.target !== undefined) {
+            this.#index(node.target, `${pointer}/target`);
+        }
+
+        switch (node.kind) {
+            case 'member':
+                node.arguments.forEach((argument, index) => this.#index(argument.value, `${pointer}/arguments/${index}/value`));
+                break;
+            case 'shape':
+                node.fields.forEach((field, index) => this.#index(field.value, `${pointer}/fields/${index}/value`));
+                break;
+            case 'predicate':
+                this.#index(node.test, `${pointer}/test`);
+                break;
+            case 'and':
+            case 'or':
+                node.operands.forEach((operand, index) => this.#index(operand, `${pointer}/operands/${index}`));
+                break;
+        }
     }
 }

@@ -25,7 +25,7 @@ export class QueryEvaluator {
     /** What the evaluation in progress records, or null where none does. @type {{ observations: import('./Observations.mjs').Observations, onChange: () => void, holdsAll: boolean, dependencies: object[], sessions: object[], unheld: object[], isPending: boolean } | null} */
     #recording = null;
 
-    /** The value that stands for the member the request ends in while its projection is evaluated, an occurrence or an action's result, and where that member stands, or null outside a projection. @type {{ pointer: string, value: unknown } | null} */
+    /** The value that stands for the member the request ends in while its projection is evaluated, an occurrence or an action's result, and the member's node, or null outside a projection. @type {{ node: object, value: unknown } | null} */
     #occurrence = null;
 
     /**
@@ -71,7 +71,7 @@ export class QueryEvaluator {
     resolveSource() {
         const call = this.#resolveCall('subscription', 'subscribed to');
 
-        return call.args === null ? null : { name: call.name, start: call.implementation, capture: occurrence => this.#capture(occurrence, call.pointer), receiver: call.receiver, args: call.args, environment: call.environment, location: call.location };
+        return call.args === null ? null : { name: call.name, start: call.implementation, capture: occurrence => this.#capture(occurrence, call.node), receiver: call.receiver, args: call.args, environment: call.environment, location: call.location };
     }
 
     /**
@@ -103,19 +103,19 @@ export class QueryEvaluator {
      * @param {{ wasRun?: boolean }} [run] Whether the action was run, so its result is checked against the type it declares.
      */
     projectResult(result, { wasRun = true } = {}) {
-        const { pointer } = this.#endNode();
-        const { declaration, type } = this.#resolvedDefinition.getResolution(pointer);
+        const { node, pointer } = this.#endNode();
+        const { declaration, type } = this.#resolvedDefinition.resolutionOf(node);
 
         if (wasRun && !this.#conforms(result, type)) {
             this.#fail(`The action '${declaration.name}' answered ${QueryEvaluator.#describe(result)}, and it declares ${type}`, pointer);
         }
 
-        this.#occurrence = { pointer, value: result };
+        this.#occurrence = { node, value: result };
 
         try {
             this.#elementsOf = new WeakMap();
 
-            return this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null))[0];
+            return this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, null))[0];
         } finally {
             this.#occurrence = null;
         }
@@ -128,9 +128,9 @@ export class QueryEvaluator {
         }
 
         const { node, pointer } = this.#endNode();
-        const resolution = this.#resolvedDefinition.getResolution(pointer);
+        const resolution = this.#resolvedDefinition.resolutionOf(node);
         const { declaration } = resolution;
-        const receiver = this.#evaluate(node.target, `${pointer}/target`, null);
+        const receiver = this.#evaluate(node.target, null);
         const args = receiver === null ? null : this.#arguments(resolution, null);
 
         const implementation = this.#moduleRegistry.getFunction(declaration);
@@ -139,7 +139,7 @@ export class QueryEvaluator {
             this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
         }
 
-        return { declaration, name: declaration.name, implementation, receiver, args, environment: this.#environment, location: this.#locate(pointer), pointer };
+        return { declaration, name: declaration.name, implementation, receiver, args, environment: this.#environment, location: this.#locate(pointer), node };
     }
 
     /**
@@ -151,14 +151,14 @@ export class QueryEvaluator {
      */
     project(occurrence, { observations }) {
         return this.#record({ observations, onChange: () => {}, holdsAll: false, waits: false }, () => {
-            const { pointer } = this.#endNode();
+            const { node } = this.#endNode();
 
-            this.#occurrence = { pointer, value: occurrence };
+            this.#occurrence = { node, value: occurrence };
 
             try {
                 this.#elementsOf = new WeakMap();
 
-                const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null));
+                const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, null));
 
                 return { value, identities };
             } finally {
@@ -207,42 +207,42 @@ export class QueryEvaluator {
 
         this.#elementsOf = new WeakMap();
 
-        const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, '/query', null));
+        const [value, identities] = this.#detach(this.#evaluate(this.#resolvedDefinition.definition.query, null));
 
         return { value, identities };
     }
 
-    #evaluate(node, pointer, current) {
+    #evaluate(node, current) {
         switch (node.kind) {
             case 'literal':
                 return node.value;
             case 'parameter':
                 return this.#parameter(node);
             case 'member':
-                return this.#member(node, pointer, current);
+                return this.#member(node, current);
             case 'predicate':
-                return this.#test(node, pointer, current);
+                return this.#test(node, current);
             default:
-                return this.#shape(node, pointer, current);
+                return this.#shape(node, current);
         }
     }
 
     /** Tests the subject, evaluated once, against the predicates the test reaches; a test of null is null. */
-    #test(node, pointer, current) {
-        const subject = node.target === undefined ? current : this.#evaluate(node.target, `${pointer}/target`, current);
+    #test(node, current) {
+        const subject = node.target === undefined ? current : this.#evaluate(node.target, current);
 
-        return subject === null ? null : this.#holds(node.test, `${pointer}/test`, subject);
+        return subject === null ? null : this.#holds(node.test, subject);
     }
 
     /** Whether the names hold of the subject: an and stops at the first that does not, an or at the first that does, so a predicate the result does not need is never read. */
-    #holds(node, pointer, subject) {
+    #holds(node, subject) {
         switch (node.kind) {
             case 'and':
-                return node.operands.every((operand, index) => this.#holds(operand, `${pointer}/operands/${index}`, subject) === true);
+                return node.operands.every(operand => this.#holds(operand, subject) === true);
             case 'or':
-                return node.operands.some((operand, index) => this.#holds(operand, `${pointer}/operands/${index}`, subject) === true);
+                return node.operands.some(operand => this.#holds(operand, subject) === true);
             default:
-                return this.#invoke(this.#resolvedDefinition.getResolution(pointer).predicate, subject, {}, BOOLEAN, pointer);
+                return this.#invoke(this.#resolvedDefinition.resolutionOf(node).predicate, subject, {}, BOOLEAN, node);
         }
     }
 
@@ -257,31 +257,31 @@ export class QueryEvaluator {
         }
     }
 
-    #member(node, pointer, current) {
+    #member(node, current) {
         // A projection stands the occurrence or the result where its member is, so that member is never read again.
-        if (pointer === this.#occurrence?.pointer) {
+        if (node === this.#occurrence?.node) {
             return this.#occurrence.value;
         }
 
-        const receiver = node.target === undefined ? current : this.#evaluate(node.target, `${pointer}/target`, current);
+        const receiver = node.target === undefined ? current : this.#evaluate(node.target, current);
 
         if (receiver === null) {
             return null;
         }
 
-        const resolution = this.#resolvedDefinition.getResolution(pointer);
+        const resolution = this.#resolvedDefinition.resolutionOf(node);
 
         if (resolution.kind === 'field') {
             return receiver[node.name] ?? null;
         }
 
         if (resolution.steps !== undefined) {
-            return this.#follow(resolution.steps, receiver, pointer);
+            return this.#follow(resolution.steps, receiver, node);
         }
 
         const args = this.#arguments(resolution, current);
 
-        return args === null ? null : this.#invoke(resolution.declaration, receiver, args, resolution.type, pointer);
+        return args === null ? null : this.#invoke(resolution.declaration, receiver, args, resolution.type, node);
     }
 
     /** The arguments by parameter name, or null where a null argument makes the call answer null. */
@@ -294,9 +294,9 @@ export class QueryEvaluator {
             if (argument.isDefault || parameter.fixed) {
                 args[parameter.name] = argument.isDefault ? parameter.default : argument.value;
             } else if (parameter.kind === 'expression') {
-                args[parameter.name] = item => this.#evaluate(argument.node, argument.pointer, item);
+                args[parameter.name] = item => this.#evaluate(argument.node, item);
             } else {
-                const value = this.#evaluate(argument.node, argument.pointer, current);
+                const value = this.#evaluate(argument.node, current);
 
                 if (value === null && parameter.nulls === 'propagate') {
                     return null;
@@ -310,7 +310,7 @@ export class QueryEvaluator {
     }
 
     /** Follows the path a get names, each step from the value before it, answering null from the first null. */
-    #follow(steps, receiver, pointer) {
+    #follow(steps, receiver, node) {
         let value = receiver;
 
         for (const step of steps) {
@@ -319,7 +319,7 @@ export class QueryEvaluator {
             } else {
                 const args = Object.fromEntries(step.declaration.parameters.map(parameter => [parameter.name, parameter.default]));
 
-                value = this.#invoke(step.declaration, value, args, step.type, pointer);
+                value = this.#invoke(step.declaration, value, args, step.type, node);
             }
 
             if (value === null) {
@@ -331,14 +331,14 @@ export class QueryEvaluator {
     }
 
     /** Carries out a declaration's function, or a predicate's, checking that its result is of the declared type. */
-    #invoke(declaration, receiver, args, type, pointer) {
+    #invoke(declaration, receiver, args, type, node) {
         const implementation = this.#moduleRegistry.getFunction(declaration);
 
         if (implementation === undefined) {
-            this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, pointer);
+            this.#fail(`The module '${this.#moduleRegistry.getOwner(declaration)}' supplies no function for '${declaration.name}'`, this.#pointerOf(node));
         }
 
-        const samples = this.#observe(declaration, receiver, args, pointer);
+        const samples = this.#observe(declaration, receiver, args, node);
 
         if (samples === null) {
             return null;
@@ -349,14 +349,14 @@ export class QueryEvaluator {
         try {
             value = implementation(receiver, args, this.#environment, samples);
         } catch (error) {
-            throw DomqlError.evaluation(`The member '${declaration.name}' failed: ${error?.message ?? String(error)}`, this.#locate(pointer), { cause: error });
+            throw DomqlError.evaluation(`The member '${declaration.name}' failed: ${error?.message ?? String(error)}`, this.#locate(this.#pointerOf(node)), { cause: error });
         }
 
         if (!this.#conforms(value, type)) {
-            this.#fail(`The member '${declaration.name}' answered ${QueryEvaluator.#describe(value)}, and it declares ${type}`, pointer);
+            this.#fail(`The member '${declaration.name}' answered ${QueryEvaluator.#describe(value)}, and it declares ${type}`, this.#pointerOf(node));
         }
 
-        this.#observeDetached(declaration, receiver, value, pointer);
+        this.#observeDetached(declaration, receiver, value, node);
 
         return value;
     }
@@ -365,10 +365,10 @@ export class QueryEvaluator {
      * Records what the call depends on and holds its observations, answering the samples of its maintained observations, in the order the declaration names them.
      * Answers null where a sample is still pending, which makes the member answer null and the evaluation pending.
      */
-    #observe(declaration, receiver, args, pointer) {
+    #observe(declaration, receiver, args, node) {
         if (this.#recording === null) {
             if (declaration.reads === 'maintained') {
-                this.#fail(`The member '${declaration.name}' is maintained by an observation, and reading it waits for the first sample, which a synchronous evaluation cannot`, pointer);
+                this.#fail(`The member '${declaration.name}' is maintained by an observation, and reading it waits for the first sample, which a synchronous evaluation cannot`, this.#pointerOf(node));
             }
 
             return [];
@@ -398,7 +398,7 @@ export class QueryEvaluator {
             }
         }
 
-        dependencies.push({ member: declaration.name, pointer, observations: requests });
+        dependencies.push({ member: declaration.name, pointer: this.#pointerOf(node), observations: requests });
 
         if (isPending) {
             this.#recording.isPending = true;
@@ -410,7 +410,7 @@ export class QueryEvaluator {
     }
 
     /** A member that answered null because its element is detached depends on whether the element is attached, so it is read again when the element returns. */
-    #observeDetached(declaration, receiver, value, pointer) {
+    #observeDetached(declaration, receiver, value, node) {
         if (this.#recording === null || value !== null || receiver?.nodeType !== 1 || receiver.isConnected || this.#moduleRegistry.getObservationType('attachment') === undefined) {
             return;
         }
@@ -418,7 +418,7 @@ export class QueryEvaluator {
         const request = this.#recording.observations.resolve({ type: 'attachment', of: 'receiver' }, { receiver, args: {} });
 
         this.#hold(request);
-        this.#recording.dependencies.push({ member: declaration.name, pointer, observations: [request] });
+        this.#recording.dependencies.push({ member: declaration.name, pointer: this.#pointerOf(node), observations: [request] });
     }
 
     /** Holds the observation of the request, answering its session, or leaves it unheld where only a pending evaluation needs it and answers null. */
@@ -453,8 +453,9 @@ export class QueryEvaluator {
     }
 
     /** The occurrence as the fields its type declares, read now, so a projection never holds what the source delivered. */
-    #capture(occurrence, pointer) {
-        const { declaration, type } = this.#resolvedDefinition.getResolution(pointer);
+    #capture(occurrence, node) {
+        const pointer = this.#pointerOf(node);
+        const { declaration, type } = this.#resolvedDefinition.resolutionOf(node);
         const item = type.item;
         const structure = item.kind === 'named' ? this.#moduleRegistry.getType(item.name) : undefined;
 
@@ -484,12 +485,12 @@ export class QueryEvaluator {
         return captured;
     }
 
-    #shape(node, pointer, current) {
+    #shape(node, current) {
         const hasTarget = node.target !== undefined;
-        const target = hasTarget ? this.#evaluate(node.target, `${pointer}/target`, current) : current;
+        const target = hasTarget ? this.#evaluate(node.target, current) : current;
         const apply = item => item === null && hasTarget
             ? null
-            : Object.fromEntries(node.fields.map((field, index) => [field.name ?? Names.inferField(field.value), this.#evaluate(field.value, `${pointer}/fields/${index}/value`, item)]));
+            : Object.fromEntries(node.fields.map(field => [field.name ?? Names.inferField(field.value), this.#evaluate(field.value, item)]));
 
         if (!(hasTarget && Array.isArray(target))) {
             return apply(target);
@@ -551,6 +552,11 @@ export class QueryEvaluator {
 
     #fail(message, pointer) {
         throw DomqlError.evaluation(message, this.#locate(pointer));
+    }
+
+    /** Where the node stands in the definition, as a JSON Pointer. */
+    #pointerOf(node) {
+        return this.#resolvedDefinition.pointerOf(node);
     }
 
     #locate(pointer) {

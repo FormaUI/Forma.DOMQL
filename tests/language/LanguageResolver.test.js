@@ -361,6 +361,20 @@ describe('LanguageResolver', () => {
             expect(resolved.getResolution('/query/test/operands/1/operands/1').predicate.name).toBe('focused');
         });
 
+        it('find each node, by the node itself, with its pointer and its resolution', () => {
+            const resolved = resolve('@panel.all("i") { h: size.height, on: is "attached" or "focused" }');
+            const { query } = resolved.definition;
+            const [height, on] = query.fields.map(field => field.value);
+
+            expect(resolved.pointerOf(query.target)).toBe('/query/target');
+            expect(resolved.resolutionOf(query.target).declaration.name).toBe('all');
+            expect(resolved.pointerOf(height.target)).toBe('/query/fields/0/value/target');
+            expect(resolved.resolutionOf(height).kind).toBe('field');
+            expect(resolved.pointerOf(on.test.operands[1])).toBe('/query/fields/1/value/test/operands/1');
+            expect(resolved.resolutionOf(on.test.operands[1]).predicate.name).toBe('focused');
+            expect(resolved.resolutionOf(query)).toBeUndefined();
+        });
+
         it('validate a branch that evaluation might never reach', () => {
             const error = failure('@panel is "attached" or "nonsense"');
 
