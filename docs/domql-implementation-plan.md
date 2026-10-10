@@ -14,10 +14,11 @@ Each item is what exists and what checks it.
 - **Watching.** `Domql.watch` evaluates a query, reports its snapshot, and evaluates again when what the result depends on changes, at the next animation frame or in the task that reported the change, reporting a snapshot that differs and sharing the branches of the last that did not. A watch follows the document, keeps its dependencies through a failed evaluation, recovers, and is refreshed and disposed through its handle. Checked by the tests of watches and of comparing snapshots, in a simulated DOM, and in Chromium by a watch of a size and of a maintained member.
 - **Subscribing.** `Domql.subscribe` answers an event listener, which starts a subscription's occurrence source in the call and, at each occurrence, captures the fields its event type declares and evaluates the shape that follows the source, inside the source's delivery, handing the immutable result to its callback. A maintained member answers its latest sample, or null while it is pending, and is never waited for; the event listener keeps the sessions its last successful projection read, keeps them through a projection that fails, and lets go of everything when disposed. Checked by the tests of projection and of event listeners, in a simulated DOM, and in Chromium by an event listener of clicks and of a maintained member across occurrences.
 - **Actions and behaviors.** `Domql.runAsync` runs an action once, after evaluating its receiver and arguments, and answers a promise of its result, checked against the type the action declares and shaped by a shape that follows it; a signal cancels it, and nothing an action changed is undone. `Domql.activate` puts a behavior into effect in the call and answers a `DomqlBehavior`, whose `update` replaces its bindings whole, validating them before anything changes, and whose `dispose` ends it once. Checked by the tests of resolving actions and behaviors, of `runAsync`, and of behaviors, in a simulated DOM, and by the README's examples.
+- **Live state.** A watch with `updateStrategy: 'liveState'` keeps its result as one object, updated in place by the change sets between its snapshots, so the root and every object and list beneath it keep their identity, and an item of a list projected from elements keeps its object as it moves. Its callback receives the object and the change set just applied; a failed evaluation leaves the object as it was. Checked by the tests of applying change sets in place, of live state, and of watches that keep it, in a simulated DOM, and by the README's example.
 - **Change sets.** A watch that delivers change sets sends a baseline and then JSON Patch change sets, each acknowledged before the next is computed against the state it established, and recovers with a baseline of a new generation that nothing earlier can affect. Lists projected from elements change by element, through identities kept beside the result. A current snapshot applies each update atomically and gives a stale one no effect. Checked by the tests of computing and of applying change sets, each against expected patches and results and together, of the dispatcher and the current snapshot, and of watches delivering to a receiver.
 - **The package.** The bundle, with its TypeScript declarations checked against `Domql` and against a TypeScript caller; the READMEs' examples run as tests.
 
-What is not built: live state, the fluent builder, the C# half and editor tooling.
+What is not built: the fluent builder, the C# half and editor tooling.
 
 ## Decisions
 
@@ -66,7 +67,7 @@ State: **done.** Built in its chosen form by step 2.
 - **Update strategies.** A snapshot is immutable and never changes once delivered. A change set is relative to the state it was computed against. Live state is one object with a stable identity, updated in place, so it is chosen explicitly and is never a snapshot. Each update to live state is fully applied before its callback begins; a consumer that is asynchronous and needs to retain one version chooses snapshots, since live state can change while it waits.
 - **An event listener.** It delivers the result of each event's projection through its callback, `onEvent`, with the same callback, failure and disposal rules.
 
-State: **accepted.** Built by steps 3 to 5, with the departures each records, except live state, which step 7 builds.
+State: **done.** Built by steps 3 to 5 and 7, with the departures each records.
 
 ### D4. What DOMQL owns and what a host owns
 
@@ -131,6 +132,30 @@ Operations were kebab-case in a query, `attribute-of`, and camelCase in the flue
 - **Alternative:** camelCase for the built-in members only, keeping hyphens in the grammar and the builder name in declarations. It leaves two spellings a module could choose between, and a conversion the builder would have to make.
 
 The specification's revision 1.0.7 defines it. State: **done.**
+
+### D8. How a caller holds live state
+
+D3 accepts live state as the third update strategy: one object with a stable identity, updated in place, chosen explicitly and never a snapshot. How a caller chooses it, what its callback receives and what keeps its identity are this decision's.
+
+```js
+const watch = Domql.watch('@panel { count: children.count, items: all("[data-key]") { key: attributeOf "data-key" } }', { panel }, {
+    updateStrategy: 'liveState',
+    onChange: (state, changes) => render(state, changes)
+});
+
+watch.liveState; // The same object onChange receives, every time.
+```
+
+- **Chosen: an update strategy.** `updateStrategy: 'liveState'` chooses it, beside `snapshot` and `changeSet`, so it is explicit and a watch delivers one kind of update. Its configuration is a `DomqlWatchLiveStateConfiguration<T>`, as change sets have their own.
+- **What the callback receives.** `onChange(state, changes)`: the live object, the same one at every call, and the change set that was just applied to it, as the JSON Patch operations a change-set watch would send. A caller that renders the whole object ignores the changes; one that patches a view of its own reads them. The first call is the baseline: the object as first built, and an empty change set.
+- **What has a stable identity.** The root, and every object and list beneath it while its path holds an object or a list: a field that changes is set on the object that holds it, an item added, removed or moved changes the list in place, and an item of a list projected from elements keeps its object as it moves, as change sets move it by element. A branch is a new object only where its value stops being one, as when a field turns from an object to null and back.
+- **What it can hold.** The result must be a shape or a list that is not nullable, since null has no identity to keep; a watch over another result is refused with a validation error that suggests a top-level shape, which the README already recommends where a target may be null. Its values are data, as every result is.
+- **Ownership.** The object belongs to the watch, which writes it; a caller reads it and never writes it, and the declarations type it as read-only. It is not frozen, since the watch updates it, and a caller that keeps a version copies it or chooses snapshots.
+- **Timing and failure.** Each change set is applied whole before `onChange` begins, in the evaluation that produced it. A failed evaluation leaves the object as it was, reports to `onError` and sets the watch's status to `failed`, as for every strategy; the next successful one brings the object up to date in one change set. A watch disposed stops changing the object, and the caller keeps it as it last was.
+- **The handle.** `watch.liveState` is the live object, beside `lastSnapshot`, which still answers an immutable snapshot of the same result; a watch of another strategy has no live state.
+- **Alternative:** a store with `get()` and `subscribe()`, as some frameworks expect. It gives no stable object to bind to, which is what live state is for, and a caller can build one on top of this.
+
+State: **done.** Built by step 7.
 
 ## Steps
 
@@ -204,9 +229,9 @@ Run an action once and receive its result, and activate, update and dispose of a
 
 Deliver a watch's result as live state: one object with a stable identity that the watch updates in place, the third update strategy D3 accepts. It is chosen explicitly and is never a snapshot, and each update is fully applied before its callback begins.
 
-- **Needs:** steps 3 and 4, D3, and a decision of its own on how a caller chooses it and what an update tells the callback.
+- **Needs:** steps 3 and 4, D3, D8.
 - **Done when:** a watch that delivers live state keeps one object current through every change a snapshot or a change set would report, including lists that are reordered and items that come and go, applies each change before the callback sees it, and reports a failed evaluation without changing the state.
-- **State:** not started.
+- **State:** done. Where it adds to D8: the change sets live state applies are the ones a change-set watch would send, computed against the snapshot the object was last brought to, and `lastSnapshot` still reports the immutable result a snapshot watch would.
 
 ### 8. The fluent builder
 

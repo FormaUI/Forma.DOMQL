@@ -646,6 +646,129 @@ describe('Watch', () => {
         });
     });
 
+    describe('keeping live state', () => {
+        /** A watch that keeps its result as live state, recording each object and change set its callback receives, and what the object held at that moment. */
+        const watchLive = (text, bindings) => {
+            const calls = [];
+            const watched = watch(text, bindings, {
+                updateStrategy: 'liveState',
+                onChange: (state, changes) => calls.push({ state, changes, seen: JSON.parse(JSON.stringify(state)) }),
+            });
+
+            return { watched, calls };
+        };
+
+        it('hands its callback one object, kept current in place, with the change set just applied to it', async () => {
+            const { watched, calls } = watchLive('@panel { n: attributeOf "data-n", rows: children { n: attributeOf "data-n" } }', { panel });
+
+            await settle();
+            await change(panel.children[1], 7);
+
+            expect(calls).toHaveLength(2);
+            expect(calls[0].changes).toEqual([]);
+            expect(calls[1].state).toBe(calls[0].state);
+            expect(calls[1].changes).toEqual([{ op: 'replace', path: '/rows/1/n', value: '7' }]);
+            expect(calls[1].seen).toEqual({ n: '1', rows: [{ n: '1' }, { n: '7' }] });
+            expect(watched.liveState).toBe(calls[0].state);
+            expect(watched.lastSnapshot).toEqual(calls[1].seen);
+            expect(Object.isFrozen(watched.lastSnapshot)).toBe(true);
+        });
+
+        it('keeps the object of each item as its element moves, and adds and removes items in place', async () => {
+            const [first, second] = panel.children;
+            const { watched } = watchLive('{ rows: @panel.children { n: attributeOf "data-n" } }', { panel });
+
+            await settle();
+
+            const { rows } = watched.liveState;
+            const [rowOfFirst, rowOfSecond] = rows;
+            const added = document.createElement('i');
+
+            added.setAttribute('data-n', '3');
+            panel.insertBefore(second, first);
+            panel.append(added);
+            await settle();
+
+            expect(watched.liveState.rows).toBe(rows);
+            expect(rows).toEqual([{ n: '2' }, { n: '1' }, { n: '3' }]);
+            expect(rows[0]).toBe(rowOfSecond);
+            expect(rows[1]).toBe(rowOfFirst);
+
+            first.remove();
+            await settle();
+
+            expect(rows).toEqual([{ n: '2' }, { n: '3' }]);
+            expect(rows[0]).toBe(rowOfSecond);
+        });
+
+        it('puts each element\'s object back in its place after a reorder that changed no data, once a change follows', async () => {
+            const [first, second] = panel.children;
+
+            first.setAttribute('data-n', '0');
+            second.setAttribute('data-n', '0');
+
+            const { watched } = watchLive('{ rows: @panel.children { n: attributeOf "data-n" } }', { panel });
+
+            await settle();
+
+            const { rows } = watched.liveState;
+            const rowOfSecond = rows[1];
+
+            // The elements swap, which leaves the result as it was, and then the second one changes.
+            panel.insertBefore(second, first);
+            await settle();
+            second.setAttribute('data-n', '5');
+            await settle();
+
+            expect(rows).toEqual([{ n: '5' }, { n: '0' }]);
+            expect(rows[0]).toBe(rowOfSecond);
+        });
+
+        it('leaves the object as it was through a failed evaluation, and brings it up to date in one change set on recovery', async () => {
+            const { watched, calls } = watchLive('{ n: @panel.flaky, m: @panel.attributeOf("data-n") }', { panel });
+
+            await settle();
+            broken = true;
+            await change(panel, 4);
+
+            expect(watched.status).toBe('failed');
+            expect(watched.liveState).toEqual({ n: 1, m: '1' });
+            expect(failures.length).toBeGreaterThan(0);
+
+            broken = false;
+            await change(panel, 5);
+
+            expect(watched.liveState).toEqual({ n: 5, m: '5' });
+            expect(calls.at(-1).changes).toEqual([{ op: 'replace', path: '/n', value: 5 }, { op: 'replace', path: '/m', value: '5' }]);
+        });
+
+        it('stops changing the object once disposed, and the caller keeps it as it last was', async () => {
+            const { watched } = watchLive('{ n: @panel.attributeOf("data-n") }', { panel });
+
+            await settle();
+
+            const state = watched.liveState;
+
+            watched.dispose();
+            await change(panel, 9);
+
+            expect(state).toEqual({ n: '1' });
+        });
+
+        it('is refused for a result that is no shape or list, or that can be null', () => {
+            expect(() => watch('@panel.attributeOf("data-n")', { panel }, { updateStrategy: 'liveState' })).toThrow(expect.objectContaining({ kind: 'validation', message: expect.stringContaining('Live state keeps one object current') }));
+            expect(() => watch('@item { n: attributeOf "data-n" }', { item: isolated.bind(null, 'element?') }, { updateStrategy: 'liveState' })).toThrow(expect.objectContaining({ kind: 'validation', message: expect.stringContaining('put it in a top-level shape') }));
+        });
+
+        it('is held only by a watch that keeps live state', async () => {
+            const watched = watch('{ n: @panel.attributeOf("data-n") }', { panel });
+
+            await settle();
+
+            expect(watched.liveState).toBeNull();
+        });
+    });
+
     describe('a query that is watched', () => {
         it('is refused when a member only partly observes its changes, unless the watch accepts that', () => {
             const query = isolated.parse('@panel.rect', { panel });

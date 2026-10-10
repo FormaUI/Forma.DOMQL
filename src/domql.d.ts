@@ -70,6 +70,17 @@ export interface DomqlWatchChangeSetConfiguration<T = unknown> extends Omit<Domq
     onChange: (update: DomqlSnapshotUpdate<T>) => unknown;
 }
 
+/** A value seen through read-only types all the way down, as the live state a watch keeps is to the caller that holds it. */
+export type DomqlReadOnly<T> = T extends readonly (infer I)[] ? readonly DomqlReadOnly<I>[] : T extends object ? { readonly [K in keyof T]: DomqlReadOnly<T[K]> } : T;
+
+/** How a query is watched when its result is kept as live state: one object the watch keeps current in place, which keeps its identity. */
+export interface DomqlWatchLiveStateConfiguration<T = unknown> extends Omit<DomqlWatchConfiguration<T>, 'onChange' | 'updateStrategy'> {
+    /** Keeps one object current in place; the result must be a shape or a list that is never null. */
+    updateStrategy: 'liveState';
+    /** Receives the live object, the same at every call, and the change set just applied to it, which is empty at the first call. The object is the watch's: the caller reads it and never writes it. */
+    onChange: (state: DomqlReadOnly<T>, changes: readonly DomqlChangeOperation[]) => unknown;
+}
+
 /** How an event listener listens to a subscription. */
 export interface DomqlSubscribeConfiguration<T = unknown> {
     /** Receives the result of each event's projection, immutable data, in the task the event is delivered in. What it returns is not awaited. */
@@ -133,6 +144,8 @@ export interface DomqlWatch<T = unknown> {
     readonly status: 'pending' | 'ready' | 'failed' | 'disposed';
     /** The snapshot last reported, null before the first and where the snapshot itself is null; read beside the status. */
     readonly lastSnapshot: T | null;
+    /** The object a watch that delivers live state keeps current, the same from the first snapshot on; null before it, and for a watch of another strategy. */
+    readonly liveState: DomqlReadOnly<T> | null;
     /** Evaluates now, and settles once the evaluation has completed and the snapshot it produced, if it differs, has been handed to the callback. Rejects with the failure of its evaluation, resolves without delivering where disposal cancels it, and rejects after disposal. */
     refreshAsync(): Promise<void>;
     /** Ends the watch: cancels what it scheduled, disposes every observation session and prevents any new callback invocation. A callback already running may finish. */
@@ -396,11 +409,17 @@ export declare class Domql {
     /** Watches a query given as its text, delivering a baseline and then the change sets between its snapshots. Pass `{}` as the bindings of a text that has none. */
     static watch<T = unknown>(text: string, bindings: DomqlBindings, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
 
+    /** Watches a query given as its text, keeping its result as live state: one object kept current in place. Pass `{}` as the bindings of a text that has none. */
+    static watch<T = unknown>(text: string, bindings: DomqlBindings, configuration: DomqlWatchLiveStateConfiguration<T>): DomqlWatch<T>;
+
     /** Watches a query: reports its snapshot, and a snapshot that differs each time something it depends on changes. */
     static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchConfiguration<T>): DomqlWatch<T>;
 
     /** Watches a query, delivering a baseline and then the change sets between its snapshots. */
     static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchChangeSetConfiguration<T>): DomqlWatch<T>;
+
+    /** Watches a query, keeping its result as live state: one object kept current in place. */
+    static watch<T = unknown>(query: DomqlQuery, configuration: DomqlWatchLiveStateConfiguration<T>): DomqlWatch<T>;
 
     /** Subscribes to an event source given as its text and passes each projected result to `onEvent`. Listening starts in the call. Pass `{}` as the bindings of a text that has none. */
     static subscribe<T = unknown>(text: string, bindings: DomqlBindings, configuration: DomqlSubscribeConfiguration<T>): DomqlEventListener<T>;

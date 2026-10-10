@@ -1,6 +1,6 @@
 // How a TypeScript caller uses DOMQL, which the declarations must accept; the test compiles this file.
 import { Domql } from '../../src/domql.js';
-import type { DomqlBehavior, DomqlDefinitionNode, DomqlError, DomqlEventListener, DomqlModule, DomqlCurrentSnapshot, DomqlReadAsyncOptions, DomqlSubscribeConfiguration, DomqlWatch, DomqlWatchChangeSetConfiguration, DomqlWatchConfiguration, DomqlModuleContents, DomqlModuleFunctions, DomqlPredicateNames, DomqlResolvedDefinition, DomqlSnapshotBaseline, DomqlSnapshotChangeSet, DomqlSnapshotUpdate } from '../../src/domql.js';
+import type { DomqlBehavior, DomqlChangeOperation, DomqlDefinitionNode, DomqlReadOnly, DomqlError, DomqlEventListener, DomqlModule, DomqlCurrentSnapshot, DomqlReadAsyncOptions, DomqlSubscribeConfiguration, DomqlWatch, DomqlWatchChangeSetConfiguration, DomqlWatchConfiguration, DomqlModuleContents, DomqlModuleFunctions, DomqlPredicateNames, DomqlResolvedDefinition, DomqlSnapshotBaseline, DomqlSnapshotChangeSet, DomqlSnapshotUpdate } from '../../src/domql.js';
 
 const panel = document.createElement('div');
 
@@ -154,6 +154,21 @@ Domql.parse(42);
 // @ts-expect-error A member is one of the kinds the language has.
 Domql.createModule('bad', { members: [{ name: 'bad', function: 'bad', kind: 'method', on: 'element', result: 'number', changes: 'constant', reads: 'fresh' }] });
 
+// Live state is one object the watch keeps current, which the caller reads and never writes.
+const living: DomqlWatch<{ rows: { key: string }[] }> = Domql.watch<{ rows: { key: string }[] }>('{ rows: @panel.children { key: attributeOf "data-key" } }', { panel }, {
+    updateStrategy: 'liveState',
+    onChange: (state, changes) => {
+        const first: string | undefined = state.rows[0]?.key;
+        const applied: readonly DomqlChangeOperation[] = changes;
+
+        // @ts-expect-error Live state is read-only to the caller that holds it.
+        state.rows[0].key = 'changed';
+
+        return [first, applied];
+    },
+});
+const held: DomqlReadOnly<{ rows: { key: string }[] }> | null = living.liveState;
+
 // An action runs once and promises its result; a behavior is in effect until its handle is disposed.
 const moved: Promise<boolean> = Domql.runAsync<boolean>('@panel.step("forward")', { panel }, { window, signal: new AbortController().signal });
 const stepped: Promise<boolean> = Domql.runAsync<boolean>(query, { window });
@@ -181,4 +196,4 @@ Domql.watch<number>(query, changeSetWatching);
 Domql.subscribe<{ key: string }>('@panel.eventsOf("keydown") { key }', { panel }, subscribing);
 Domql.readAsync(query, reading);
 
-export { count, anything, kind, typeText, listening, sourceFunctions, moved, stepped, trapping };
+export { count, anything, kind, typeText, listening, sourceFunctions, moved, stepped, trapping, held };

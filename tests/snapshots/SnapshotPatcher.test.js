@@ -164,24 +164,92 @@ describe('SnapshotPatcher', () => {
         });
     });
 
+    /** A copy that is mutable throughout, as live state is. */
+    const thaw = value => JSON.parse(JSON.stringify(value));
+
+    const roundTrips = [
+        ['fields, nulls and positional lists', freeze({ a: 1, b: { c: [1, 2] }, d: null }), null, freeze({ a: 2, b: { c: [2] }, d: { e: 'x' } }), null],
+        ['a projected list reordered, updated, grown and shrunk at once', ...(() => {
+            const [a, b, c, d, e] = elements('a', 'b', 'c', 'd', 'e');
+
+            return [
+                freeze({ rows: [{ k: 'a', n: 1 }, { k: 'b', n: 2 }, { k: 'c', n: 3 }, { k: 'd', n: 4 }] }), rowsOf([a, b, c, d]),
+                freeze({ rows: [{ k: 'd', n: 4 }, { k: 'e', n: 5 }, { k: 'b', n: 20 }, { k: 'a', n: 1 }] }), rowsOf([d, e, b, a]),
+            ];
+        })()],
+        ['projected items that hold the same data', ...(() => {
+            const [a, b, c] = elements('a', 'b', 'c');
+
+            return [freeze({ rows: [{ x: 0 }, { x: 0 }, { x: 0 }] }), rowsOf([a, b, c]), freeze({ rows: [{ x: 0 }, { x: 1 }, { x: 0 }] }), rowsOf([c, a, b])];
+        })()],
+    ];
+
     describe('between, then apply', () => {
-        it.each([
-            ['fields, nulls and positional lists', freeze({ a: 1, b: { c: [1, 2] }, d: null }), null, freeze({ a: 2, b: { c: [2] }, d: { e: 'x' } }), null],
-            ['a projected list reordered, updated, grown and shrunk at once', ...(() => {
-                const [a, b, c, d, e] = elements('a', 'b', 'c', 'd', 'e');
-
-                return [
-                    freeze({ rows: [{ k: 'a', n: 1 }, { k: 'b', n: 2 }, { k: 'c', n: 3 }, { k: 'd', n: 4 }] }), rowsOf([a, b, c, d]),
-                    freeze({ rows: [{ k: 'd', n: 4 }, { k: 'e', n: 5 }, { k: 'b', n: 20 }, { k: 'a', n: 1 }] }), rowsOf([d, e, b, a]),
-                ];
-            })()],
-            ['projected items that hold the same data', ...(() => {
-                const [a, b, c] = elements('a', 'b', 'c');
-
-                return [freeze({ rows: [{ x: 0 }, { x: 0 }, { x: 0 }] }), rowsOf([a, b, c]), freeze({ rows: [{ x: 0 }, { x: 1 }, { x: 0 }] }), rowsOf([c, a, b])];
-            })()],
-        ])('give the next result when the change set is applied to the previous one: %s', (_, previous, previousIdentities, next, nextIdentities) => {
+        it.each(roundTrips)('give the next result when the change set is applied to the previous one: %s', (_, previous, previousIdentities, next, nextIdentities) => {
             expect(SnapshotPatcher.apply(previous, SnapshotPatcher.between(previous, previousIdentities, next, nextIdentities))).toEqual(next);
+        });
+
+        it.each(roundTrips)('give the next result when the change set is applied in place to the previous one: %s', (_, previous, previousIdentities, next, nextIdentities) => {
+            const state = thaw(previous);
+
+            SnapshotPatcher.applyInPlace(state, SnapshotPatcher.between(previous, previousIdentities, next, nextIdentities));
+
+            expect(state).toEqual(next);
+        });
+    });
+
+    describe('applyInPlace', () => {
+        it('changes the state itself, and every object and list the change set reaches into stays the same object', () => {
+            const state = thaw({ panel: { size: { width: 10 } }, ids: [1, 2] });
+            const { panel, ids } = state;
+
+            SnapshotPatcher.applyInPlace(state, [{ op: 'replace', path: '/panel/size/width', value: 12 }, { op: 'add', path: '/ids/2', value: 3 }]);
+
+            expect(state).toEqual({ panel: { size: { width: 12 } }, ids: [1, 2, 3] });
+            expect(state.panel).toBe(panel);
+            expect(state.ids).toBe(ids);
+        });
+
+        it('moves an item itself, so it keeps its identity', () => {
+            const state = thaw({ rows: [{ k: 'a' }, { k: 'b' }] });
+            const [first, second] = state.rows;
+
+            SnapshotPatcher.applyInPlace(state, [{ op: 'move', from: '/rows/1', path: '/rows/0' }]);
+
+            expect(state.rows[0]).toBe(second);
+            expect(state.rows[1]).toBe(first);
+        });
+
+        it('brings a value in as mutable data that nothing else holds', () => {
+            const value = freeze({ k: 'c' });
+            const state = thaw({ rows: [] });
+
+            SnapshotPatcher.applyInPlace(state, [{ op: 'add', path: '/rows/0', value }]);
+
+            expect(state.rows[0]).toEqual(value);
+            expect(state.rows[0]).not.toBe(value);
+            expect(Object.isFrozen(state.rows[0])).toBe(false);
+        });
+
+        it('replaces the whole result in the state itself, which keeps its kind', () => {
+            const object = { a: 1, b: 2 };
+            const list = [1, 2, 3];
+
+            SnapshotPatcher.applyInPlace(object, [{ op: 'replace', path: '', value: freeze({ c: 3 }) }]);
+            SnapshotPatcher.applyInPlace(list, [{ op: 'replace', path: '', value: freeze([4]) }]);
+
+            expect(object).toEqual({ c: 3 });
+            expect(list).toEqual([4]);
+            expect(() => SnapshotPatcher.applyInPlace({ a: 1 }, [{ op: 'replace', path: '', value: [1] }])).toThrow(TypeError);
+        });
+
+        it.each([
+            ['a path past the end of a list', [{ op: 'replace', path: '/rows/3', value: 1 }]],
+            ['a field the result does not hold', [{ op: 'replace', path: '/missing', value: 1 }]],
+            ['the removal of the whole result', [{ op: 'remove', path: '' }]],
+            ['an operation a change set does not have', [{ op: 'copy', from: '/rows/0', path: '/rows/1' }]],
+        ])('refuses %s', (_, operations) => {
+            expect(() => SnapshotPatcher.applyInPlace(thaw({ rows: [{ k: 'a' }] }), operations)).toThrow(TypeError);
         });
     });
 });

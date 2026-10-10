@@ -15,7 +15,7 @@ Available now:
 - Resolve queries without reading the DOM.
 - Perform synchronous one-shot reads and receive immutable data snapshots.
 - Wait for values the browser keeps, such as `intersects`, with `readAsync`.
-- Watch a query and receive a snapshot each time its result changes.
+- Watch a query and receive a snapshot each time its result changes, change sets between them, or one object kept current in place.
 - Subscribe to events and receive the projection of each one.
 - Run actions once and activate behaviors that stay in effect until disposed.
 - Extend the vocabulary through modules.
@@ -142,6 +142,26 @@ watch.dispose();
 ```
 
 A watch evaluates again on its own at the next animation frame after something it reads changes. `refreshAsync` evaluates now and settles once the snapshot has been handed to `onChange`, which is how the example waits between its steps. `dispose` ends the watch and lets go of its observations. Pass `onError` to hear of a failed evaluation or a failing callback; the watch keeps running.
+
+A watch can also keep its result as live state: one object it updates in place, which `onChange` receives every time with the change set just applied to it, and `watch.liveState` holds. Objects and lists inside it keep their identity, and an item of a list projected from elements keeps its object as it moves:
+
+```js
+const live = Domql.watch('{ count: @panel.children.count }', { panel: emptyPanel }, {
+    updateStrategy: 'liveState',
+    onChange: state => console.log(state.count)
+});
+
+await live.refreshAsync();
+// 1
+
+emptyPanel.append(document.createElement('div'));
+await live.refreshAsync();
+// 2
+
+live.dispose();
+```
+
+The object belongs to the watch, so read it and never write it, and copy it or watch snapshots where a version must be kept. Its result is a shape or a list that is never null, since null has no identity to keep.
 
 ## Subscribe to events
 
@@ -297,7 +317,7 @@ Keep independent results in a top-level shape when one target may be null. Writi
 | `Domql.read(text, bindings, options)`, `Domql.read(query, options)` | Read once, optionally using an explicitly supplied `window`. A member kept by an observation, such as `intersects`, fails it. |
 | `Domql.readAsync(text, bindings, options)`, `Domql.readAsync(query, options)` | Read once, waiting for the first sample of every member kept by an observation. Returns a promise; `signal` cancels it, and the `window` is optional. |
 | `Domql.createModule(name, contents, functions)` | Create an extension module. |
-| `Domql.watch(text, bindings, configuration)`, `Domql.watch(query, configuration)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs. Returns a handle with `status`, `lastSnapshot`, `refreshAsync()` and `dispose()`. |
+| `Domql.watch(text, bindings, configuration)`, `Domql.watch(query, configuration)` | Keep a query's result current: `onChange` receives a snapshot, then each snapshot that differs; `updateStrategy` chooses change sets or live state instead. Returns a handle with `status`, `lastSnapshot`, `liveState`, `refreshAsync()` and `dispose()`. |
 | `Domql.subscribe(text, bindings, configuration)`, `Domql.subscribe(query, configuration)` | Subscribe to an event source: `onEvent` receives each projected result, evaluated as the event is dispatched. Returns an event listener with `status` and `dispose()`. |
 | `Domql.createSnapshot()` | Create the current snapshot a watch with `updateStrategy: 'changeSet'` builds: `apply(update)` applies a baseline or a change set atomically and answers `accepted`, `stale` or `failed`, which the host reports to the watch through `acknowledge(update)` or `recover()`, and `value` is the snapshot last accepted. |
 | `Domql.runAsync(text, bindings, options)`, `Domql.runAsync(query, options)` | Run an action once. Returns a promise of its result, shaped by a shape that follows the action; `signal` cancels it, and what the action changed stays changed. |

@@ -45,6 +45,132 @@ export class SnapshotPatcher {
         return operations.reduce((current, operation) => SnapshotPatcher.#applyOne(current, operation), state);
     }
 
+    /**
+     * Applies the operations in order to the target itself, which keeps its identity, as does every object and list an operation reaches into or moves; a value an operation brings is copied as mutable data.
+     * An operation that replaces the whole result changes the target's contents in place, since the target is the one object that stays.
+     * @param {object} target The mutable result the change set was computed against, which becomes the result it gives.
+     * @param {ChangeOperation[]} operations The change set.
+     */
+    static applyInPlace(target, operations) {
+        for (const operation of operations) {
+            const path = SnapshotPatcher.#parse(operation.path);
+
+            switch (operation.op) {
+                case 'replace':
+                case 'add':
+                    SnapshotPatcher.#put(target, path, operation.op, SnapshotPatcher.#thaw(operation.value));
+                    break;
+                case 'remove':
+                    SnapshotPatcher.#take(target, path);
+                    break;
+                case 'move':
+                    // The item itself moves, so it keeps its identity.
+                    SnapshotPatcher.#put(target, path, 'add', SnapshotPatcher.#take(target, SnapshotPatcher.#parse(operation.from)));
+                    break;
+                default:
+                    throw new TypeError(`'${operation.op}' is no change set operation: replace, add, remove or move`);
+            }
+        }
+    }
+
+    /** Puts the value at the end of the path, inside the containers the path reaches, which stay as they are. */
+    static #put(target, path, kind, value) {
+        if (path.length === 0) {
+            SnapshotPatcher.#replaceContents(target, value);
+
+            return;
+        }
+
+        const parent = SnapshotPatcher.#read(target, path.slice(0, -1));
+        const token = path.at(-1);
+
+        if (Array.isArray(parent)) {
+            const index = token === '-' && kind === 'add' ? parent.length : SnapshotPatcher.#index(token);
+
+            if (index > (kind === 'add' ? parent.length : parent.length - 1)) {
+                throw new TypeError(`The path reaches past the end of a list, at '${token}'`);
+            }
+
+            if (kind === 'add') {
+                parent.splice(index, 0, value);
+            } else {
+                parent[index] = value;
+            }
+
+            return;
+        }
+
+        if (!SnapshotPatcher.#isRecord(parent) || (kind === 'replace' && !Object.hasOwn(parent, token))) {
+            throw new TypeError(`The path names '${token}', which the result does not hold`);
+        }
+
+        parent[token] = value;
+    }
+
+    /** Takes the value at the end of the path out of the container that holds it, and returns it. */
+    static #take(target, path) {
+        if (path.length === 0) {
+            throw new TypeError('A change set cannot remove the whole result');
+        }
+
+        const parent = SnapshotPatcher.#read(target, path.slice(0, -1));
+        const token = path.at(-1);
+
+        if (Array.isArray(parent)) {
+            const index = SnapshotPatcher.#index(token);
+
+            if (index >= parent.length) {
+                throw new TypeError(`The path reaches past the end of a list, at '${token}'`);
+            }
+
+            return parent.splice(index, 1)[0];
+        }
+
+        if (!SnapshotPatcher.#isRecord(parent) || !Object.hasOwn(parent, token)) {
+            throw new TypeError(`The path names '${token}', which the result does not hold`);
+        }
+
+        const value = parent[token];
+
+        delete parent[token];
+
+        return value;
+    }
+
+    /** Makes the target hold the value's contents, keeping the target itself; a list stays a list and an object an object. */
+    static #replaceContents(target, value) {
+        if (Array.isArray(target) && Array.isArray(value)) {
+            target.splice(0, target.length, ...value);
+
+            return;
+        }
+
+        if (SnapshotPatcher.#isRecord(target) && SnapshotPatcher.#isRecord(value)) {
+            for (const name of Object.keys(target)) {
+                delete target[name];
+            }
+
+            Object.assign(target, value);
+
+            return;
+        }
+
+        throw new TypeError('The whole result keeps its kind, a list or an object, in place');
+    }
+
+    /** The value as mutable data: a copy throughout, which nothing else holds. */
+    static #thaw(value) {
+        if (Array.isArray(value)) {
+            return value.map(item => SnapshotPatcher.#thaw(item));
+        }
+
+        if (SnapshotPatcher.#isRecord(value)) {
+            return Object.fromEntries(Object.entries(value).map(([name, field]) => [name, SnapshotPatcher.#thaw(field)]));
+        }
+
+        return value;
+    }
+
     static #compare(previous, previousIdentities, next, nextIdentities, path, operations) {
         if (Object.is(previous, next)) {
             return;

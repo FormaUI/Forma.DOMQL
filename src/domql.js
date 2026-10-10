@@ -57,10 +57,10 @@ import { TypedBinding } from './language/TypedBinding.mjs';
 /**
  * How a query is watched.
  * @typedef {object} DomqlWatchConfiguration
- * @property {(update: unknown) => unknown} onChange Receives each snapshot, which shares what did not change with the snapshot before it, or, where the watch delivers change sets, each baseline and change set. What it returns is not awaited.
+ * @property {(update: unknown, changes?: readonly object[]) => unknown} onChange Receives each snapshot, which shares what did not change with the snapshot before it; where the watch delivers change sets, each baseline and change set; and where it delivers live state, the live object and the change set just applied to it. What it returns is not awaited.
  * @property {(error: unknown) => unknown} [onError] Receives a failure of an evaluation and of `onChange`; by default they go to the window's error reporting.
  * @property {'frame' | 'immediate'} [schedule] When an evaluation follows a change: at the next animation frame, once however many observations fired, or in the task that reported it.
- * @property {'snapshot' | 'changeSet'} [updateStrategy] What `onChange` receives: each snapshot whole, or a baseline and then the change sets between snapshots, each acknowledged through the watch's `acknowledge` before the next is sent.
+ * @property {'snapshot' | 'changeSet' | 'liveState'} [updateStrategy] What `onChange` receives: each snapshot whole; a baseline and then the change sets between snapshots, each acknowledged through the watch's `acknowledge` before the next is sent; or one object the watch keeps current in place, which keeps its identity.
  * @property {boolean} [acceptPartialObservation] Whether the watch accepts a member whose observations only partly cover its changes.
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
  */
@@ -84,7 +84,7 @@ const ACTIVATE = { name: 'activate', kind: 'behavior', use: 'activated', trailin
 
 /** When a watch evaluates after a change, and what it delivers. */
 const WATCH_SCHEDULES = ['frame', 'immediate'];
-const WATCH_UPDATE_STRATEGIES = ['snapshot', 'changeSet'];
+const WATCH_UPDATE_STRATEGIES = ['snapshot', 'changeSet', 'liveState'];
 
 export class Domql {
     static #moduleRegistry = new ModuleRegistry([BrowserModule.create()]);
@@ -294,6 +294,11 @@ export class Domql {
         }
 
         const resolved = Domql.#resolveFor(WATCH, query, { watch: true, acceptPartialObservation: acceptPartialObservation === true });
+
+        // Live state is one object that keeps its identity, which null and a single value have none of.
+        if (updateStrategy === 'liveState' && (resolved.type.isNullable || (resolved.type.kind !== 'shape' && resolved.type.kind !== 'list'))) {
+            throw DomqlError.validation(`Live state keeps one object current, so its result is a shape or a list that is never null, and this one is ${resolved.type}; put it in a top-level shape`, ParsedTexts.locationsOf(query.definition)?.locate('/query') ?? { pointer: '/query' });
+        }
         const evaluator = Domql.#createEvaluator(query, resolved, window);
 
         if (schedule === 'frame' && typeof window.requestAnimationFrame !== 'function') {

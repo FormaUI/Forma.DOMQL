@@ -2,7 +2,7 @@
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how results and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
-This design describes the whole runtime. Reading a query once, watching it as snapshots or change sets, subscribing to events, running actions and activating behaviors are built; live state is not yet, and the [README](../README.md#status) states what this implementation covers.
+This design describes the whole runtime. Reading a query once, watching it as snapshots, change sets or live state, subscribing to events, running actions and activating behaviors are built; the fluent builder is not yet, and the [README](../README.md#status) states what this implementation covers.
 
 ## Scope
 
