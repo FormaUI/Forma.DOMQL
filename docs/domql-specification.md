@@ -1,4 +1,4 @@
-# DOMQL Specification v1.0.6
+# DOMQL Specification v1.0.7
 
 DOMQL is a small language for querying the DOM: a query names what its caller wants to know about a document and its elements, and evaluating it gives one answer shaped the way it asked. The same query is read once, watched for changes, or evaluated at each occurrence of something that happened in the document, and the actions and behaviors a caller asks the browser for are requests of their own kinds. The language knows how to name values and shape answers; what can be asked about, an element's size, a computed style, whether it matches a selector, comes from a vocabulary beside it, so adding to what can be asked never changes the language.
 
@@ -31,20 +31,20 @@ parameter = "@" name
 literal   = string | number | "true" | "false" | "null"
 ```
 
-A name is a letter followed by letters and digits, with single hyphens allowed between them, as in `matches-media`. `true`, `false` and `null` are reserved literal tokens, and `is`, `has`, `and` and `or` are reserved operators; none of them can be used as a name, and the restriction applies equally to text queries and to definitions created directly, wherever a name is declared or supplied: a member, a parameter, a field's name, a named argument, and an extension's or a predicate's declaration. A string holding one of them stays an ordinary string, so `attribute-of "null"` reads the attribute named `null`. `document` and `window` name the roots, and no parameter can take either. They are ordinary names everywhere else, so `window: @window { size }` names a field `window`. A string is double-quoted, with `\"` and `\\` as its escapes. A number is written as in JSON. Commas separate a shape's fields and a member's arguments, and a trailing comma after the last is allowed; whitespace, line breaks included, separates anything else. Outside a string, `//` starts a comment that runs to the end of its line, and `/*` starts one that runs to the next `*/`, across lines; a block comment does not nest, so the first `*/` closes it, and one never closed is a syntax error. Inside a string both are text, so `"https://example.com"` and `"/* */"` read as written.
+A name is a letter followed by letters and digits, as in `matchesMedia`; a name holds no hyphen, so every name is also a JavaScript identifier. `true`, `false` and `null` are reserved literal tokens, and `is`, `has`, `and` and `or` are reserved operators; none of them can be used as a name, and the restriction applies equally to text queries and to definitions created directly, wherever a name is declared or supplied: a member, a parameter, a field's name, a named argument, and an extension's or a predicate's declaration. A string holding one of them stays an ordinary string, so `attributeOf "null"` reads the attribute named `null`. `document` and `window` name the roots, and no parameter can take either. They are ordinary names everywhere else, so `window: @window { size }` names a field `window`. A string is double-quoted, with `\"` and `\\` as its escapes. A number is written as in JSON. Commas separate a shape's fields and a member's arguments, and a trailing comma after the last is allowed; whitespace, line breaks included, separates anything else. Outside a string, `//` starts a comment that runs to the end of its line, and `/*` starts one that runs to the next `*/`, across lines; a block comment does not nest, so the first `*/` closes it, and one never closed is a syntax error. Inside a string both are text, so `"https://example.com"` and `"/* */"` read as written.
 
 ```
 @viewport {
     // The viewport's width, and whether focus is within it.
     width: rect.width,
     hasFocus: matches(":focus-within"),
-    columns: all("[data-column]") { key: attribute-of("data-column"), width: rect.width }
+    columns: all("[data-column]") { key: attributeOf("data-column"), width: rect.width }
 }
 ```
 
 Arguments are given by position first, then by name; a member's signature names its parameters, and positional arguments bind to them in order.
 
-A member that starts a path can take its arguments without parentheses, as literals and parameters separated by whitespace, line breaks included, so `attribute-of "id"` and `first ".row"` are `attribute-of("id")` and `first(".row")`, with the same definitions. Such a **phrase** ends its path: to continue from its result, its arguments take parentheses, as in `first(".row").rect.height`. After a dot, a member's arguments always take parentheses, so `@sentinel.intersects(@panel, 200)` is written that way and `@sentinel.intersects @panel 200` is a syntax error saying so. The commas that separate a shape's fields end a phrase: `{ key: attribute-of "data-key", selected: matches ".x" }` has two fields. Named arguments and any argument that is more than a literal or a parameter take parentheses, as `intersects(root: @panel, margin: 200)`, `max(rect.height)` and `where(is "textEditable")` do. The boundaries are decided by the text alone, never by how many arguments an operation expects, so the grammar needs no vocabulary and every member of every vocabulary takes it alike.
+A member that starts a path can take its arguments without parentheses, as literals and parameters separated by whitespace, line breaks included, so `attributeOf "id"` and `first ".row"` are `attributeOf("id")` and `first(".row")`, with the same definitions. Such a **phrase** ends its path: to continue from its result, its arguments take parentheses, as in `first(".row").rect.height`. After a dot, a member's arguments always take parentheses, so `@sentinel.intersects(@panel, 200)` is written that way and `@sentinel.intersects @panel 200` is a syntax error saying so. The commas that separate a shape's fields end a phrase: `{ key: attributeOf "data-key", selected: matches ".x" }` has two fields. Named arguments and any argument that is more than a literal or a parameter take parentheses, as `intersects(root: @panel, margin: 200)`, `max(rect.height)` and `where(is "textEditable")` do. The boundaries are decided by the text alone, never by how many arguments an operation expects, so the grammar needs no vocabulary and every member of every vocabulary takes it alike.
 
 ## Names and resolution
 
@@ -63,7 +63,7 @@ Every parameter of a member is declared as one of two kinds, and the evaluator t
 - A **value argument** is evaluated once, where the call is written, against the same current value as the path it appears in. In `@viewport { first(".item").intersects(root: parent) }`, `parent` is the viewport's parent, not the item's. At the top level, where there is no current value, a value argument starts with a parameter, a literal or a shape: `@target.intersects(root: @target.parent)`.
 - An **expression argument** is evaluated by the member against a context the member's signature declares, such as each item of a list. In `@table.all("tbody tr").max(rect.height)`, `rect` is each row's.
 
-A value argument can be declared **fixed**, where it selects something validation needs before evaluation, such as the event type whose members `events-of` offers, the feature `supports` names or the member `get` reads. A fixed argument is a literal or a bound parameter, whose value is settled when the query is prepared; any other value is a validation error.
+A value argument can be declared **fixed**, where it selects something validation needs before evaluation, such as the event type whose members `eventsOf` offers, the feature `supports` names or the member `get` reads. A fixed argument is a literal or a bound parameter, whose value is settled when the query is prepared; any other value is a validation error.
 
 Because the kind is part of the signature, the evaluator validates every kind before evaluation and records the dependencies of value and expression arguments while it evaluates.
 
@@ -89,8 +89,7 @@ Because the kind is part of the signature, the evaluator validates every kind be
 
 Every name in DOMQL is case-sensitive, and nothing normalizes one: `size` and `Size` are different names, and so are `@panel` and `@Panel`. A name is resolved exactly as it is written, and each kind of name is spelled by its own convention:
 
-- **Operations** are named in lowercase kebab-case: `matches-media`, `attribute-of`, `events-of`.
-- **Properties** keep their declared spelling: `size`, `clientSize`, `grid.columns`. `get "clientSize"` reads that property by the same name.
+- **Members** are named in camelCase, properties and operations alike: `size`, `clientSize`, `matchesMedia`, `attributeOf`, `eventsOf`. A member has one name, the same in a text, a definition and the fluent builder, whether its arguments are parenthesized or not. `get "clientSize"` reads that property by the same name.
 - **Predicates** keep their declared spelling, which `is` and `has` read from a string: `is "readOnly"`, `is "scroll.atEnd"`.
 - **Aliases and bindings** keep the exact spelling their author gave them, so `hasFocus` and `hasfocus` are two fields, and a binding `panel` is not a binding `Panel`.
 - **Strings** are preserved exactly: `kind: "List"` answers `List`. A string is read as a DOMQL name only where a member interprets it as one, as `get`, `is` and `has` do, and it is then read exactly. A value passed to a browser API, such as a selector, an attribute's name or value, or an event type, follows that API's own case rules.
@@ -142,14 +141,14 @@ These expressions declare a nullable result because they consume null per item i
 
 ### No conversion
 
-DOMQL converts nothing implicitly: a `number` is not a `boolean`, a `string` is not a `number`, and an `element` is not a `string`. `attribute-of 200`, `intersects(root: 5)` and a `where` whose expression produces a `number` are each validation errors, as is an `element` where a `list` is required.
+DOMQL converts nothing implicitly: a `number` is not a `boolean`, a `string` is not a `number`, and an `element` is not a `string`. `attributeOf 200`, `intersects(root: 5)` and a `where` whose expression produces a `number` are each validation errors, as is an `element` where a `list` is required.
 
 ### Nullability
 
 Nullability is part of a type, and null follows the signature.
 
 - **A null receiver propagates.** If `@panel.parent` is null, `@panel.parent.rect` answers null without invoking `rect`, and its type is `rectangle?`: a path is nullable when any step of it is.
-- **A null argument follows the parameter.** A parameter is declared either to propagate null, which is the default and makes the call answer null without running, or to accept null with a meaning of its own, as `intersects` accepts a null `root` to mean the window. Preparation never rejects an evaluated argument for being nullable; it rejects a type that cannot match. A fixed argument that names a declaration, the name of `get`, the type of `events-of` and the feature of `supports`, is different, and so is a predicate name a test takes from a parameter: each must resolve to a non-null string during preparation, a literal or a bound parameter alike, because a declaration cannot be looked up from null, and `get` could not determine its result type. A nullable binding is accepted when its value supplies a valid name, and an actual null is a validation error for `@panel.get(@name)`, `@panel is @name` and `@button.events-of(@name)` alike.
+- **A null argument follows the parameter.** A parameter is declared either to propagate null, which is the default and makes the call answer null without running, or to accept null with a meaning of its own, as `intersects` accepts a null `root` to mean the window. Preparation never rejects an evaluated argument for being nullable; it rejects a type that cannot match. A fixed argument that names a declaration, the name of `get`, the type of `eventsOf` and the feature of `supports`, is different, and so is a predicate name a test takes from a parameter: each must resolve to a non-null string during preparation, a literal or a bound parameter alike, because a declaration cannot be looked up from null, and `get` could not determine its result type. A nullable binding is accepted when its value supplies a valid name, and an actual null is a validation error for `@panel.get(@name)`, `@panel is @name` and `@button.eventsOf(@name)` alike.
 - **A written null is an expression that produces null.** `null` as a literal has no special treatment, and the signature and the evaluation rules decide what a call does with it.
 - **Null is unavailable too.** An element is a valid receiver of `selection`; one that is no text input answers null, as an unavailable value does. A receiver of the wrong type, a number for `rect`, is a validation error, and a module that returns a value of a type other than the one it declared has broken its contract, which is an evaluation error and never a quiet null.
 
@@ -184,7 +183,7 @@ Reading or watching a query never performs an action or configures a behavior: a
 @viewport.scroll(axis: "inline").step(direction: "forward")
 
 // A behavior request: page the viewport with the wheel while Shift is held.
-@viewport.scroll(axis: "inline").wheel-paging(modifier: "shift")
+@viewport.scroll(axis: "inline").wheelPaging(modifier: "shift")
 ```
 
 ## Occurrences
@@ -192,7 +191,7 @@ Reading or watching a query never performs an action or configures a behavior: a
 A path that ends in an occurrence source is listened to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The answer is immutable data, and that answer, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the built-in vocabulary's native drop event:
 
 ```
-@zone.events-of("drop") { key: target.closest("[data-drop-target]").attribute-of("data-drop-key") }
+@zone.eventsOf("drop") { key: target.closest("[data-drop-target]").attributeOf("data-drop-key") }
 ```
 
 The shape reads the occurrence's own members, such as its target, and anything else a parameter reaches. Its members are read once per occurrence, never watched, so an unobserved member is allowed in it. An occurrence source documents its members, which of them it captured when the occurrence happened, and when it delivers the occurrence, such as before or after the browser carries out the action it reports; everything else its shape reads is read as the shape is evaluated. An extension's occurrence source can report only what its caller established, so two callers listening on one element each hear their own.
@@ -261,7 +260,7 @@ A query is validated before any evaluation, as the section on validation sets ou
 
 ## Built-in vocabulary
 
-The built-in vocabulary exposes properties and operations over familiar browser concepts. Properties use their declared spelling, and operations use kebab-case. Names are case-sensitive. Measurements use CSS pixels unless stated otherwise. Built-in members expose state or occurrence sources; actions and behaviors come from extensions.
+The built-in vocabulary exposes properties and operations over familiar browser concepts. Properties and operations are named in camelCase. Names are case-sensitive. Measurements use CSS pixels unless stated otherwise. Built-in members expose state or occurrence sources; actions and behaviors come from extensions.
 
 A property of a structured value, such as a rectangle's `width`, reads data the value holds and is constant for that value. Properties and operations are both members in the grammar; the distinction organizes the vocabulary and adds no syntax.
 
@@ -276,7 +275,7 @@ A property exposes a value. It takes no argument, or arguments that only shape t
 | Element | `rect`, `rect(relativeTo: …)` | `rectangle?`; optional `relativeTo`: `element`, the layout viewport when omitted, and a null `relativeTo` answers null | Its border box's `left`, `top`, `right`, `bottom`, `width` and `height`, relative to the layout viewport, or to `relativeTo`'s border box | Partly observable: size and the scrolling of its scroll containers are observed, transforms and animations are not | Fresh |
 | Element | `size` | `size?` | Its border box's `width` and `height` | Observable | Fresh |
 | Element | `clientSize` | `size?` | Its padding box's `width` and `height`, without scrollbars | Observable | Fresh |
-| Element | `grid.columns` | `list<number>?` | The sizes of its grid's column tracks, an empty list for an element that is no grid | Partly observable, as `computedstyle-of` | Fresh |
+| Element | `grid.columns` | `list<number>?` | The sizes of its grid's column tracks, an empty list for an element that is no grid | Partly observable, as `computedStyleOf` | Fresh |
 | Element | `selection` | `selection?` | Its selection's `start` and `end`, null for an element that is no text input or text area | Partly observable: input and selection events are observed, assignments by script are not | Fresh |
 | Element | `children` | `list<element>` | Its child elements, in document order | Observable | Fresh |
 | Element | `parent` | `element?` | Its parent element | Observable | Fresh |
@@ -288,10 +287,10 @@ An operation performs a lookup, a calculation or a selection with the arguments 
 
 | Available on | Operation | Type | Answers | Changes | Reads | Fixed |
 | --- | --- | --- | --- | --- | --- | --- |
-| Window | `matches-media(query)` | `query`: `string` → `boolean` | Whether the media query matches | Observable | Fresh |  |
+| Window | `matchesMedia(query)` | `query`: `string` → `boolean` | Whether the media query matches | Observable | Fresh |  |
 | Window | `supports(feature)` | `feature`: `string` → `boolean` | Whether the browser offers a feature from the vocabulary's registered list, such as `"share"`; a name not on the list is a validation error | Constant | Fresh | `feature` |
-| Element | `attribute-of(name)` | `name`: `string` → `string?` | The attribute's value | Observable | Fresh |  |
-| Element | `computedstyle-of(property)` | `property`: `string` → `string?` | The property's computed value, custom properties included | Partly observable: its own size and attributes are observed, rules matching from elsewhere are not | Fresh |  |
+| Element | `attributeOf(name)` | `name`: `string` → `string?` | The attribute's value | Observable | Fresh |  |
+| Element | `computedStyleOf(property)` | `property`: `string` → `string?` | The property's computed value, custom properties included | Partly observable: its own size and attributes are observed, rules matching from elsewhere are not | Fresh |  |
 | Element | `intersects(root, margin)` | optional `root`: `element?`, the window when omitted or null; optional `margin`: `number`, 0 when omitted → `boolean?` | Whether the browser's intersection observation reports it intersecting the root, or the window without a root, grown by the margin, with its ancestors' clipping applied as the browser applies it | Observable | Maintained |  |
 | Element | `overlaps(other, margin)` | required `other`: `element`; optional `margin`: `number`, 0 when omitted → `boolean?` | Whether its border box overlaps the other's, grown by the margin, compared as rectangles | Partly observable, as `rect` | Fresh |  |
 | Element | `matches(selector)` | `selector`: `string` → `boolean?` | Whether it matches the selector | Partly observable: attributes, structure, focus and popovers' open state are observed; pointer state such as `:hover` and control state such as `:checked` are not | Fresh |  |
@@ -307,7 +306,7 @@ An occurrence source delivers things that happened. It is listened to, never rea
 
 | Available on | Source | Type | Delivers | Reads | Fixed |
 | --- | --- | --- | --- | --- | --- |
-| Element, document, window | `events-of(type)` | `type`: `string` → `occurrence<T>` for the event type `type` names | The native events of that type as they reach it, each with the members its declared event type offers, such as a pointer event's `button`, `clientX` and `clientY`; a type the vocabulary declares no event type for is a validation error | Captured at dispatch | `type` |
+| Element, document, window | `eventsOf(type)` | `type`: `string` → `occurrence<T>` for the event type `type` names | The native events of that type as they reach it, each with the members its declared event type offers, such as a pointer event's `button`, `clientX` and `clientY`; a type the vocabulary declares no event type for is a validation error | Captured at dispatch | `type` |
 
 `is "focused"` asks whether the element itself is focused, `matches(":focus-within")` whether focus is anywhere within it, and an extension can offer richer focus semantics under names of its own; they are separate questions with separate names.
 
@@ -328,7 +327,7 @@ A predicate is a name the vocabulary registers for `is` or `has` with its contra
 | Predicate | Of | Answers | Changes | Reads |
 | --- | --- | --- | --- | --- |
 | `is "attached"` | An element | Whether the element is attached to the document, including through a shadow root | Observable, through the structure of the document and of every shadow root between the element and the document | Fresh |
-| `is "disabled"` | An element | Whether the element matches `:disabled`, as the browser decides it: by its own `disabled` attribute, a disabled ancestor `fieldset` other than through that fieldset's first `legend`, or a disabled `optgroup` holding an `option`; whether it carries a `disabled` attribute is `attribute-of "disabled"`, a separate question | Observable: its own and its ancestors' `disabled` attributes and the structure between them | Fresh |
+| `is "disabled"` | An element | Whether the element matches `:disabled`, as the browser decides it: by its own `disabled` attribute, a disabled ancestor `fieldset` other than through that fieldset's first `legend`, or a disabled `optgroup` holding an `option`; whether it carries a `disabled` attribute is `attributeOf "disabled"`, a separate question | Observable: its own and its ancestors' `disabled` attributes and the structure between them | Fresh |
 | `is "readOnly"` | An element | Whether native `readonly` applies to the control and is set: a text area, or an input whose type is `text`, `search`, `url`, `tel`, `email`, `password`, `date`, `month`, `week`, `time`, `datetime-local` or `number`; any other element answers false, whatever its attributes | Observable: its `readonly` and `type` attributes | Fresh |
 | `is "textEditable"` | An element | Whether the element supports text editing and its current state permits it: a text area, or an input whose type is `text`, `search`, `url`, `tel`, `email`, `password` or `number`, that is neither disabled nor read-only; or an element whose content is editable, by its own or an ancestor's `contenteditable` of `true` or `plaintext-only`, or by the document's design mode. An element that is inert, itself or through an ancestor, is not text editable | Partly observable: everything `is "disabled"` observes, the `readonly` and `type` attributes, the `contenteditable` and `inert` attributes of the element and its ancestors, and the structure between them are observed; the document's design mode is not | Fresh |
 | `is "focused"` | An element | Whether it is the focused element | Observable | Fresh |
@@ -484,13 +483,13 @@ The query reads it:
     panel: @panel {
         size,
         hasFocus: matches ":focus-within",
-        tier: computedstyle-of "--layout-tier",
+        tier: computedStyleOf "--layout-tier",
         columns: grid.columns.count
     },
 
     // Every item, and the items in the panel's view.
     items: @panel.all("[data-key]") {
-        key: attribute-of "data-key",
+        key: attributeOf "data-key",
         height: rect.height,
         selected: matches "[aria-selected=true]"
     },
@@ -499,10 +498,10 @@ The query reads it:
 
     // Whether the end of the list is near, and which item is selected.
     nearEnd: @sentinel.intersects(root: @panel, margin: 200),
-    current: @panel.first("[aria-selected=true]").attribute-of("data-key"),
+    current: @panel.first("[aria-selected=true]").attributeOf("data-key"),
 
     // The window around it.
-    window: @window { size, dark: matches-media "(prefers-color-scheme: dark)" },
+    window: @window { size, dark: matchesMedia "(prefers-color-scheme: dark)" },
     visible: @document is "visible",
     kind: "list"
 }
@@ -528,7 +527,7 @@ Its answer, with three items and the second selected:
 }
 ```
 
-With no item selected, `current` is null. With an empty panel, `items` is an empty list, `inView` is 0, and `tallest` and `current` are null. Watching the query requires accepting partial observation, since `matches`, `computedstyle-of`, `grid.columns`, `all` and `first` are partly observable; the watch then follows the items the panel holds, each item's height, attributes and intersection, the panel's size and focus, the sentinel's intersection, the media query and the document's visibility.
+With no item selected, `current` is null. With an empty panel, `items` is an empty list, `inView` is 0, and `tallest` and `current` are null. Watching the query requires accepting partial observation, since `matches`, `computedStyleOf`, `grid.columns`, `all` and `first` are partly observable; the watch then follows the items the panel holds, each item's height, attributes and intersection, the panel's size and focus, the sentinel's intersection, the media query and the document's visibility.
 
 ## Examples
 
@@ -536,13 +535,13 @@ With no item selected, `current` is null. With an empty panel, `items` is an emp
 | --- | --- |
 | Whether an element is near the end of a scrolling panel | `@sentinel.intersects(root: @panel, margin: 200)` |
 | How many items of a list are in its view | `@list.all("li").where(intersects(root: @list)).count` |
-| A layout tier a container query sets | `@header.computedstyle-of("--layout-tier")` |
+| A layout tier a container query sets | `@header.computedStyleOf("--layout-tier")` |
 | How many columns a grid lays out | `@cards.grid.columns.count` |
 | A table's tallest row | `@table.all("tbody tr").max(rect.height)` |
-| Each column's key and width | `@table.all("[data-column]") { key: attribute-of("data-column"), width: rect.width }` |
+| Each column's key and width | `@table.all("[data-column]") { key: attributeOf("data-column"), width: rect.width }` |
 | A panel's size, and whether focus is within it | `@panel { size, hasFocus: matches(":focus-within") }` |
 | A text field's selection | `@field.selection { start, end }` |
 | Whether sharing is available | `@window.supports("share")` |
-| The ids of the text-editable elements in a panel | `@panel.all("*").where(is "textEditable") { id: attribute-of "id" }` |
+| The ids of the text-editable elements in a panel | `@panel.all("*").where(is "textEditable") { id: attributeOf "id" }` |
 | An element's states and what it holds | `@target { attached: is "attached", disabled: is "disabled", hasChildren: has "children", hasSelection: has "selection" }` |
 | Whether a control cannot take text | `@input is "disabled" or "readOnly"` |

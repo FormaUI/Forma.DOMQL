@@ -1,6 +1,6 @@
 Domql.read(Domql.parse(`
     @panel.all("[data-key]") {
-        key: attribute-of "data-key",
+        key: attributeOf "data-key",
         selected: matches "[aria-selected=true]"
     }
 `, { panel }));

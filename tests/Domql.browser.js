@@ -34,7 +34,7 @@ describe('Domql readAsync in a browser', () => {
     });
 
     it('reads it among the other members of a shape', async () => {
-        const snapshot = await Domql.readAsync(Domql.parse('@item { near: intersects, height: size.height, id: attribute-of "id" }', { item: inside }));
+        const snapshot = await Domql.readAsync(Domql.parse('@item { near: intersects, height: size.height, id: attributeOf "id" }', { item: inside }));
 
         expect(snapshot).toEqual({ near: true, height: 40, id: 'inside' });
     });

@@ -229,7 +229,7 @@ describe('Observations in a browser', () => {
 
     describe('pixel ratio', () => {
         it('starts and ends without reporting a change that has not happened', async () => {
-            const watching = watch({ type: 'pixel-ratio', of: 'window' }, null);
+            const watching = watch({ type: 'pixelRatio', of: 'window' }, null);
 
             expect(await reports(watching, () => {})).toBe(false);
             watching.session.dispose();

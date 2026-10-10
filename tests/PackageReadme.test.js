@@ -42,7 +42,7 @@ const examples = [
     {
         file: '10-errors.js',
         observed: 'logged',
-        answers: [['validation'], ["The argument 'name' of 'attribute-of' expects string and finds number", '(line 1, column 21, at /query/arguments/0/value)']],
+        answers: [['validation'], ["The argument 'name' of 'attributeOf' expects string and finds number", '(line 1, column 20, at /query/arguments/0/value)']],
     },
     { file: '11-module.js', observed: 'reads', answers: [['{ childCount: 3 }']] },
 ];

@@ -234,7 +234,7 @@ export class DefinitionValidator {
 
     #requireName(value, pointer) {
         if (!Names.isName(value)) {
-            this.#fail(pointer, 'A name is a letter followed by letters and digits, with single hyphens between them, and never true, false, null, is, has, and or or');
+            this.#fail(pointer, 'A name is a letter followed by letters and digits, and never true, false, null, is, has, and or or');
         }
     }
 

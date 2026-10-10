@@ -69,7 +69,7 @@ const query = Domql.parse(`
     @panel {
         count: children.count,
         items: all("[data-key]") {
-            key: attribute-of "data-key",
+            key: attributeOf "data-key",
             selected: matches "[aria-selected=true]"
         }
     }
@@ -111,7 +111,7 @@ The definition contains the query structure without bound values. `create` reuse
 
 ### Paths, operations and names
 
-Paths follow members with a dot. Properties retain their declared spelling, such as `clientSize`. Operations use their declared lowercase names, such as `attribute-of`, `computedstyle-of` and `matches-media`. All DOMQL names are case-sensitive.
+Paths follow members with a dot. Properties and operations are named in camelCase, such as `clientSize`, `attributeOf`, `computedStyleOf` and `matchesMedia`, and a member has the same name wherever it is written. All DOMQL names are case-sensitive.
 
 ```js
 Domql.read(Domql.parse('@panel.children.count', { panel }));
@@ -137,9 +137,9 @@ Domql.read(Domql.parse('@panel is "attached"', { panel }));
 After a dot, arguments are enclosed in parentheses. A member that starts a path, inside a shape or an expression, can take simple literals and parameter references without them:
 
 ```text
-@panel.attribute-of("data-key")
-attribute-of "data-key"
-attribute-of @attributeName
+@panel.attributeOf("data-key")
+attributeOf "data-key"
+attributeOf @attributeName
 ```
 
 Multiple bare arguments are separated by whitespace. A member written that way ends its path; to continue from its result, use parentheses, as in `first(".row").rect.height`. Named arguments and expression arguments use parentheses. Commas separate shape fields and parenthesized arguments.
@@ -166,7 +166,7 @@ A shape following a list projects each item:
 ```js
 Domql.read(Domql.parse(`
     @panel.all("[data-key]") {
-        key: attribute-of "data-key",
+        key: attributeOf "data-key",
         selected: matches "[aria-selected=true]"
     }
 `, { panel }));
@@ -199,7 +199,7 @@ Null represents a missing or unavailable value; it does not hide an invalid quer
 
 ```js
 Domql.read(Domql.parse(
-    '@panel.first(".missing").attribute-of("data-key")',
+    '@panel.first(".missing").attributeOf("data-key")',
     { panel }
 ));
 // null
@@ -266,7 +266,7 @@ Failures report a `DomqlError` with a `kind`, `message` and structured `location
 
 ```js
 try {
-    Domql.read(Domql.parse('@panel.attribute-of(200)', { panel }));
+    Domql.read(Domql.parse('@panel.attributeOf(200)', { panel }));
 } catch (error) {
     if (error?.name !== 'DomqlError') {
         throw error;
@@ -274,8 +274,8 @@ try {
 
     console.error(error.kind, error.message, error.location);
     // validation
-    // The argument 'name' of 'attribute-of' expects string and finds number
-    // (line 1, column 21, at /query/arguments/0/value)
+    // The argument 'name' of 'attributeOf' expects string and finds number
+    // (line 1, column 20, at /query/arguments/0/value)
 }
 ```
 
@@ -287,7 +287,7 @@ In a browser, DOMQL uses the default window and its document. To read against an
 
 ## Extend the vocabulary
 
-A module contributes declarations as data and the functions that implement them. The DOMQL name, public builder name and function key are independent. Functions for synchronous reads must be synchronous and read-only.
+A module contributes declarations as data and the functions that implement them. A member's DOMQL name and the key of its function are independent. Functions for synchronous reads must be synchronous and read-only.
 
 This example adds a `metrics` member to elements, exposing a child count:
 
@@ -299,7 +299,6 @@ const metricsModule = Domql.createModule('metrics', {
     }],
     members: [{
         name: 'metrics',
-        builder: 'metrics',
         function: 'readMetrics',
         kind: 'property',
         on: 'element',

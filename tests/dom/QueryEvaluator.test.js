@@ -24,7 +24,7 @@ const read = (text, bindings = {}) => Domql.read(Domql.parse(text, bindings));
 
 /** A module of one number property named for itself, answered by the function. */
 const propertyModule = (name, implementation) => new DomqlModule(name, {
-    members: [{ name, builder: name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+    members: [{ name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
 }, implementation === undefined ? null : { [name]: implementation });
 
 /** Reads a query against a registry of its own holding the built-in vocabulary and the module. */
@@ -87,26 +87,26 @@ describe('QueryEvaluator', () => {
         it('reads children, counts and selects', () => {
             expect(read('@panel.children.count', { panel })).toBe(3);
             expect(read('@panel.all("[data-key]").count', { panel })).toBe(3);
-            expect(read('@panel.first("[aria-selected=true]").attribute-of("data-key")', { panel })).toBe('a2');
-            expect(read('@item.closest("#panel").attribute-of("id")', { item: items[0] })).toBe('panel');
+            expect(read('@panel.first("[aria-selected=true]").attributeOf("data-key")', { panel })).toBe('a2');
+            expect(read('@item.closest("#panel").attributeOf("id")', { item: items[0] })).toBe('panel');
         });
 
         it('answers an empty list where nothing matches and null where an element is expected', () => {
             expect(read('@panel.all(".none").count', { panel })).toBe(0);
-            expect(read('@panel.first(".none").attribute-of("id")', { panel })).toBeNull();
-            expect(read('@panel.closest(".none") { id: attribute-of "id" }', { panel })).toBeNull();
+            expect(read('@panel.first(".none").attributeOf("id")', { panel })).toBeNull();
+            expect(read('@panel.closest(".none") { id: attributeOf "id" }', { panel })).toBeNull();
         });
 
         it('reads list items by position', () => {
-            expect(read('@panel.children.first { key: attribute-of "data-key" }', { panel })).toEqual({ key: 'a1' });
-            expect(read('@panel.children.last { key: attribute-of "data-key" }', { panel })).toEqual({ key: 'a3' });
-            expect(read('@panel.children.at(1) { key: attribute-of "data-key" }', { panel })).toEqual({ key: 'a2' });
-            expect(read('@panel.children.at(3) { key: attribute-of "data-key" }', { panel })).toBeNull();
-            expect(read('@panel.children.at(-1) { key: attribute-of "data-key" }', { panel })).toBeNull();
+            expect(read('@panel.children.first { key: attributeOf "data-key" }', { panel })).toEqual({ key: 'a1' });
+            expect(read('@panel.children.last { key: attributeOf "data-key" }', { panel })).toEqual({ key: 'a3' });
+            expect(read('@panel.children.at(1) { key: attributeOf "data-key" }', { panel })).toEqual({ key: 'a2' });
+            expect(read('@panel.children.at(3) { key: attributeOf "data-key" }', { panel })).toBeNull();
+            expect(read('@panel.children.at(-1) { key: attributeOf "data-key" }', { panel })).toBeNull();
         });
 
         it('reads the parent', () => {
-            expect(read('@item.parent { id: attribute-of "id" }', { item: items[0] })).toEqual({ id: 'panel' });
+            expect(read('@item.parent { id: attributeOf "id" }', { item: items[0] })).toEqual({ id: 'panel' });
         });
     });
 
@@ -116,28 +116,28 @@ describe('QueryEvaluator', () => {
 
             expect(read('@detached.parent.size', { detached })).toBeNull();
             expect(read('@detached.parent.children.count', { detached })).toBeNull();
-            expect(read('@detached { parent: parent.size, tag: attribute-of "id" }', { detached })).toEqual({ parent: null, tag: null });
+            expect(read('@detached { parent: parent.size, tag: attributeOf "id" }', { detached })).toEqual({ parent: null, tag: null });
         });
 
         it('answers null for an attribute the element does not have', () => {
-            expect(read('@panel.attribute-of("nothing")', { panel })).toBeNull();
+            expect(read('@panel.attributeOf("nothing")', { panel })).toBeNull();
         });
 
         it('answers null for a null argument of a propagating parameter without calling the member', () => {
-            expect(read('@panel.attribute-of(@name)', { panel, name: Domql.bind(null, 'string?') })).toBeNull();
+            expect(read('@panel.attributeOf(@name)', { panel, name: Domql.bind(null, 'string?') })).toBeNull();
         });
     });
 
     describe('shapes', () => {
         it('names fields by inference and keeps their order', () => {
-            const answer = read('@panel { count: children.count, id: attribute-of "id", is "attached", has "children" }', { panel });
+            const answer = read('@panel { count: children.count, id: attributeOf "id", is "attached", has "children" }', { panel });
 
             expect(answer).toEqual({ count: 3, id: 'panel', attached: true, children: true });
             expect(Object.keys(answer)).toEqual(['count', 'id', 'attached', 'children']);
         });
 
         it('applies a shape to each item of a list, in order', () => {
-            expect(read('@panel.children { key: attribute-of "data-key", selected: matches "[aria-selected=true]" }', { panel })).toEqual([
+            expect(read('@panel.children { key: attributeOf "data-key", selected: matches "[aria-selected=true]" }', { panel })).toEqual([
                 { key: 'a1', selected: false },
                 { key: 'a2', selected: true },
                 { key: 'a3', selected: false },
@@ -290,7 +290,7 @@ describe('QueryEvaluator', () => {
             const { module, record } = probes();
             let reads = 0;
             const counting = new DomqlModule('counted', {
-                members: [{ name: 'counted', builder: 'counted', function: 'counted', kind: 'property', on: 'element', parameters: [], result: 'element', changes: 'constant', reads: 'fresh' }],
+                members: [{ name: 'counted', function: 'counted', kind: 'property', on: 'element', parameters: [], result: 'element', changes: 'constant', reads: 'fresh' }],
             }, { counted: element => { reads++; return element; } });
             const registry = new ModuleRegistry([Vocabulary.module, module, counting]);
             const query = Domql.parse('@panel.counted is "yes" and "yes" and "yes"', { panel });
@@ -360,7 +360,7 @@ describe('QueryEvaluator', () => {
         it('reads the window and its media queries', () => {
             expect(read('@window.size.width')).toBeTypeOf('number');
             expect(read('@window.devicePixelRatio')).toBeTypeOf('number');
-            expect(read('@window.matches-media("(min-width: 0px)")')).toBe(true);
+            expect(read('@window.matchesMedia("(min-width: 0px)")')).toBe(true);
             expect(read('@window { share: supports "share" }').share).toBeTypeOf('boolean');
         });
 
@@ -375,14 +375,14 @@ describe('QueryEvaluator', () => {
         it('reads a custom property and answers null for one that is not set', () => {
             panel.style.setProperty('--tier', 'medium');
 
-            expect(read('@panel.computedstyle-of("--tier")', { panel })).toBe('medium');
-            expect(read('@panel.computedstyle-of("--none")', { panel })).toBeNull();
+            expect(read('@panel.computedStyleOf("--tier")', { panel })).toBe('medium');
+            expect(read('@panel.computedStyleOf("--none")', { panel })).toBeNull();
         });
     });
 
     describe('answers', () => {
         it('are the same for a parsed query and one created from its definition', () => {
-            const parsed = Domql.parse('@panel { count: children.count, keys: children { key: attribute-of "data-key" } }', { panel });
+            const parsed = Domql.parse('@panel { count: children.count, keys: children { key: attributeOf "data-key" } }', { panel });
             const created = Domql.create(parsed.definition, { panel });
 
             expect(Domql.read(created)).toEqual(Domql.read(parsed));
@@ -418,7 +418,7 @@ describe('QueryEvaluator', () => {
         });
 
         it('refuse a request that is not a query', () => {
-            expect(failure('@panel.events-of("click") { button }', { panel }).message).toContain('subscription request is not read');
+            expect(failure('@panel.eventsOf("click") { button }', { panel }).message).toContain('subscription request is not read');
         });
 
         it('refuse a request that is not valid before reading anything', () => {
@@ -481,11 +481,11 @@ describe('QueryEvaluator evaluation', () => {
 
     describe('dependencies', () => {
         it('are each member applied to its receiver and arguments, with the observations that cover it', () => {
-            const evaluation = evaluate('@panel.attribute-of("id")', { panel });
+            const evaluation = evaluate('@panel.attributeOf("id")', { panel });
 
             expect(evaluation.value).toBe('panel');
             expect(evaluation.dependencies).toEqual([{
-                member: 'attribute-of',
+                member: 'attributeOf',
                 pointer: '/query',
                 observations: [{ type: 'mutation', target: panel, arguments: { attributes: ['id'] } }],
             }]);
@@ -509,7 +509,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('include what a path read before it met null, and nothing after', () => {
-            const evaluation = evaluate('@panel.closest(".none").attribute-of("id")', { panel });
+            const evaluation = evaluate('@panel.closest(".none").attributeOf("id")', { panel });
 
             expect(evaluation.value).toBeNull();
             expect(membersOf(evaluation)).toEqual(['closest']);
@@ -526,7 +526,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('leave the attachment out for an element that is attached', () => {
-            const evaluation = evaluate('@element.attribute-of("id")', { element: panel });
+            const evaluation = evaluate('@element.attributeOf("id")', { element: panel });
 
             expect(evaluation.dependencies.flatMap(dependency => dependency.observations).some(observation => observation.type === 'attachment')).toBe(false);
         });
@@ -540,12 +540,12 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('are kept with the failure of an evaluation that recorded them before it failed', () => {
-            const evaluation = evaluate('{ id: @panel.attribute-of("id"), boom: @panel.boom }', { panel }, [propertyModule('boom', () => { throw new Error('no'); })]);
+            const evaluation = evaluate('{ id: @panel.attributeOf("id"), boom: @panel.boom }', { panel }, [propertyModule('boom', () => { throw new Error('no'); })]);
 
             expect(evaluation.error).toBeInstanceOf(DomqlError);
             expect(evaluation.error.message).toContain("The member 'boom' failed");
             expect(evaluation.value).toBeUndefined();
-            expect(membersOf(evaluation)).toEqual(['attribute-of', 'boom']);
+            expect(membersOf(evaluation)).toEqual(['attributeOf', 'boom']);
         });
     });
 
@@ -553,7 +553,7 @@ describe('QueryEvaluator evaluation', () => {
     const waitingModule = () => new DomqlModule('level', {
         observationTypes: [{ name: 'level', contract: 'maintained', function: 'observeLevel' }],
         members: [{
-            name: 'level', builder: 'level', function: 'level', kind: 'property', on: 'element', parameters: [], result: 'number?',
+            name: 'level', function: 'level', kind: 'property', on: 'element', parameters: [], result: 'number?',
             changes: 'observable', reads: 'maintained', observations: [{ type: 'level', of: 'receiver' }],
         }],
     }, {
@@ -563,7 +563,7 @@ describe('QueryEvaluator evaluation', () => {
 
     describe('observations', () => {
         it('are not held for an answer that is complete, which needs nothing more observed', () => {
-            const evaluation = evaluate('@panel.attribute-of("id")', { panel });
+            const evaluation = evaluate('@panel.attributeOf("id")', { panel });
 
             expect(evaluation.isPending).toBe(false);
             expect(evaluation.dependencies.length).toBe(1);
@@ -571,7 +571,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('are all held for a pending answer, which waits on any of them changing', () => {
-            const evaluation = evaluate('{ id: @panel.attribute-of("id"), level: @panel.level }', { panel }, [waitingModule()]);
+            const evaluation = evaluate('{ id: @panel.attributeOf("id"), level: @panel.level }', { panel }, [waitingModule()]);
 
             expect(evaluation.isPending).toBe(true);
             expect(evaluation.value).toEqual({ id: 'panel', level: null });
@@ -579,13 +579,13 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('are all held where the caller keeps the answer current', () => {
-            evaluate('@panel.attribute-of("id")', { panel }, [], true);
+            evaluate('@panel.attributeOf("id")', { panel }, [], true);
 
             expect(observations.running).toBe(1);
         });
 
         it('are held while the evaluation is, and let go when it is disposed', () => {
-            const evaluation = evaluate('@panel.attribute-of("id")', { panel }, [], true);
+            const evaluation = evaluate('@panel.attributeOf("id")', { panel }, [], true);
 
             expect(observations.running).toBe(1);
 
@@ -596,7 +596,7 @@ describe('QueryEvaluator evaluation', () => {
         });
 
         it('call the evaluation back when something it depends on changes', async () => {
-            evaluate('@panel.attribute-of("id")', { panel }, [], true);
+            evaluate('@panel.attributeOf("id")', { panel }, [], true);
             panel.setAttribute('id', 'renamed');
 
             await new Promise(resolve => setTimeout(resolve));

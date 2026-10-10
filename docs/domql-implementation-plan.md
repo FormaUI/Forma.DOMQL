@@ -9,7 +9,7 @@ Each item is what exists and what checks it.
 - **The language.** Parsing text and creating queries from their definition, with the position of every mistake. Checked by the tests of parsing and of the definition.
 - **The vocabulary.** The built-in vocabulary declared as module data, and modules that extend it. Checked by the tests of modules, the registry and the vocabulary.
 - **Resolution.** Resolving a definition against the vocabulary and typing its result, without a browser; the resolution is kept for its query. Checked by the resolver tests and the tests of `Domql.resolve`.
-- **Reading.** `read` reads every built-in member except `intersects`, which is maintained, and `events-of`, which is an occurrence source; both fail it with an evaluation error that says so. `readAsync` waits for the first sample of a maintained member, evaluates again as samples arrive and as what the query depends on changes, and lets go of its observations when it answers, fails or is canceled. Each evaluation records its dependencies. A read answers detached, immutable data. Checked by the evaluator tests, in a simulated DOM, and by the browser tests, in Chromium, for geometry, for state the browser decides and for the reads that wait.
+- **Reading.** `read` reads every built-in member except `intersects`, which is maintained, and `eventsOf`, which is an occurrence source; both fail it with an evaluation error that says so. `readAsync` waits for the first sample of a maintained member, evaluates again as samples arrive and as what the query depends on changes, and lets go of its observations when it answers, fails or is canceled. Each evaluation records its dependencies. A read answers detached, immutable data. Checked by the evaluator tests, in a simulated DOM, and by the browser tests, in Chromium, for geometry, for state the browser decides and for the reads that wait.
 - **Observations.** The built-in vocabulary names the observations that cover its members' changes, as types a module declares, and observations are started, shared and ended through sessions. There is no public API for them yet. Checked by the tests of declarations, of the sessions and of the browser observers, and in Chromium by a test of each type of observation reporting a change.
 - **Watching.** `Domql.watch` evaluates a query, reports its snapshot, and evaluates again when what the result depends on changes, at the next animation frame or in the task that reported the change, reporting a snapshot that differs and sharing the branches of the last that did not. A watch follows the document, keeps its dependencies through a failed evaluation, recovers, and is refreshed and disposed through its handle. Checked by the watch and answer tests, in a simulated DOM, and in Chromium by a watch of a size and of a maintained member.
 - **The package.** The bundle, with its TypeScript declarations checked against `Domql` and against a TypeScript caller; the READMEs' examples run as tests.
@@ -90,6 +90,16 @@ State: open. Needed by step 6.
 
 The specification's revision 1.0.6 defines it. State: **done.**
 
+### D7. One camelCase name for every member
+
+Operations were kebab-case in a query, `attribute-of`, and camelCase in the fluent builder, `attributeOf`, so each declaration carried a builder name beside its DOMQL name.
+
+- **Chosen: every member is named in camelCase,** properties and operations alike, the same in a text, a definition and the builder, with parentheses or without: `@panel.attributeOf("data-key")`, `@window.matchesMedia("(prefers-color-scheme: dark)")`, `{ key: attributeOf "data-key" }`. A declaration carries no builder name, since its DOMQL name is the builder's spelling.
+- **A name holds no hyphen.** A name is a letter followed by letters and digits, so every name a module declares is a JavaScript identifier and kebab-case cannot return through a module; a hyphen in a name is a syntax error saying so. The built-in module is named `builtIn`, and observation types are named the same way, as `pixelRatio` is.
+- **Alternative:** camelCase for the built-in members only, keeping hyphens in the grammar and the builder name in declarations. It leaves two spellings a module could choose between, and a conversion the builder would have to make.
+
+The specification's revision 1.0.7 defines it. State: **done.**
+
 ## Steps
 
 A step is done when its tests pass in the gate, its documents say what it built, and its state here says so.
@@ -129,7 +139,7 @@ Deliver a baseline and then change sets as JSON Patch limited to `replace`, `add
 
 ### 5. Occurrence sources
 
-Deliver what an occurrence source reports: `events-of` captures what the event carries at dispatch, the shape after it is evaluated for each occurrence, and the sessions its shapes open are held across occurrences.
+Deliver what an occurrence source reports: `eventsOf` captures what the event carries at dispatch, the shape after it is evaluated for each occurrence, and the sessions its shapes open are held across occurrences.
 
 - **Needs:** steps 1 and 2, D3.
 - **Done when:** a subscription delivers one immutable result for each occurrence and releases everything when it ends. Its tests include:

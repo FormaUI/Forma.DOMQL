@@ -30,11 +30,11 @@ const createWindow = devicePixelRatio => {
 };
 
 describe('BrowserObservers', () => {
-    describe('pixel-ratio', () => {
+    describe('pixelRatio', () => {
         const watch = fake => {
             const observations = new Observations(new ModuleRegistry([BrowserModule.create()]), { window: fake, document });
             const changes = [];
-            const session = observations.acquire(observations.resolve({ type: 'pixel-ratio', of: 'window' }, { receiver: fake, args: {} }), () => changes.push(fake.devicePixelRatio));
+            const session = observations.acquire(observations.resolve({ type: 'pixelRatio', of: 'window' }, { receiver: fake, args: {} }), () => changes.push(fake.devicePixelRatio));
 
             return { observations, changes, session };
         };

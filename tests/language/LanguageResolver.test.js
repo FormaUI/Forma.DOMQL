@@ -59,14 +59,14 @@ describe('LanguageResolver', () => {
         });
 
         it('resolves an occurrence source as a subscription', () => {
-            const resolved = resolve('@document.events-of("keydown") { key }');
+            const resolved = resolve('@document.eventsOf("keydown") { key }');
 
             expect(resolved.kind).toBe('subscription');
             expect(resolved.type.toString()).toBe('occurrence<{ key: string }>');
         });
 
         it('shapes the occurrences of a source by the fields of its payload', () => {
-            const resolved = resolve('@panel.events-of("click") { clientX, button }');
+            const resolved = resolve('@panel.eventsOf("click") { clientX, button }');
 
             expect(resolved.kind).toBe('subscription');
             expect(resolved.type.toString()).toBe('occurrence<{ clientX: number, button: number }>');
@@ -74,15 +74,15 @@ describe('LanguageResolver', () => {
 
         it('refuses an answer that is no data', () => {
             expect(failure('@panel.parent').message).toContain('no data');
-            expect(failure('@panel.events-of("click"){ target }').message).toContain('no data');
+            expect(failure('@panel.eventsOf("click"){ target }').message).toContain('no data');
         });
 
         it('refuses a member after an occurrence source', () => {
-            expect(failure('@panel.events-of("click").count').message).toContain('occurrence source');
+            expect(failure('@panel.eventsOf("click").count').message).toContain('occurrence source');
         });
 
         it('refuses an occurrence source as an argument', () => {
-            expect(failure('@panel.matches(selector: @panel.events-of("click"))').message).toContain('occurrence source');
+            expect(failure('@panel.matches(selector: @panel.eventsOf("click"))').message).toContain('occurrence source');
         });
     });
 
@@ -151,8 +151,8 @@ describe('LanguageResolver', () => {
         });
 
         it('makes a call answer null for a written null on a propagating parameter', () => {
-            expect(resolve('@window.matches-media("(min-width: 1px)")').type.toString()).toBe('boolean');
-            expect(resolve('@window.matches-media(null)').type.toString()).toBe('boolean?');
+            expect(resolve('@window.matchesMedia("(min-width: 1px)")').type.toString()).toBe('boolean');
+            expect(resolve('@window.matchesMedia(null)').type.toString()).toBe('boolean?');
         });
 
         it('makes a call on a nullable receiver nullable', () => {
@@ -165,7 +165,7 @@ describe('LanguageResolver', () => {
         });
 
         it('refuses an aggregate expression of another type', () => {
-            expect(failure('@panel.children.sum(attribute-of "id")').message).toContain('must produce number?');
+            expect(failure('@panel.children.sum(attributeOf "id")').message).toContain('must produce number?');
         });
     });
 
@@ -208,12 +208,12 @@ describe('LanguageResolver', () => {
         });
 
         it('resolves an event type and a feature', () => {
-            expect(resolve('@document.events-of("keydown") { key }').type.toString()).toBe('occurrence<{ key: string }>');
+            expect(resolve('@document.eventsOf("keydown") { key }').type.toString()).toBe('occurrence<{ key: string }>');
             expect(resolve('@window.supports("share")').type.toString()).toBe('boolean');
         });
 
         it('refuses an event type or a feature the vocabulary does not declare', () => {
-            expect(failure('@panel.events-of("nonsense")').message).toContain('no event type');
+            expect(failure('@panel.eventsOf("nonsense")').message).toContain('no event type');
             expect(failure('@window.supports("nonsense")').message).toContain('no feature');
         });
     });
@@ -233,7 +233,7 @@ describe('LanguageResolver', () => {
 
                 return new LanguageResolver(registry, query.bindings, null, {}).resolveDefinition(query.definition);
             };
-            const events = resolveWith('@panel.events-of("chart-selected") { value }');
+            const events = resolveWith('@panel.eventsOf("chart-selected") { value }');
             const predicate = resolveWith('@panel is "plotted"');
 
             expect(events.type.toString()).toBe('occurrence<{ value: number }>');
@@ -321,7 +321,7 @@ describe('LanguageResolver', () => {
         });
 
         it('refuse a subject that is no value, or null', () => {
-            expect(failure('@panel.events-of("click") { clientX } is "attached"').message).toContain('occurrence source');
+            expect(failure('@panel.eventsOf("click") { clientX } is "attached"').message).toContain('occurrence source');
             expect(failure('null is "attached"').message).toContain('tests null');
         });
 

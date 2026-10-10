@@ -17,7 +17,7 @@ const KEYWORDS = new Map([['true', true], ['false', false], ['null', null]]);
 
 /** The words that test a value and combine the names it is tested against. */
 const OPERATORS = new Set(['is', 'has', 'and', 'or']);
-const NAME = /[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*/y;
+const NAME = /[A-Za-z][A-Za-z0-9]*/y;
 const NUMBER = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
 const SPACE = /\s/;
 
@@ -75,6 +75,11 @@ export class Tokenizer {
             this.#offset = NAME.lastIndex;
 
             const name = this.#text.slice(start, this.#offset);
+
+            // A hyphen right after a name is never a negative number, which whitespace or a parenthesis comes before.
+            if (this.#text[this.#offset] === '-') {
+                throw DomqlError.syntax(`A name holds no hyphen: '${name}-…' is written in camelCase, as attributeOf is`, this.#text, this.#offset);
+            }
 
             if (KEYWORDS.has(name)) {
                 return { type: 'literal', value: KEYWORDS.get(name), start, end: this.#offset };

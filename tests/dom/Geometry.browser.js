@@ -132,9 +132,9 @@ describe('Geometry in a browser', () => {
         it('read a custom property and a computed value, and answer null for one that is not set', () => {
             const box = add('--tier: medium; width: 120px');
 
-            expect(read('@box.computedstyle-of("--tier")', { box })).toBe('medium');
-            expect(read('@box.computedstyle-of("width")', { box })).toBe('120px');
-            expect(read('@box.computedstyle-of("--none")', { box })).toBeNull();
+            expect(read('@box.computedStyleOf("--tier")', { box })).toBe('medium');
+            expect(read('@box.computedStyleOf("width")', { box })).toBe('120px');
+            expect(read('@box.computedStyleOf("--none")', { box })).toBeNull();
         });
 
         it('read the sizes of the column tracks of a grid, and none for an element that is no grid', () => {
@@ -189,13 +189,13 @@ describe('Geometry in a browser', () => {
 
             expect(read('@input.selection { start, end }', { input })).toEqual({ start: 2, end: 7 });
             expect(read('@input has "selection"', { input })).toBe(true);
-            expect(read('@input.attribute-of("value")', { input })).toBeNull();
+            expect(read('@input.attributeOf("value")', { input })).toBeNull();
         });
 
         it('answers the window around the document', () => {
             expect(read('@window.devicePixelRatio')).toBeGreaterThan(0);
-            expect(read('@window.matches-media("(min-width: 1px)")')).toBe(true);
-            expect(read('@window.matches-media("(max-width: 0px)")')).toBe(false);
+            expect(read('@window.matchesMedia("(min-width: 1px)")')).toBe(true);
+            expect(read('@window.matchesMedia("(max-width: 0px)")')).toBe(false);
             expect(read('@document is "visible"')).toBe(true);
         });
     });

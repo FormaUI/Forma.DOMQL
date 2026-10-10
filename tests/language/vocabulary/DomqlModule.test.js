@@ -12,10 +12,15 @@ describe('DomqlModule', () => {
         expect(Object.isFrozen(module.members[0])).toBe(true);
     });
 
-    it('keeps the DOMQL name, the builder and the function key apart', () => {
-        const module = new DomqlModule('charts', { members: [declaration({ name: 'charts', builder: 'chartsBuilder', function: 'chartsKey' })] }, { chartsKey: () => 0 });
+    it('refuses a name with a hyphen, which no name holds', () => {
+        expect(messageOf(() => new DomqlModule('charts', { members: [declaration({ name: 'chart-size', function: 'chartSize' })] }))).toContain('named as a name is');
+        expect(messageOf(() => new DomqlModule('chart-tools', {}))).toContain('named as a name is');
+    });
 
-        expect(module.members[0]).toMatchObject({ name: 'charts', builder: 'chartsBuilder', function: 'chartsKey' });
+    it('keeps the DOMQL name and the function key apart', () => {
+        const module = new DomqlModule('charts', { members: [declaration({ name: 'charts', function: 'chartsKey' })] }, { chartsKey: () => 0 });
+
+        expect(module.members[0]).toMatchObject({ name: 'charts', function: 'chartsKey' });
     });
 
     it('requires every function a declaration names', () => {
@@ -23,7 +28,7 @@ describe('DomqlModule', () => {
     });
 
     it('refuses the built-in identity to any module but the built-in one', () => {
-        expect(messageOf(() => new DomqlModule('built-in', {}))).toContain('built-in module');
+        expect(messageOf(() => new DomqlModule('builtIn', {}))).toContain('built-in module');
         expect(Vocabulary.module.isBuiltIn).toBe(true);
     });
 

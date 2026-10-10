@@ -6,8 +6,8 @@ describe('Vocabulary', () => {
     const registry = new ModuleRegistry([Vocabulary.module]);
     const names = [
         'size', 'devicePixelRatio', 'rect', 'clientSize', 'grid', 'selection', 'children', 'parent', 'count', 'first', 'last',
-        'matches-media', 'supports', 'attribute-of', 'computedstyle-of', 'intersects', 'overlaps', 'matches', 'closest',
-        'all', 'get', 'at', 'max', 'min', 'sum', 'where', 'events-of',
+        'matchesMedia', 'supports', 'attributeOf', 'computedStyleOf', 'intersects', 'overlaps', 'matches', 'closest',
+        'all', 'get', 'at', 'max', 'min', 'sum', 'where', 'eventsOf',
     ];
 
     it('declares each member the specification lists', () => {

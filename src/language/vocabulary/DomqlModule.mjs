@@ -34,7 +34,7 @@ const DELEGATED_SELECTION_KINDS = ['member'];
 const RESERVED_TYPE_NAMES = new Set(['number', 'string', 'boolean', 'element', 'window', 'document', 'list', 'occurrence', 'null']);
 
 /** The name that identifies the built-in module, whose members stand without a namespace. */
-const BUILTIN_MODULE_NAME = 'built-in';
+const BUILTIN_MODULE_NAME = 'builtIn';
 
 export class DomqlModule {
     #name;
@@ -314,8 +314,8 @@ export class DomqlModule {
 
         const delegatesEvaluation = (member.parameters ?? []).some(parameter => parameter?.fixed === true && DELEGATED_SELECTION_KINDS.includes(parameter.selects));
 
-        if (!DomqlModule.#isIdentifier(member.builder) || (delegatesEvaluation ? member.function !== undefined : !DomqlModule.#isIdentifier(member.function))) {
-            fail(delegatesEvaluation ? 'It names its builder spelling as an identifier and no function, since what its name resolves to carries it out' : 'It names its builder spelling and its function, each as an identifier', name);
+        if (delegatesEvaluation ? member.function !== undefined : !DomqlModule.#isIdentifier(member.function)) {
+            fail(delegatesEvaluation ? 'It names no function, since what its name resolves to carries it out' : 'It names its function as an identifier', name);
         }
 
         DomqlModule.#validateReceiverTypes(member, name, fail);

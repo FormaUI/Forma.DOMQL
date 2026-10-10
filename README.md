@@ -30,14 +30,14 @@ const query = Domql.parse(`
         count: children.count,
 
         items: all("[data-key]") {
-            key: attribute-of "data-key",
+            key: attributeOf "data-key",
             height: rect.height,
             selected: matches "[aria-selected=true]"
         },
 
         selected: all("[data-key]")
             .where(matches "[aria-selected=true]") {
-                key: attribute-of "data-key"
+                key: attributeOf "data-key"
             },
 
         tallest: all("[data-key]").max(rect.height)
@@ -149,7 +149,7 @@ const surroundings = Domql.parse(`
 
         window: @window {
             size,
-            dark: matches-media "(prefers-color-scheme: dark)"
+            dark: matchesMedia "(prefers-color-scheme: dark)"
         },
 
         visible: @document is "visible"

@@ -202,8 +202,6 @@ export interface ParameterDeclaration {
 export interface MemberDeclaration {
     /** The DOMQL name. */
     name: string;
-    /** The public builder name. */
-    builder: string;
     /** The key of the function that carries it out, among the module's functions. */
     function?: string;
     kind: 'property' | 'operation' | 'source' | 'action' | 'behavior';

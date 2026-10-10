@@ -302,7 +302,7 @@ describe('Observations', () => {
         });
 
         it('resolve the observations a built-in member names', () => {
-            const [declaration] = new ModuleRegistry([Vocabulary.module]).getMembers('attribute-of');
+            const [declaration] = new ModuleRegistry([Vocabulary.module]).getMembers('attributeOf');
             const requests = declaration.observations.map(observation => observations.resolve(observation, { receiver: target, args: { name: 'id' } }));
 
             expect(requests).toEqual([{ type: 'mutation', target, arguments: { attributes: ['id'] } }]);

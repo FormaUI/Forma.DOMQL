@@ -3,7 +3,6 @@ import { DomqlError } from '#domql/language/DomqlError.mjs';
 
 export const declaration = (overrides = {}) => ({
     name: 'zoom',
-    builder: 'zoom',
     function: 'zoom',
     kind: 'property',
     on: 'element',

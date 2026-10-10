@@ -4,7 +4,7 @@ const query = Domql.parse(`
     @panel {
         count: children.count,
         items: all("[data-key]") {
-            key: attribute-of "data-key",
+            key: attributeOf "data-key",
             selected: matches "[aria-selected=true]"
         }
     }

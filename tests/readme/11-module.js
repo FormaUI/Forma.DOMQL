@@ -5,7 +5,6 @@ const metricsModule = Domql.createModule('metrics', {
     }],
     members: [{
         name: 'metrics',
-        builder: 'metrics',
         function: 'readMetrics',
         kind: 'property',
         on: 'element',

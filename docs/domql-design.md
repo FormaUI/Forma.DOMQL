@@ -1,4 +1,4 @@
-# DOMQL Design v1.0.6
+# DOMQL Design v1.0.7
 
 The [DOMQL specification](domql-specification.md) defines the language. This design sets out how DOMQL runs and is used: how requests are built and prepared, how a read waits and a watch stays current, how answers and changes are delivered, how occurrences hold their observations, and how modules extend the vocabulary.
 
@@ -106,7 +106,7 @@ An occurrence's shape is evaluated as the specification defines, and its answer,
 A maintained member in an occurrence's shape reads its latest sample, or null while it is pending, never waits for a later one and never revises an answer already delivered:
 
 ```
-@button.events-of("click") {
+@button.eventsOf("click") {
     nearEnd: @sentinel.intersects(root: @panel)
 }
 ```
@@ -115,7 +115,7 @@ The subscription holds the sessions its shapes acquire. After each successful ev
 
 ## Modules
 
-An extension is registered as a module, which declares under its name the state members, occurrence sources, actions and behaviors it contributes and supplies the implementation that carries each out; requests resolve against those declarations. The declarations are data, each member's DOMQL name, signature, result type, argument types and kinds and the request kinds it supports, so they can be read without running the implementations. A module associates three things explicitly, and nothing derives one from another: an operation's DOMQL name, `computedstyle-of`, its public builder name, `computedStyle`, and the function that carries it out, whatever that function is called. A module registers under a name of its own, and registering a name twice is an error.
+An extension is registered as a module, which declares under its name the state members, occurrence sources, actions and behaviors it contributes and supplies the implementation that carries each out; requests resolve against those declarations. The declarations are data, each member's DOMQL name, signature, result type, argument types and kinds and the request kinds it supports, so they can be read without running the implementations. A module associates three things explicitly, and nothing derives one from another: an operation's DOMQL name, `computedStyleOf`, its public builder name, `computedStyle`, and the function that carries it out, whatever that function is called. A module registers under a name of its own, and registering a name twice is an error.
 
 ```js
 Domql.registerModule(new VirtualizerDomqlModule(Virtualizer));
@@ -124,9 +124,9 @@ Domql.registerModule(new InputRouterDomqlModule(InputRouter));
 
 ### Declarations
 
-A module is created with its members and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The built-in vocabulary is the module `built-in`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
+A module is created with its members and, once it can carry them out, the functions they name; declarations are validated when the module is created and checked against the registry when it is registered. The built-in vocabulary is the module `builtIn`, whose identity no other module takes and whose members stand without a namespace; any other module adds members to its own types and a single member named for itself to any other.
 
-- **A declaration** names the member's DOMQL name, its builder name and the key of its function in the module's functions, each independent of the others; its kind, one of property, operation, source, action and behavior; the types it applies to; its parameters; its result type; and its observation coverage.
+- **A declaration** names the member's DOMQL name, which the fluent builder spells the same way, and the key of its function in the module's functions, independent of its name; its kind, one of property, operation, source, action and behavior; the types it applies to; its parameters; its result type; and its observation coverage.
 - **A parameter** is a value or an expression. An expression is evaluated against each item of the list it follows and declares the type it produces. A parameter declares whether it is required, its default where it is not, and whether a null argument propagates, making the call answer null, or is accepted.
 - **A fixed parameter** names something the vocabulary resolves before any evaluation, and declares what it selects: a member, a predicate, an occurrence or a feature.
 - **Observations.** A member that changes observably or partly observably names the observations that cover its changes. An observation is of a type, observes the receiver, the window, the document or an argument of the member, and gives the arguments its type takes; a member that changes in any other way names none. A module declares a type of observation with the function that starts one. A type is either an invalidation observation, which says that an answer may have changed and carries no value, or a maintained observation, which provides a sample a member reads and is pending until its first arrives; a member that reads maintained values names a maintained observation, and no other member does.
@@ -251,7 +251,7 @@ With the bindings of the first example, the answer is the following: a shape fol
 A `DomqlQuery<T>` answers a `T`, mapped by its declared contract, which matches the answer's fields to the constructor parameters of `T` by name regardless of case, so a field `nearend` fills a parameter `NearEnd`, and reports an ambiguity where two fields differ only in case, since DOMQL itself tells them apart; a `DomqlQuery` answers a `DomqlSnapshot` giving structured access to its values. C# has no fluent builder and no C# type standing for each vocabulary concept: a module contributes its declarations and implementations, and the text names what the query reads. A `TryParse` checks the syntax and the structural rules that need no vocabulary, an empty shape, a duplicate field and a reserved name among them; an expected failure there answers false with a diagnostic and no query, and a vocabulary failure, such as an unknown member, arrives when the query is prepared.
 
 - **Targets.** `Domql.from(target)` starts a path at an element and binds it as a parameter the builder names, one parameter however often the same element is given; `Domql.document` and `Domql.window` start at the roots. An element or other value given as an argument is bound the same way. A caller rebinding a fluent query's definition takes the parameter names from that definition.
-- **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells an operation by its public builder name, `row.attributeOf("data-key")` and `view.computedStyle("--x")`, which the module's declaration records beside the operation's DOMQL name, `attribute-of` and `computedstyle-of`, and apart from the function that carries it out: renaming that function never changes the builder, and the declaration is available when a fluent query is built, while the implementation loads when it is prepared. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.
+- **Members.** A member is a property, and a member taking arguments is a method: `view.size`, `row.attributeOf("data-key")`. A builder spells a member by its DOMQL name, `row.attributeOf("data-key")` and `view.computedStyleOf("--x")`, with no conversion, and apart from the function that carries it out: renaming that function never changes the builder, and the declaration is available when a fluent query is built, while the implementation loads when it is prepared. A plain object as the last argument gives arguments by name, as `{ root: panel }` does.
 - **Shapes.** `select` adds a shape, from a projection that receives the current value and returns an object whose properties are the shape's fields, in order. An object nested in it is a shape following no value, `Domql.from` inside it starts a path at another target, and a literal is written `Domql.value("list")`. `Domql.select({ … })` is a shape at the top level, across targets.
 - **Expression arguments.** A list member taking an expression, such as `where`, `max`, `min` or `sum`, takes a callback receiving the item.
 - **Tests.** `view.is("attached")` and `view.has("children")` build a predicate test of the value they follow, and `Domql.and(…)` and `Domql.or(…)` combine names, so `view.is(Domql.or("disabled", "readOnly"))` is `is "disabled" or "readOnly"`.

@@ -8,7 +8,7 @@ import { Vocabulary } from '#domql/language/vocabulary/Vocabulary.mjs';
 
 /** A module of a size with the tolerance the test gives it, and one of a number with none. */
 const property = (name, result, tolerance = {}) => new DomqlModule(name, {
-    members: [{ name, builder: name, function: name, kind: 'property', on: 'element', parameters: [], result, changes: 'constant', reads: 'fresh', ...tolerance }],
+    members: [{ name, function: name, kind: 'property', on: 'element', parameters: [], result, changes: 'constant', reads: 'fresh', ...tolerance }],
 }, null);
 
 /** The comparer of the snapshots of a query, which compares them as a watch does. */
@@ -27,14 +27,14 @@ describe('SnapshotComparer', () => {
 
     describe('reconcile', () => {
         it('gives the previous snapshot itself where nothing changed', () => {
-            const snapshotComparer = snapshotComparerOf('@element { a: attribute-of "a", b: attribute-of "b" }', { element });
+            const snapshotComparer = snapshotComparerOf('@element { a: attributeOf "a", b: attributeOf "b" }', { element });
             const previous = freeze({ a: '1', b: '2' });
 
             expect(snapshotComparer.reconcile(previous, freeze({ a: '1', b: '2' }))).toBe(previous);
         });
 
         it('shares every branch that did not change and builds new ones along the paths that did', () => {
-            const snapshotComparer = snapshotComparerOf('@element { id: attribute-of "id", items: children { key: attribute-of "key" } }', { element });
+            const snapshotComparer = snapshotComparerOf('@element { id: attributeOf "id", items: children { key: attributeOf "key" } }', { element });
             const previous = freeze({ id: 'x', items: [{ key: 'a' }, { key: 'b' }] });
             const next = snapshotComparer.reconcile(previous, freeze({ id: 'x', items: [{ key: 'a' }, { key: 'c' }] }));
 
@@ -46,7 +46,7 @@ describe('SnapshotComparer', () => {
         });
 
         it('compares a list by position, and gives a new one where its length changed', () => {
-            const snapshotComparer = snapshotComparerOf('@element { items: children { key: attribute-of "key" } }', { element });
+            const snapshotComparer = snapshotComparerOf('@element { items: children { key: attributeOf "key" } }', { element });
             const previous = freeze({ items: [{ key: 'a' }, { key: 'b' }] });
             const next = snapshotComparer.reconcile(previous, freeze({ items: [{ key: 'a' }] }));
 
@@ -55,7 +55,7 @@ describe('SnapshotComparer', () => {
         });
 
         it('compares strings, Booleans and null exactly', () => {
-            const snapshotComparer = snapshotComparerOf('@element { s: attribute-of "s", b: matches ".x", n: attribute-of "none" }', { element });
+            const snapshotComparer = snapshotComparerOf('@element { s: attributeOf "s", b: matches ".x", n: attributeOf "none" }', { element });
             const previous = freeze({ s: 'a', b: true, n: null });
 
             expect(snapshotComparer.reconcile(previous, freeze({ s: 'a', b: true, n: null }))).toBe(previous);
@@ -103,7 +103,7 @@ describe('SnapshotComparer', () => {
         });
 
         it('compares the items of a shape over a list', () => {
-            const snapshotComparer = snapshotComparerOf('@element.children { key: attribute-of "key" }', { element });
+            const snapshotComparer = snapshotComparerOf('@element.children { key: attributeOf "key" }', { element });
             const previous = freeze([{ key: 'a' }, null]);
 
             expect(snapshotComparer.reconcile(previous, freeze([{ key: 'a' }, null]))).toBe(previous);

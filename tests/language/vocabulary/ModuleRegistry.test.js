@@ -11,7 +11,7 @@ describe('ModuleRegistry', () => {
     });
 
     it('registers the built-in module and a module beside it', () => {
-        expect(new ModuleRegistry([Vocabulary.module, own()]).modules).toEqual(['built-in', 'charts']);
+        expect(new ModuleRegistry([Vocabulary.module, own()]).modules).toEqual(['builtIn', 'charts']);
     });
 
     it('refuses a module registered twice', () => {

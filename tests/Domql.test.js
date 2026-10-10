@@ -45,19 +45,19 @@ describe('Domql', () => {
         });
 
         it('reads a member that starts a path with its arguments unparenthesized, as the call it stands for', () => {
-            expect(Domql.parse('@target { attribute-of "id" }').definition).toEqual(Domql.parse('@target { attribute-of("id") }').definition);
+            expect(Domql.parse('@target { attributeOf "id" }').definition).toEqual(Domql.parse('@target { attributeOf("id") }').definition);
             expect(Domql.parse('@target { intersects @panel 200 }').definition).toEqual(Domql.parse('@target { intersects(@panel, 200) }').definition);
         });
 
         it('ends unparenthesized arguments at a comma, so each field keeps its own', () => {
-            const { definition } = Domql.parse('@target { key: attribute-of "data-key", selected: matches ".x" }');
+            const { definition } = Domql.parse('@target { key: attributeOf "data-key", selected: matches ".x" }');
 
             expect(definition.query.fields.map(field => field.name)).toEqual(['key', 'selected']);
             expect(definition.query.fields[0].value.arguments).toEqual([{ value: literal('data-key') }]);
         });
 
         it('takes unparenthesized arguments across a line break', () => {
-            expect(Domql.parse('@target {\n    attribute-of\n    "id"\n}').definition).toEqual(Domql.parse('@target { attribute-of("id") }').definition);
+            expect(Domql.parse('@target {\n    attributeOf\n    "id"\n}').definition).toEqual(Domql.parse('@target { attributeOf("id") }').definition);
         });
 
         it('continues from a call whose arguments are parenthesized', () => {
@@ -89,13 +89,13 @@ describe('Domql', () => {
         });
 
         it('skips line and block comments', () => {
-            const { definition } = Domql.parse('// A panel.\n@panel { /* its\nfirst item */ first(".item") /* inline */.attribute-of("id") // the id\n}');
+            const { definition } = Domql.parse('// A panel.\n@panel { /* its\nfirst item */ first(".item") /* inline */.attributeOf("id") // the id\n}');
 
-            expect(definition.query.fields[0].value).toEqual(member('attribute-of', [{ value: literal('id') }], member('first', [{ value: literal('.item') }])));
+            expect(definition.query.fields[0].value).toEqual(member('attributeOf', [{ value: literal('id') }], member('first', [{ value: literal('.item') }])));
         });
 
         it('keeps comment markers inside a string as text', () => {
-            const { definition } = Domql.parse('@target.attribute-of("https://example.com/* not a comment */")');
+            const { definition } = Domql.parse('@target.attributeOf("https://example.com/* not a comment */")');
 
             expect(definition.query.arguments[0].value).toEqual(literal('https://example.com/* not a comment */'));
         });
@@ -122,12 +122,12 @@ describe('Domql', () => {
             ]);
         });
 
-        it('reads a hyphenated name as one name and the shorthand\'s literal as its argument', () => {
-            const { definition } = Domql.parse('@target { tier: computedstyle-of "--layout-tier", dark: matches-media "(prefers-color-scheme: dark)" }');
+        it('reads a camelCase name as one name and the shorthand\'s literal as its argument', () => {
+            const { definition } = Domql.parse('@target { tier: computedStyleOf "--layout-tier", dark: matchesMedia "(prefers-color-scheme: dark)" }');
 
             expect(definition.query.fields).toEqual([
-                { name: 'tier', value: member('computedstyle-of', [{ value: literal('--layout-tier') }]) },
-                { name: 'dark', value: member('matches-media', [{ value: literal('(prefers-color-scheme: dark)') }]) },
+                { name: 'tier', value: member('computedStyleOf', [{ value: literal('--layout-tier') }]) },
+                { name: 'dark', value: member('matchesMedia', [{ value: literal('(prefers-color-scheme: dark)') }]) },
             ]);
         });
 
@@ -238,9 +238,14 @@ describe('Domql', () => {
             ['a group of names never closed', '@input is ("a" or "b"', 1, 22],
             ['an operator naming a field', '@panel { is: size }', 1, 10],
             ['an operator naming a parameter', '@and { size }', 1, 2],
+            ['a hyphen in a member\'s name', '@panel.attribute-of("id")', 1, 17],
+            ['a hyphen in a parameter\'s name', '@my-panel { size }', 1, 4],
+            ['a hyphen in a field\'s name', '@panel { is-open: size }', 1, 12],
+            ['a hyphen before a digit in a name', '@panel.size-1', 1, 12],
+            ['a hyphen ending a name', '@panel.size- ', 1, 12],
             ['an argument after a parenthesized list', '@sentinel.intersects(@panel) 200', 1, 30],
-            ['an escape other than \\" or \\\\', '@target.attribute-of("a\\n")', 1, 24],
-            ['a string never closed', '@target.attribute-of("id', 1, 22],
+            ['an escape other than \\" or \\\\', '@target.attributeOf("a\\n")', 1, 23],
+            ['a string never closed', '@target.attributeOf("id', 1, 21],
             ['a character outside the language', '@target.size + 1', 1, 14],
             ['a parameter with no name', '@ { size }', 1, 3],
             ['a query that ends too soon', '@panel {', 1, 9],
@@ -286,7 +291,7 @@ describe('Domql', () => {
         });
 
         it('keeps a reserved word inside a string as an ordinary string', () => {
-            expect(Domql.parse('@target.attribute-of("null")').definition.query.arguments[0].value).toEqual(literal('null'));
+            expect(Domql.parse('@target.attributeOf("null")').definition.query.arguments[0].value).toEqual(literal('null'));
         });
 
         it('lets get, is and has infer the last segment of the name they read', () => {
@@ -510,7 +515,7 @@ describe('Domql modules', () => {
     });
 
     const module = name => isolated.createModule(name, {
-        members: [{ name, builder: name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+        members: [{ name, function: name, kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
     }, { [name]: () => 7 });
 
     it('make the members they declare available to the queries resolved afterwards', () => {
@@ -566,7 +571,7 @@ describe('Domql readAsync', () => {
             observationTypes: [{ name: 'level', contract: 'maintained', function: 'observeLevel' }],
             members: [
                 {
-                    name: 'level', builder: 'level', function: 'level', kind: 'property', on: 'element', parameters: [], result: 'number?',
+                    name: 'level', function: 'level', kind: 'property', on: 'element', parameters: [], result: 'number?',
                     changes: 'observable', reads: 'maintained', observations: [{ type: 'level', of: 'receiver' }],
                 },
             ],
@@ -582,7 +587,7 @@ describe('Domql readAsync', () => {
             level: (_receiver, _args, _environment, [sample]) => sample,
         }));
         isolated.registerModule(isolated.createModule('boom', {
-            members: [{ name: 'boom', builder: 'boom', function: 'boom', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
+            members: [{ name: 'boom', function: 'boom', kind: 'property', on: 'element', parameters: [], result: 'number', changes: 'constant', reads: 'fresh' }],
         }, { boom: () => { throw new Error('no'); } }));
     });
 
@@ -595,7 +600,7 @@ describe('Domql readAsync', () => {
     };
 
     it('answers what read answers for a query that reads nothing maintained', async () => {
-        const query = isolated.parse('@panel { count: children.count, id: attribute-of "id" }', { panel });
+        const query = isolated.parse('@panel { count: children.count, id: attributeOf "id" }', { panel });
 
         expect(await isolated.readAsync(query)).toEqual(isolated.read(query));
         expect(Object.isFrozen(await isolated.readAsync(query))).toBe(true);

@@ -36,11 +36,11 @@ const typeText: string = resolved.type.toString();
 
 const contents: ModuleContents = {
     types: [{ name: 'childMetrics', fields: { childCount: 'number' } }],
-    members: [{ name: 'metrics', builder: 'metrics', function: 'readMetrics', kind: 'property', on: 'element', parameters: [], result: 'childMetrics', changes: 'unobserved', reads: 'fresh', tolerance: 0.5 }],
+    members: [{ name: 'metrics', function: 'readMetrics', kind: 'property', on: 'element', parameters: [], result: 'childMetrics', changes: 'unobserved', reads: 'fresh', tolerance: 0.5 }],
     eventTypes: [{ name: 'chart-selected', payload: 'number' }],
     predicates: [{ verb: 'is', name: 'plotted', function: 'isPlotted', on: 'element', changes: 'observable', reads: 'fresh', observations: [{ type: 'mutation', of: 'receiver', attributes: true }] }],
     features: ['share'],
-    observationTypes: [{ name: 'charts-changed', contract: 'maintained', identity: ['root'], shared: true, function: 'observeCharts' }],
+    observationTypes: [{ name: 'chartsChanged', contract: 'maintained', identity: ['root'], shared: true, function: 'observeCharts' }],
 };
 const functions: ModuleFunctions = {
     readMetrics: (element: Element) => ({ childCount: element.children.length }),
@@ -88,6 +88,6 @@ const misread: DefinitionNode = { kind: 'predicate', verb: 'was', test: { kind: 
 Domql.parse(42);
 
 // @ts-expect-error A member is one of the kinds the language has.
-Domql.createModule('bad', { members: [{ name: 'bad', builder: 'bad', function: 'bad', kind: 'method', on: 'element', result: 'number', changes: 'constant', reads: 'fresh' }] });
+Domql.createModule('bad', { members: [{ name: 'bad', function: 'bad', kind: 'method', on: 'element', result: 'number', changes: 'constant', reads: 'fresh' }] });
 
 export { count, anything, kind, typeText };
