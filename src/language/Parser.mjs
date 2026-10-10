@@ -113,7 +113,7 @@ export class Parser {
     }
 
     /** Reads a literal or a parameter reference, which takes no member after it: a dot continues from the call. */
-    #parseSimple() {
+    #parseLiteralOrParameter() {
         const token = this.#token;
         this.#advance();
 
@@ -143,7 +143,7 @@ export class Parser {
             // Arguments given without parentheses are literals and parameters alone, so where they end is decided by the text.
             while (this.#token.type === 'literal' || this.#token.type === '@') {
                 const argumentStart = this.#token.start;
-                member.arguments.push(this.#span({ value: this.#parseSimple() }, argumentStart));
+                member.arguments.push(this.#span({ value: this.#parseLiteralOrParameter() }, argumentStart));
             }
 
             isPhrase = true;
@@ -194,7 +194,7 @@ export class Parser {
         }
 
         if (token.type === '@') {
-            return this.#parseSimple();
+            return this.#parseLiteralOrParameter();
         }
 
         if (token.type === '(') {

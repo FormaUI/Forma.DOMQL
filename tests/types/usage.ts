@@ -177,7 +177,7 @@ Domql.build(q => (q.from(panel) as unknown as DomqlUnresolvedExpression).zoom);
 // @ts-expect-error The editor refuses a member the vocabulary lacks.
 Domql.build(q => q.from(panel).sise);
 
-// @ts-expect-error A projection field is a path, a nested shape, or a string, a number or null.
+// @ts-expect-error A projection field is an expression, a nested shape, or a string, a number or null.
 Domql.build(q => q.from(panel).select(() => ({ hidden: true })));
 
 // Live state is one object the watch keeps current, which the caller reads and never writes.

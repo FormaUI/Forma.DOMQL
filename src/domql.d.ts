@@ -243,7 +243,7 @@ export interface DomqlOccurrenceExpression<E> {
     select<P extends DomqlProjection>(projection: (occurrence: E) => P): DomqlExpression<DomqlProjected<P>>;
 }
 
-/** What a projection returns: fields that are expressions, nested projections, or strings, numbers or null written as they are. */
+/** What a projection returns: fields that are expressions, objects that are nested shapes, or strings, numbers or null written as they are. */
 export interface DomqlProjection {
     readonly [field: string]: DomqlExpression<unknown> | DomqlProjection | string | number | null;
 }
@@ -258,7 +258,7 @@ export type DomqlProjected<P> =
 /** An expression whose type resolution decides, as the build resolves the query, rather than the declarations: a member a module adds, what `get` reads, or a typed binding. Any member and any call on it answers another, which resolution then accepts or refuses. */
 export type DomqlUnresolvedExpression = DomqlExpression<unknown> & { readonly [member: string]: DomqlUnresolvedExpression } & ((...args: unknown[]) => DomqlUnresolvedExpression);
 
-/** What a build's callback receives: where its query starts. */
+/** The builder a build's callback receives, `q`: where its query starts. */
 export interface DomqlBuilder {
     /** Starts the query at the document it is read in, as `@document` does. */
     from(target: Document): DomqlDocumentExpression;
@@ -619,6 +619,10 @@ export interface DomqlErrorLocation {
     binding?: string;
     module?: string;
     declaration?: string;
+    /** The failing node, written as DOMQL text, for a built query, which has no text of its own. */
+    text?: string;
+    /** The name of the member the failing node is an argument of. */
+    argumentOf?: string;
 }
 
 /** A failure of DOMQL, in the stage it happened in, and where. Its `name` is `DomqlError`. */
@@ -757,7 +761,7 @@ export declare class Domql {
     /** Creates a query from its definition, binding its parameters. */
     static create(definition: DomqlDefinition, bindings?: DomqlBindings): DomqlQuery;
 
-    /** Builds a query fluently: calls the callback once with the builder, whose query starts at `q.from`, and returns the query its result describes, typed by the result it reads. A misspelled member fails here, naming its part as DOMQL text. */
+    /** Builds a query fluently: calls the callback once with the builder, whose query starts at `q.from`, and returns the query its result describes, typed by the result it reads. A misspelled member fails here, naming the failing node as DOMQL text. */
     static build<R extends DomqlExpression<unknown>>(callback: (q: DomqlBuilder) => R): DomqlQuery<DomqlValueOf<R>>;
 
     /** Binds a value with the type it has, for a value that reveals none, such as null or an empty list. */

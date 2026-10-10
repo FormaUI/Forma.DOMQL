@@ -126,7 +126,7 @@ Domql.read(selected);
 // [ { key: 'a2' } ]
 ```
 
-The callback runs once, as the query is built, and works with expressions that record the query rather than with values, so arithmetic or a condition over them is refused. An element it meets, as a target or an argument, is bound under a name the build gives, `p1`, `p2` and so on; `q.from({ panel })` binds it under a name of yours. A misspelled member fails as the query is built, naming the part as DOMQL text. In TypeScript the editor completes each member, and the query is typed by its result: `Domql.read(selected)` is a `{ key: string | null }[]`. Building the same query again for other elements resolves it once.
+The callback runs once, as the query is built, and works with expressions that record the query rather than with values, so arithmetic or a condition over them is refused. An element it meets, as a target or an argument, is bound under a name the build gives, `p1`, `p2` and so on; `q.from({ panel })` binds it under a name of yours. A misspelled member fails as the query is built, naming the failing node as DOMQL text. In TypeScript the editor completes each member, and the query is typed by its result: `Domql.read(selected)` is a `{ key: string | null }[]`. Building the same query again for other elements resolves it once.
 
 ## Wait for values the browser keeps
 

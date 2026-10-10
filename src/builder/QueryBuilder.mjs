@@ -1,5 +1,5 @@
 /**
- * QueryBuilder — one build: it hands the build's callback the builder, records the query the callback describes as expressions, and binds the targets and values the query meets
+ * QueryBuilder — the builder of one query: it hands the build's callback `q`, records the query the callback describes as expressions, and binds the targets and values the query meets
  */
 
 import { DefinitionWriter } from '../language/DefinitionWriter.mjs';
@@ -35,14 +35,14 @@ export class QueryBuilder {
         const node = Expression.isExpression(result) ? Expression.nodeOf(result) : null;
 
         if (node === null) {
-            throw DomqlError.structure('A build answers the query its callback describes, a path that starts at `q.from`', {});
+            throw DomqlError.structure('A build answers the query its callback describes, an expression that starts at `q.from`', {});
         }
 
         return { definition: { version: Specification.definitionVersion, query: node }, bindings: Object.fromEntries(builder.#values) };
     }
 
     /**
-     * The failure, located by the part of the built definition it is about, written as DOMQL text, and the member that part is an argument of; a failure that names no part is as it was.
+     * The failure, located further by its failing node written as DOMQL text, and the member that node is an argument of; a failure that names no node is as it was.
      * @param {unknown} error What failed as the built query was validated or resolved.
      * @param {object} definition The built definition.
      */
@@ -54,20 +54,20 @@ export class QueryBuilder {
         }
 
         let node = definition;
-        let within;
+        let argumentOf;
         const segments = pointer.slice(1).split('/');
 
         for (const [index, segment] of segments.entries()) {
             if (node?.kind === 'member' && segment === 'arguments' && index < segments.length - 1) {
-                within = node.name;
+                argumentOf = node.name;
             }
 
             node = node?.[segment];
         }
 
-        const part = node?.kind === undefined ? node?.value : node;
+        const failing = node?.kind === undefined ? node?.value : node;
 
-        return part?.kind === undefined ? error : error.relocate(within === undefined ? { part: DefinitionWriter.write(part) } : { part: DefinitionWriter.write(part), within });
+        return failing?.kind === undefined ? error : error.relocate(argumentOf === undefined ? { text: DefinitionWriter.write(failing) } : { text: DefinitionWriter.write(failing), argumentOf });
     }
 
     /** A member read on the node: one without arguments, which a call gives them. */
@@ -131,14 +131,14 @@ export class QueryBuilder {
         return Expression.create({ kind: 'parameter', name: this.#bind(target) }, this);
     }
 
-    /** An argument's node: an expression's node, a function's expression over each item, a literal, or a parameter the value is bound to. */
+    /** An argument's node: an expression's node, a function's expression argument over each item, a literal, or a parameter the value is bound to. */
     #argument(value) {
         if (Expression.isExpression(value)) {
             return this.#nodeOf(value, 'An argument');
         }
 
         if (typeof value === 'function') {
-            return this.#expression(value(Expression.create(null, this)));
+            return this.#expressionArgument(value(Expression.create(null, this)));
         }
 
         if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
@@ -148,20 +148,20 @@ export class QueryBuilder {
         return { kind: 'parameter', name: QueryBuilder.#rootOf(value) ?? this.#bind(value) };
     }
 
-    /** What an expression answers for each item: a path or a literal, though not `true` or `false`, which `!` and `===` over an expression answer. */
-    #expression(result) {
+    /** What an expression argument answers for each item: an expression or a literal, though not `true` or `false`, which `!` and `===` over an expression answer. */
+    #expressionArgument(result) {
         if (Expression.isExpression(result)) {
-            return this.#nodeOf(result, 'An expression');
+            return this.#nodeOf(result, 'An expression argument');
         }
 
         if (result === null || ['string', 'number'].includes(typeof result)) {
             return { kind: 'literal', value: result };
         }
 
-        throw DomqlError.structure(`An expression answers a path, a string, a number or null, and this one answers ${QueryBuilder.#describe(result)}, which \`!\`, \`===\` and other operators over an expression answer as the query is built`, {});
+        throw DomqlError.structure(`An expression argument answers an expression, a string, a number or null, and this one answers ${QueryBuilder.#describe(result)}, which \`!\`, \`===\` and other operators over an expression answer as the query is built`, {});
     }
 
-    /** A projection's fields, in order: each a path, a nested shape, or a string, a number or null as it is written. */
+    /** A projection's fields, in order: each an expression, a nested shape, or a string, a number or null as it is written. */
     #fields(object) {
         if (!QueryBuilder.#isPlainObject(object)) {
             throw DomqlError.structure('A projection returns an object whose properties are the shape\'s fields', {});
@@ -183,14 +183,14 @@ export class QueryBuilder {
             return { kind: 'literal', value };
         }
 
-        throw DomqlError.structure(`The field '${name}' is a path, a nested shape, a string, a number or null, and is ${QueryBuilder.#describe(value)}; \`true\` and \`false\` are refused, since \`!\` and \`===\` over an expression answer them as the query is built, so a Boolean field is written in text`, {});
+        throw DomqlError.structure(`The field '${name}' is an expression, a nested shape, a string, a number or null, and is ${QueryBuilder.#describe(value)}; \`true\` and \`false\` are refused, since \`!\` and \`===\` over an expression answer them as the query is built, so a Boolean field is written in text`, {});
     }
 
     #nodeOf(expression, what) {
         const node = Expression.nodeOf(expression);
 
         if (node === null) {
-            throw DomqlError.structure(`${what} is a member of the current value or a path, never the current value itself`, {});
+            throw DomqlError.structure(`${what} is an expression, never the current value itself`, {});
         }
 
         return node;

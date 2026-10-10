@@ -92,8 +92,8 @@ export class Domql {
     static #moduleRegistry = new ModuleRegistry([BrowserModule.create()]);
 
     /**
-     * The resolutions of each definition, by the options they were made under and the signature of the bindings they were made against, valid for the registry revision they were made at and released with the definition.
-     * Queries that share a definition, as the texts parsed alike and the queries built alike do, and whose bindings have one signature, share its resolution.
+     * The resolutions of each definition, by the options they were made under and the resolution key of the bindings they were made against, valid for the registry revision they were made at and released with the definition.
+     * Queries that share a definition, as the texts parsed alike and the queries built alike do, and whose bindings have one resolution key, share its resolution.
      * @type {WeakMap<object, { revision: number, byKey: Map<string, import('./language/ResolvedDefinition.mjs').ResolvedDefinition> }>}
      */
     static #resolutionCache = new WeakMap();
@@ -135,7 +135,7 @@ export class Domql {
 
     /**
      * Builds a query fluently: calls the callback once with the builder, `q`, whose query starts at `q.from`, and returns the query the callback's result describes, a query like any other.
-     * The callback works with expressions that record the query rather than with values. The build checks the definition's structure and resolves it against the vocabulary, so a misspelled member fails here; a failure names its part as DOMQL text, since a built query has no text of its own.
+     * The callback works with expressions that record the query rather than with values. The build checks the definition's structure and resolves it against the vocabulary, so a misspelled member fails here; a failure names the failing node as DOMQL text, since a built query has no text of its own.
      * A target or a value the query meets is bound under a name the build gives, `p1`, `p2` and so on in the order it meets them, or under the name `q.from({ name: value })` gives it. A query built again alike shares its definition, and with it its resolution.
      * @param {(q: { from: (target: unknown) => unknown }) => unknown} callback Describes the query, starting at `q.from`.
      * @returns {DomqlQuery}
@@ -539,7 +539,7 @@ export class Domql {
             Domql.#resolutionCache.set(query.definition, kept);
         }
 
-        const key = `${options.watch === true}|${options.acceptPartialObservation === true}|${query.bindings.signature}`;
+        const key = `${options.watch === true}|${options.acceptPartialObservation === true}|${query.bindings.resolutionKey}`;
 
         if (!kept.byKey.has(key)) {
             kept.byKey.set(key, new LanguageResolver(Domql.#moduleRegistry, query.bindings, ParsedTexts.locationsOf(query.definition), options).resolveDefinition(query.definition));

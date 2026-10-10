@@ -108,11 +108,11 @@ describe('QueryBuilder', () => {
 
         it('refuses true and false where `!` and `===` over an expression answer them', () => {
             expect(getError(() => Domql.build(q => q.from(panel).select(view => ({ hidden: !view.is('attached') }))))).toMatchObject({ kind: 'structure', message: expect.stringContaining("The field 'hidden'") });
-            expect(getError(() => Domql.build(q => q.from(panel).children.where(item => item.size === null).count))).toMatchObject({ kind: 'structure', message: expect.stringContaining('An expression answers a path') });
+            expect(getError(() => Domql.build(q => q.from(panel).children.where(item => item.size === null).count))).toMatchObject({ kind: 'structure', message: expect.stringContaining('An expression argument answers an expression') });
         });
 
-        it('refuses a callback that answers no path, a projection that answers no object, and the current value as a field', () => {
-            expect(getError(() => Domql.build(() => ({ a: 1 })))).toMatchObject({ kind: 'structure', message: expect.stringContaining('a path that starts at `q.from`') });
+        it('refuses a callback that answers no expression, a projection that answers no object, and the current value as a field', () => {
+            expect(getError(() => Domql.build(() => ({ a: 1 })))).toMatchObject({ kind: 'structure', message: expect.stringContaining('an expression that starts at `q.from`') });
             expect(getError(() => Domql.build(q => q.from(panel).select(() => 'all')))).toMatchObject({ kind: 'structure', message: expect.stringContaining('returns an object') });
             expect(getError(() => Domql.build(q => q.from(panel).select(view => ({ me: view }))))).toMatchObject({ kind: 'structure', message: expect.stringContaining('never the current value itself') });
             expect(getError(() => Domql.build('@panel.size'))).toMatchObject({ kind: 'structure' });
@@ -132,18 +132,18 @@ describe('QueryBuilder', () => {
     });
 
     describe('a failure the vocabulary finds', () => {
-        it('is reported as the query is built, naming the part as DOMQL text and the member it is an argument of', () => {
+        it('is reported as the query is built, naming the failing node as DOMQL text and the member it is an argument of', () => {
             const error = getError(() => Domql.build(q => q.from(panel).children.where(item => item.intersect({ root: other })).count));
 
             expect(error.kind).toBe('validation');
-            expect(error.location).toMatchObject({ part: 'intersect(root: @p2)', within: 'where' });
-            expect(error.message).toContain('in `intersect(root: @p2)` inside `where`');
+            expect(error.location).toMatchObject({ text: 'intersect(root: @p2)', argumentOf: 'where' });
+            expect(error.message).toContain('in `intersect(root: @p2)`, an argument of `where`');
         });
 
         it('names a misspelled member of a path by the path that reaches it', () => {
             const error = getError(() => Domql.build(q => q.from(panel).sise.width));
 
-            expect(error).toMatchObject({ kind: 'validation', location: { part: '@p1.sise' } });
+            expect(error).toMatchObject({ kind: 'validation', location: { text: '@p1.sise' } });
         });
     });
 

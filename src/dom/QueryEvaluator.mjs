@@ -69,7 +69,7 @@ export class QueryEvaluator {
      * @returns {{ name: string, start: Function, capture: (occurrence: unknown) => unknown, receiver: unknown, args: Record<string, unknown>, environment: Environment, location: object } | null}
      */
     resolveSource() {
-        const call = this.#resolveCall('subscription', 'listened to');
+        const call = this.#resolveCall('subscription', 'subscribed to');
 
         return call.args === null ? null : { name: call.name, start: call.implementation, capture: occurrence => this.#capture(occurrence, call.pointer), receiver: call.receiver, args: call.args, environment: call.environment, location: call.location };
     }

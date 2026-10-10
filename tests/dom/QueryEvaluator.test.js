@@ -676,7 +676,7 @@ describe('QueryEvaluator projection', () => {
         });
 
         it('is refused for a request that is not a subscription', () => {
-            expect(failureOf(() => evaluatorOf('@panel.children.count', { panel }).resolveSource())).toMatchObject({ kind: 'evaluation', message: expect.stringContaining('A query request is not listened to') });
+            expect(failureOf(() => evaluatorOf('@panel.children.count', { panel }).resolveSource())).toMatchObject({ kind: 'evaluation', message: expect.stringContaining('A query request is not subscribed to') });
         });
 
         it('captures an occurrence as the fields its type declares, a nullable one it does not carry as null', () => {

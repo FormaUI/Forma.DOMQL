@@ -61,9 +61,9 @@ export class ParameterBindings {
 
     /**
      * What resolving a definition against these bindings depends on: each name with its type, and its value where that is a string, a number, a Boolean or null, since a bound string can select what a member reads.
-     * Two bindings with one signature resolve a definition alike, so they can share its resolution.
+     * Two bindings with one key resolve a definition alike, so they can share its resolution.
      */
-    get signature() {
+    get resolutionKey() {
         return [...this.#types.keys()].sort().map(name => {
             const value = this.#values.get(name);
             const isPrimitive = value === null || ['string', 'number', 'boolean'].includes(typeof value);

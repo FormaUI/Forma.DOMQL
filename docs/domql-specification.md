@@ -1,4 +1,4 @@
-# DOMQL Specification v1.0.8
+# DOMQL Specification v1.0.9
 
 DOMQL is a small language for querying the DOM: a query names what its caller wants to know about a document and its elements, and evaluating it gives one result shaped the way it asked. The same query is read once, watched for changes, or evaluated at each occurrence of something that happened in the document, and the actions and behaviors a caller asks the browser for are requests of their own kinds. The language knows how to name values and shape results; what can be asked about, an element's size, a computed style, whether it matches a selector, comes from a vocabulary beside it, so adding to what can be asked never changes the language.
 
@@ -8,30 +8,29 @@ This specification describes the whole language. An implementation may cover par
 
 ## Terms
 
-A **query** is a value expression whose evaluation produces a **result**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** a result holds, each with a value. A **predicate test** asks whether a value satisfies **predicates**, names the vocabulary registers, with `is` or `has`, and `and` and `or` combine them. A **parameter** is a value the caller supplies under a name, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or disposed; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
+A **query** is a value expression whose evaluation produces a **result**. A **path** starts from a value and follows **members**; a member belongs to a **type**, such as an element, a list or a rectangle, and can take **arguments**. A **shape** names the **fields** a result holds, each with a value. A **predicate test** asks whether a value satisfies **predicates**, names the vocabulary registers, with `is` or `has`, and `and` and `or` combine them. A **parameter** is a name a query reads a value through, such as `@panel`, and a **binding** is the value the caller supplies for it, such as an element. A **vocabulary** is a set of types and their members; the **built-in vocabulary** comes with DOMQL, and an **extension** is a vocabulary registered under a name of its own. An **occurrence source** is a member whose value is a stream of occurrences, things that happened, rather than state. An **action** is an operation the browser carries out once, and a **behavior** one that runs on until it is updated or disposed; a **request** is a query, a subscription, an action or a behavior request. A query's **definition** is the JSON document recording its meaning, and every request has one.
 
 ## Syntax
 
 ```
-query     = value
-value     = path [ test ] | test
-path      = phrase | start { "." call | shape }
-start     = parameter | literal | shape | call
-call      = name [ "(" [ argument { "," argument } [ "," ] ] ")" ]
-phrase    = name simple { simple }
-simple    = literal | parameter
-argument  = [ name ":" ] value
-shape     = "{" [ field { "," field } [ "," ] ] "}"
-field     = [ name ":" ] value
-test      = ( "is" | "has" ) either
-either    = both { "or" both }
-both      = operand { "and" operand }
-operand   = string | parameter | "(" either ")"
-parameter = "@" name
-literal   = string | number | "true" | "false" | "null"
+query       = value
+value       = path [ test ] | test
+path        = phrase | start { "." call | shape }
+start       = parameter | literal | shape | call
+call        = name [ "(" [ argument { "," argument } [ "," ] ] ")" ]
+phrase      = name ( literal | parameter ) { literal | parameter }
+argument    = [ name ":" ] value
+shape       = "{" [ field { "," field } [ "," ] ] "}"
+field       = [ name ":" ] value
+test        = ( "is" | "has" ) disjunction
+disjunction = conjunction { "or" conjunction }
+conjunction = operand { "and" operand }
+operand     = string | parameter | "(" disjunction ")"
+parameter   = "@" name
+literal     = string | number | "true" | "false" | "null"
 ```
 
-A name is a letter followed by letters and digits, as in `matchesMedia`; a name holds no hyphen, so every name is also a JavaScript identifier. `true`, `false` and `null` are reserved literal tokens, and `is`, `has`, `and` and `or` are reserved operators; none of them can be used as a name, and the restriction applies equally to text queries and to definitions created directly, wherever a name is declared or supplied: a member, a parameter, a field's name, a named argument, and an extension's or a predicate's declaration. A string holding one of them stays an ordinary string, so `attributeOf "null"` reads the attribute named `null`. `document` and `window` name the roots, and no parameter can take either. They are ordinary names everywhere else, so `window: @window { size }` names a field `window`. A string is double-quoted, with `\"` and `\\` as its escapes. A number is written as in JSON. Commas separate a shape's fields and a member's arguments, and a trailing comma after the last is allowed; whitespace, line breaks included, separates anything else. Outside a string, `//` starts a comment that runs to the end of its line, and `/*` starts one that runs to the next `*/`, across lines; a block comment does not nest, so the first `*/` closes it, and one never closed is a syntax error. Inside a string both are text, so `"https://example.com"` and `"/* */"` read as written.
+A name is a letter followed by letters and digits, as in `matchesMedia`; a name holds no hyphen, so every name is also a JavaScript identifier. `true`, `false` and `null` are reserved literal tokens, and `is`, `has`, `and` and `or` are reserved operators; none of them can be used as a name, and the restriction applies equally to text queries and to definitions created directly, wherever a name is declared or supplied: a member, a parameter, a field's name, a named argument, and an extension's or a predicate's declaration. A string holding one of them stays an ordinary string, so `attributeOf "null"` reads the attribute named `null`. `document` and `window` name the roots, and no binding can take either. They are ordinary names everywhere else, so `window: @window { size }` names a field `window`. A string is double-quoted, with `\"` and `\\` as its escapes. A number is written as in JSON. Commas separate a shape's fields and a member's arguments, and a trailing comma after the last is allowed; whitespace, line breaks included, separates anything else. Outside a string, `//` starts a comment that runs to the end of its line, and `/*` starts one that runs to the next `*/`, across lines; a block comment does not nest, so the first `*/` closes it, and one never closed is a syntax error. Inside a string both are text, so `"https://example.com"` and `"/* */"` read as written.
 
 ```
 @viewport {
@@ -54,7 +53,7 @@ A path is evaluated against a **current value**. A bare name is always a member 
 - **Inside a shape**, the current value is the value the shape follows: in `@viewport { rect.width }`, `rect` is the viewport's. A shape at the top level, `{ anchor: @anchor.rect, open: @popup.matches(":popover-open") }`, has no current value, so each of its fields starts with a parameter, a literal or a shape.
 - **A shape following no value** keeps the current value around it, so it groups fields: in `@panel { layout: { width: size.width, height: size.height } }`, `size` is the panel's. At the top level that value is absent.
 - **Parameters** resolve the same way everywhere, inside shapes and arguments alike. A parameter's value is an element, or data: a number, a string, a Boolean, null, a list or an object, as a behavior's configuration is, and a list or an object can hold elements.
-- **The roots** are predefined parameters: `@document` is the document and `@window` is the browser window, its layout viewport and what it supports. A supplied parameter cannot take either name.
+- **The roots** are predefined parameters: `@document` is the document and `@window` is the browser window, its layout viewport and what it supports. No binding can take either name.
 
 ### Arguments
 
@@ -170,13 +169,13 @@ A request is one of four kinds, and the member its path ends in decides which:
 | Kind | Its path ends in | Its caller |
 | --- | --- | --- |
 | Query | A value | Reads it once or watches it |
-| Subscription | An occurrence source | Listens to it |
+| Subscription | An occurrence source | Subscribes to it |
 | Action | An action | Runs it once, receiving its result |
 | Behavior request | A behavior | Activates it, updates it with new bindings, and disposes it |
 
 An action is an operation the browser carries out once, and a behavior is one that runs on in the browser until it is updated or disposed; both are members an extension declares, with signatures as every member has. A shape can follow an action to shape its result. An action or a behavior ends its request's path, so one inside a query, an argument or another request's shape is a validation error.
 
-Reading or watching a query never performs an action or configures a behavior: a query only reads, and an action or a behavior request acts only when its caller runs or activates it. A behavior belongs to the caller that activated it, and the occurrence sources it offers are listened to as subscriptions of their own.
+Reading or watching a query never performs an action or configures a behavior: a query only reads, and an action or a behavior request acts only when its caller runs or activates it. A behavior belongs to the caller that activated it, and the occurrence sources it offers are subscribed to, each as a subscription of its own.
 
 ```
 // An action: step the viewport forward, answering whether it moved.
@@ -188,13 +187,13 @@ Reading or watching a query never performs an action or configures a behavior: a
 
 ## Occurrences
 
-A path that ends in an occurrence source is listened to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The result is immutable data, and that result, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the built-in vocabulary's native drop event:
+A path that ends in an occurrence source is subscribed to, in two stages. The source hands each occurrence to the evaluator, which evaluates the shape following it at once, in the task the source delivers it in, with that occurrence as its current value. The result is immutable data, and that result, never the live event or the shape still to evaluate, is what reaches the caller, by the caller's own delivery. Here the occurrence source is the built-in vocabulary's native drop event:
 
 ```
 @zone.eventsOf("drop") { key: target.closest("[data-drop-target]").attributeOf("data-drop-key") }
 ```
 
-The shape reads the occurrence's own members, such as its target, and anything else a parameter reaches. Its members are read once per occurrence, never watched, so an unobserved member is allowed in it. An occurrence source documents its members, which of them it captured when the occurrence happened, and when it delivers the occurrence, such as before or after the browser carries out the action it reports; everything else its shape reads is read as the shape is evaluated. An extension's occurrence source can report only what its caller established, so two callers listening on one element each hear their own.
+The shape reads the occurrence's own members, such as its target, and anything else a parameter reaches. Its members are read once per occurrence, never watched, so an unobserved member is allowed in it. An occurrence source documents its members, which of them it captured when the occurrence happened, and when it delivers the occurrence, such as before or after the browser carries out the action it reports; everything else its shape reads is read as the shape is evaluated. An extension's occurrence source can report only what its caller activated, so two callers subscribed on one element each hear their own.
 
 ## Evaluation
 
@@ -214,7 +213,7 @@ A maintained member's observation starts the first time an evaluation reads it, 
 
 Evaluating a query is read-only for every vocabulary. A measurement that needs the document changed first, such as measuring columns at their intrinsic widths under a temporary class, is an action of its own.
 
-A member whose result depends on what happened before, as well as on the document as it is, is captured: it keeps that history while a watch or a listener holds it, and documents what a read reports without it.
+A member whose result depends on what happened before, as well as on the document as it is, is captured: it keeps that history while a watch or an event listener holds it, and documents what a read reports without it.
 
 ### Elements that leave the document
 
@@ -245,13 +244,13 @@ A member of null is null, and so is a predicate test of null, so a path that mee
 | `all` matches no element | An empty list |
 | A supported measurement is unavailable | null, as the member documents |
 | Text that does not follow the syntax | A syntax error, with its position |
-| A definition that does not follow its structure | A structural error, with its node's location |
-| A misspelled member or extension, or a parameter the caller did not supply | A validation error, with its location |
+| A definition that does not follow its structure | A structure error, with its node's location |
+| A misspelled member or extension, or a parameter the caller did not bind | A validation error, with its location |
 | A predicate its verb does not register, or one that does not apply to its subject | A validation error naming it |
 | A receiver, an argument, an expression or a binding of the wrong type, an argument of the wrong kind, or a missing required one | A validation error naming where, the expected type and the type found |
 | A module returning a value of a type other than the one it declared | An evaluation error |
 | A result that would contain an element or an occurrence source | A validation error |
-| A request used as another kind: reading or watching an occurrence source, listening to a value, running a query, or reading an action or a behavior | A validation error |
+| A request used as another kind: reading or watching an occurrence source, subscribing to a value, running a query, or reading an action or a behavior | A validation error |
 | An action or a behavior inside a query, an argument or another request's shape | A validation error |
 | Watching a partly observable member without accepting partial observation | A validation error naming each such member and the changes it misses |
 | A member failing unexpectedly while it evaluates | An evaluation error |
@@ -302,7 +301,7 @@ An operation performs a lookup, a calculation or a selection with the arguments 
 
 ### Occurrence sources
 
-An occurrence source delivers things that happened. It is listened to, never read or watched, and the shape following it is evaluated against each occurrence.
+An occurrence source delivers things that happened. It is subscribed to, never read or watched, and the shape following it is evaluated against each occurrence.
 
 | Available on | Source | Type | Delivers | Reads | Fixed |
 | --- | --- | --- | --- | --- | --- |
@@ -373,7 +372,7 @@ This answers the fields `rect`, `clientSize`, `disabled` and `hasChildren`. The 
 
 An extension adds members under one name of its own, a member of a built-in type whose value carries the extension's members: `@viewport.scroll(axis: "inline")` is a scroll extension's view of an element along an axis, and `canScrollForward` is one of its members. The name is the extension's namespace, so extensions never collide with each other or with the built-in vocabulary, whose member names are reserved.
 
-The built-in vocabulary declares the native event types its callers need, and an extension can declare more. Listening observes an event as it reaches its target and leaves its course to the page.
+The built-in vocabulary declares the native event types its callers need, and an extension can declare more. A subscription observes an event as it reaches its target and leaves its course to the page.
 
 An extension can define types of its own, occurrence sources, actions and behaviors, and follows the built-in vocabulary's contract throughout: every member declares its signature, its argument kinds, its result type and how it changes, and evaluating a query stays read-only and synchronous.
 
@@ -459,7 +458,7 @@ result = evaluate(query, bindings: { panel: <the list panel>, sentinel: <the end
 
 The bindings name only what the caller chooses. The complete query below also uses `@document` and `@window`, which are absent from them because they are the document the query runs against and its window, so no caller chooses them and none can bind them.
 
-A caller can take that result once, keep it current as the document changes, or take one at each occurrence of an event the query listens to; how it asks for each is the [design](domql-design.md)'s to say. A value query is read or watched alike; listening needs an occurrence source, whose projection uses the same expression language.
+A caller can take that result once, keep it current as the document changes, or take one at each occurrence of an event the query subscribes to; how it asks for each is the [design](domql-design.md)'s to say. A value query is read or watched alike; subscribing needs an occurrence source, whose projection uses the same expression language.
 
 ## A complete query
 
