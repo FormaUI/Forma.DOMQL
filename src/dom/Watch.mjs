@@ -139,8 +139,8 @@ export class Watch {
         this.#status = 'disposed';
         this.#cancelFrame();
 
-        this.#successfulEvaluation?.dispose();
-        this.#failedEvaluation?.dispose();
+        this.#release(this.#successfulEvaluation);
+        this.#release(this.#failedEvaluation);
         this.#successfulEvaluation = null;
         this.#failedEvaluation = null;
 
@@ -212,7 +212,7 @@ export class Watch {
 
     #settle(queryEvaluation, waiting) {
         if (this.#status === 'disposed') {
-            queryEvaluation.dispose();
+            this.#release(queryEvaluation);
 
             for (const { resolve } of waiting) {
                 resolve();
@@ -223,7 +223,7 @@ export class Watch {
 
         if (queryEvaluation.error !== null) {
             // The watch keeps the dependencies of its last successful evaluation together with those the failed one recorded.
-            this.#failedEvaluation?.dispose();
+            this.#release(this.#failedEvaluation);
             this.#failedEvaluation = queryEvaluation;
             this.#status = 'failed';
             this.#needsDelivery = true;
@@ -274,7 +274,16 @@ export class Watch {
         this.#failedEvaluation = null;
 
         for (const old of before) {
-            old?.dispose();
+            this.#release(old);
+        }
+    }
+
+    /** Disposes an evaluation's sessions, reporting a failure to, so every other cleanup and everything after it still happens. */
+    #release(queryEvaluation) {
+        try {
+            queryEvaluation?.dispose();
+        } catch (error) {
+            this.#callbackDispatcher.reportError(error);
         }
     }
 }

@@ -523,6 +523,25 @@ describe('Domql reads', () => {
         });
     });
 
+    describe('a request of another kind', () => {
+        const subscription = () => Domql.parse('@panel.eventsOf("click") { button }', { panel });
+
+        it('is refused with a validation error by the call that does not carry it out, naming what the call does', () => {
+            expect(getError(() => Domql.read(subscription()))).toMatchObject({ kind: 'validation', message: expect.stringContaining('A subscription request is not read'), location: { pointer: '/query', line: 1 } });
+            expect(getError(() => Domql.watch(subscription(), { onChange: () => {} }))).toMatchObject({ kind: 'validation', message: expect.stringContaining('A subscription request is not watched') });
+            expect(getError(() => Domql.subscribe('@panel.children.count', { panel }, { onEvent: () => {} }))).toMatchObject({ kind: 'validation', message: expect.stringContaining('A query request is not subscribed to') });
+        });
+
+        it('is refused by a waiting read, which rejects with the validation error', async () => {
+            await expect(Domql.readAsync(subscription())).rejects.toThrow(expect.objectContaining({ kind: 'validation', message: expect.stringContaining('A subscription request is not read') }));
+        });
+
+        it('is refused after resolution and before anything needs a window', () => {
+            expect(getError(() => Domql.read(subscription(), { window: null })).kind).toBe('validation');
+            expect(getError(() => Domql.read(Domql.parse('@panel.nonsense', { panel }), { window: null })).kind).toBe('validation');
+        });
+    });
+
     describe('the environment', () => {
         it('is reported when there is no browser window', () => {
             const query = Domql.parse('@window.devicePixelRatio');
@@ -663,6 +682,8 @@ describe('Domql readAsync', () => {
     let isolated;
     let panel;
     let gauges;
+    let stuck;
+    let reported;
 
     /** Lets the observations deliver and the reads that wait on them evaluate again. */
     const settle = () => new Promise(resolve => setTimeout(resolve));
@@ -673,8 +694,11 @@ describe('Domql readAsync', () => {
         document.body.innerHTML = '<div id="panel"><b></b><b></b><b></b></div>';
         panel = document.getElementById('panel');
         gauges = new Map();
+        stuck = new Set();
+        reported = [];
+        window.reportError = error => reported.push(error);
 
-        // A member kept by an observation whose samples the test supplies, one gauge for each element.
+        // A member kept by an observation whose samples the test supplies, one gauge for each element; one the test marks stuck fails to stop.
         isolated.registerModule(isolated.createModule('level', {
             observationTypes: [{ name: 'level', contract: 'maintained', function: 'observeLevel' }],
             members: [
@@ -690,7 +714,15 @@ describe('Domql readAsync', () => {
                 gauges.set(target, gauge);
                 gauge.started++;
 
-                return { stop: () => gauge.stopped++, sample: () => gauge.sample };
+                const stop = () => {
+                    gauge.stopped++;
+
+                    if (stuck.has(target)) {
+                        throw new Error('stuck');
+                    }
+                };
+
+                return { stop, sample: () => gauge.sample };
             },
             level: (_receiver, _args, _environment, [sample]) => sample,
         }));
@@ -806,5 +838,46 @@ describe('Domql readAsync', () => {
 
         expect(error.name).toBe('DomqlError');
         expect(error.kind).toBe('evaluation');
+    });
+
+    describe('cleanup that fails', () => {
+        it('is reported, and keeps the result of a read that succeeded', async () => {
+            const [first, second] = panel.children;
+            const reading = isolated.readAsync(isolated.parse('{ a: @a.level, b: @b.level }', { a: first, b: second }));
+
+            stuck.add(first);
+            await settle();
+            sample(first, 1);
+            sample(second, 2);
+
+            expect(await reading).toEqual({ a: 1, b: 2 });
+            expect(gauges.get(second).stopped).toBe(1);
+            expect(reported.map(error => error.message)).toEqual(['stuck']);
+        });
+
+        it('is reported, and leaves the read failing with the error of its evaluation', async () => {
+            const item = panel.children[0];
+            const failure = isolated.readAsync(isolated.parse('{ a: @item.level, b: @item.boom }', { item })).catch(error => error);
+
+            stuck.add(item);
+            await settle();
+            sample(item, 1);
+
+            expect((await failure).message).toContain("The member 'boom' failed");
+            expect(reported.map(error => error.message)).toEqual(['stuck']);
+        });
+
+        it("is reported, and leaves a canceled read failing with the signal's reason", async () => {
+            const controller = new AbortController();
+            const item = panel.children[0];
+            const failure = isolated.readAsync(isolated.parse('@item.level', { item }), { signal: controller.signal }).catch(error => error);
+
+            stuck.add(item);
+            await settle();
+            controller.abort(new Error('not needed'));
+
+            expect((await failure).message).toBe('not needed');
+            expect(reported.map(error => error.message)).toEqual(['stuck']);
+        });
     });
 });

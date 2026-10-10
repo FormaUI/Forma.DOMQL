@@ -65,7 +65,7 @@ State: **done.** Built in its chosen form by step 2.
 - **Update strategies.** A snapshot is immutable and never changes once delivered. A change set is relative to the state it was computed against. Live state is one object with a stable identity, updated in place, so it is chosen explicitly and is never a snapshot. Each update to live state is fully applied before its callback begins; a consumer that is asynchronous and needs to retain one version chooses snapshots, since live state can change while it waits.
 - **An event listener.** It delivers the result of each event's projection through its callback, `onEvent`, with the same callback, failure and disposal rules.
 
-State: **accepted.** Built by steps 3 to 5, with the departures each records, except live state, which no step builds yet.
+State: **accepted.** Built by steps 3 to 5, with the departures each records, except live state, which step 7 builds.
 
 ### D4. What DOMQL owns and what a host owns
 
@@ -77,7 +77,29 @@ State: **accepted.**
 
 ### D5. The API of actions and behaviors
 
-- **Recommended:** `Domql.runAsync(query, options)` runs an action once and answers a promise of its result. `Domql.establish(query, options)` answers a handle for a behavior with `update(bindings)` and `dispose()`; the instance belongs to the caller that established it, and releasing it leaves its module registered. A query never runs either.
+```js
+const result = await Domql.runAsync(query, options);
+const behavior = Domql.establish(query, options);
+
+behavior.update(bindings);
+behavior.dispose();
+```
+
+- **Recommended: two entry points, each taking options.** `Domql.runAsync` runs an action once and answers a promise of its result; `Domql.establish` answers the handle of a behavior, which belongs to the caller that established it, and releasing it leaves its module registered. Neither needs a callback, so each takes options, every one of which has a default: `runAsync` takes `window` and `signal`, and `establish` takes `window`. A query never runs an action or establishes a behavior.
+- **The request's kind.** Each refuses a request of another kind with a validation error after resolution and before anything is evaluated or started, as reading, watching and subscribing do: `runAsync` takes an action request, `establish` a behavior request, and the other calls refuse both.
+- **Text.** Each takes a request or its text, as the other entry points do: `(text, bindings?, options?)` parses the text through the same cache as `parse`, and `(query, options?)` reuses a request.
+- **Running an action.**
+  - The receiver and the arguments are evaluated first, synchronously, as a read evaluates them; a failure there rejects the promise and runs nothing.
+  - The action's function receives the receiver, the arguments, the environment and the signal, and may answer its result or a promise of it, which is why the call waits. Its result must be of the type the action declares, and data alone; a result of another type rejects the promise with an evaluation error naming the action. A shape that follows the action is evaluated against the result once it arrives, and the promise answers detached, immutable data.
+  - A failure of the action, whatever it throws, rejects the promise with an evaluation error naming the action, whose cause is what was thrown. Nothing goes to the error reporting while the caller holds the promise.
+  - Cancellation: a signal already aborted rejects with its reason and runs nothing. A signal that aborts while the action runs rejects the promise with its reason at once, as a waiting read does, and the action learns of it through the signal it was given. What the action does after that is its own: its result is discarded, and a failure it reports afterwards goes to the window's error reporting, since no caller waits for it.
+  - Partial failure: an action can change the document before it fails or is canceled. DOMQL never rolls back what it did; the rejection says the action failed, and what it changed stays changed. An action that can be undone offers that as an action of its own.
+- **Establishing a behavior.** `establish` is synchronous: the behavior's function receives the receiver, the arguments and the environment, starts the behavior before it returns, and answers an object with `update` and `dispose`. A failure to start, or an answer without both, throws an evaluation error naming the behavior, whose cause is what was thrown, and leaves nothing running. A behavior that needs to wait before it is in effect is outside this decision; it would be established by an `establishAsync` of its own, decided when one is needed.
+- **The handle.** It has a `status`, `ready` from the call on and `disposed` once ended, with `update(bindings)` and `dispose()`. A failure inside the running behavior, after it started, goes to the window's error reporting; the behavior's function receives the reporter for it.
+- **Updating bindings.** `update(bindings)` replaces the bindings whole, as `create` binds a definition, so a caller states every parameter and nothing is left over from before. It is synchronous and validates first: the bindings are checked, the request is resolved again against them, and the receiver and arguments are evaluated. Any failure throws, a validation or an evaluation error, and leaves the behavior running as it was, with its earlier bindings. A resolution that would select a different member, as a fixed argument bound to another value can, is refused with a validation error, since that is another behavior to establish. Only once all of that succeeds does the behavior's `update` receive the new receiver and arguments; a failure there throws an evaluation error naming the behavior, and the behavior keeps the bindings it last accepted, since its module promises that an update that fails changed nothing. Updating a disposed behavior throws.
+- **Disposal.** `dispose()` ends the behavior once and is idempotent. It calls the behavior's `dispose`, reports a failure of it to the window's error reporting, and marks the handle `disposed` whatever happened, so nothing is left to call again. Since establishing and updating are synchronous, no work is pending when it is disposed.
+- **The module contract.** An action's function is `(receiver, args, environment, { signal })` and answers a result or a promise of it; a behavior's function is `(receiver, args, environment, { reportError })` and answers `{ update(receiver, args), dispose() }`.
+- **Left for later:** the occurrence sources a behavior offers, which the specification subscribes to as subscriptions of their own, are a decision of their own once a behavior that offers one exists.
 
 State: open. Needed by step 6.
 
@@ -155,7 +177,7 @@ Deliver what an occurrence source reports: `eventsOf` captures what the event ca
   - The source's receiver and arguments are evaluated once, as listening starts; an event listener does not follow a receiver that changes, and listens to nothing where the receiver or an argument is null.
   - An occurrence is captured as the fields its event type declares, inside the source's delivery: a field the occurrence carries no value of its type for is null where the type is nullable and fails the capture where it is not, which is reported as a projection's failure is. So `domEvent`'s `target` is nullable, for a scroll or a resize that targets the document or the window, and so is `pointerEvent`'s `pointerType`, for a browser that dispatches a click as a mouse event.
   - A source's function takes the receiver, the arguments, the environment and the function it delivers each occurrence to, and answers an object whose `stop` ends the listening; the built-in `eventsOf` listens passively.
-  - Disposing an evaluation disposes every session even where one fails to be, so a failure of cleanup is reported and leaves no observation running.
+  - Disposing an evaluation disposes every session even where one fails to be. A watch, an event listener and a waiting read each attempt every cleanup, report a failure of one to the window's error reporting, and never let it replace their result, their error or their cancellation.
 
 ### 6. Actions and behaviors
 
@@ -165,7 +187,15 @@ Run an action once and receive its result, and establish, update and release a b
 - **Done when:** an extension's action and behavior run through their request kinds, a query never performs either, and releasing an instance leaves its module registered.
 - **State:** not started.
 
-### 7. The fluent builder
+### 7. Live state
+
+Deliver a watch's result as live state: one object with a stable identity that the watch updates in place, the third update strategy D3 accepts. It is chosen explicitly and is never a snapshot, and each update is fully applied before its callback begins.
+
+- **Needs:** steps 3 and 4, D3, and a decision of its own on how a caller chooses it and what an update tells the callback.
+- **Done when:** a watch that delivers live state keeps one object current through every change a snapshot or a change set would report, including lists that are reordered and items that come and go, applies each change before the callback sees it, and reports a failed evaluation without changing the state.
+- **State:** not started.
+
+### 8. The fluent builder
 
 Build queries from calls that produce the same definition text or JSON would, so they resolve and read alike.
 
@@ -173,7 +203,7 @@ Build queries from calls that produce the same definition text or JSON would, so
 - **Done when:** the definition a builder produces equals the one the equivalent text parses to, for every construct the language has.
 - **State:** not started.
 
-### 8. Editor tooling
+### 9. Editor tooling
 
 Diagnostics and completion over the grammar and the declaration metadata, without running a capability.
 
@@ -181,11 +211,11 @@ Diagnostics and completion over the grammar and the declaration metadata, withou
 - **Done when:** a query text is checked against the declarations available to its project, reporting the same positions and messages as resolution.
 - **State:** not started.
 
-### 9. The C# half
+### 10. The C# half
 
 `Parse`, `TryParse`, typed mapping and snapshots for a .NET host.
 
-- **Needs:** the JavaScript API settled (steps 1 to 6), D4.
+- **Needs:** the JavaScript API settled (steps 1 to 7), D4.
 - **State:** not started.
 
 ## Departures from the design

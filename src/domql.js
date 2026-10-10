@@ -52,6 +52,11 @@ import { TypedBinding } from './language/TypedBinding.mjs';
  * @property {Window} [window] The window `@window` stands for, and whose document `@document` stands for.
  */
 
+/** The kind of request each call carries out, and what the call does with it. */
+const READ = { kind: 'query', use: 'read' };
+const WATCH = { kind: 'query', use: 'watched' };
+const SUBSCRIBE = { kind: 'subscription', use: 'subscribed to' };
+
 /** When a watch evaluates after a change, and how it updates its caller. */
 const WATCH_SCHEDULES = ['frame', 'immediate'];
 const WATCH_UPDATE_STRATEGIES = ['snapshot', 'changeSet'];
@@ -135,7 +140,7 @@ export class Domql {
         const { query, options } = Domql.#requestOf(request, rest);
         const { window = globalThis.window } = options ?? {};
 
-        return Domql.#evaluatorOf(query, window).read();
+        return Domql.#evaluatorOf(query, window, READ).read();
     }
 
     /**
@@ -150,18 +155,27 @@ export class Domql {
 
         signal?.throwIfAborted();
 
-        const evaluator = Domql.#evaluatorOf(query, window);
+        const evaluator = Domql.#evaluatorOf(query, window, READ);
         const observations = Domql.#observationsOf(window);
+        const reportError = Domql.#reportErrorOf(window);
 
         return new Promise((resolve, reject) => {
             let queryEvaluation = null;
             let isScheduled = false;
             let isSettled = false;
 
+            // A cleanup that fails is reported, and never replaces the read's result, its failure or its cancellation.
+            const release = evaluation => {
+                try {
+                    evaluation?.dispose();
+                } catch (error) {
+                    reportError(error);
+                }
+            };
             const settle = outcome => {
                 isSettled = true;
                 signal?.removeEventListener('abort', cancel);
-                queryEvaluation?.dispose();
+                release(queryEvaluation);
                 outcome();
             };
             const cancel = () => settle(() => reject(signal.reason));
@@ -175,7 +189,7 @@ export class Domql {
                 const next = evaluator.evaluate({ observations, onChange: schedule });
 
                 // The next evaluation holds its observations before the last lets go of its own, so one both need keeps running.
-                queryEvaluation?.dispose();
+                release(queryEvaluation);
                 queryEvaluation = next;
 
                 if (next.error !== null) {
@@ -224,12 +238,8 @@ export class Domql {
         }
 
         const resolution = { watch: true, acceptPartialObservation: acceptPartialObservation === true };
-        const evaluator = Domql.#evaluatorOf(query, window, resolution);
+        const evaluator = Domql.#evaluatorOf(query, window, WATCH, resolution);
         const resolved = Domql.#resolve(query, resolution);
-
-        if (resolved.kind !== 'query') {
-            throw DomqlError.evaluation(`A ${resolved.kind} request is not watched`, { pointer: '/query' });
-        }
 
         if (schedule === 'frame' && typeof window.requestAnimationFrame !== 'function') {
             throw DomqlError.structure("A watch scheduled by animation frame needs a window that has them; schedule it as 'immediate' otherwise", {});
@@ -264,7 +274,7 @@ export class Domql {
         }
 
         return new EventListener({
-            evaluator: Domql.#evaluatorOf(query, window),
+            evaluator: Domql.#evaluatorOf(query, window, SUBSCRIBE),
             observations: Domql.#observationsOf(window),
             reportError: Domql.#reportErrorOf(window),
             configuration: { onEvent, onError },
@@ -273,7 +283,17 @@ export class Domql {
 
     /** The window's error reporting, which a failure no callback receives reaches. */
     static #reportErrorOf(window) {
-        return error => (window.reportError ? window.reportError(error) : console.error(error));
+        return error => {
+            try {
+                if (window.reportError) {
+                    window.reportError(error);
+                } else {
+                    console.error(error);
+                }
+            } catch {
+                // Keep a reporter failure from interrupting the caller.
+            }
+        };
     }
 
     /**
@@ -292,12 +312,25 @@ export class Domql {
         return { query: request, options: rest[0] };
     }
 
-    static #evaluatorOf(query, window, options = {}) {
+    /**
+     * The evaluator of a request a call carries out: the request is resolved, refused with a validation error where it is not of the kind the call carries out, before anything is evaluated or started, and then given its window.
+     * @param {DomqlQuery} query The request.
+     * @param {Window} window The window it is carried out in.
+     * @param {{ kind: string, use: string }} call The kind of request the call carries out, and what the call does with it, for the refusal to say.
+     * @param {{ watch?: boolean, acceptPartialObservation?: boolean }} [resolution] How the request is resolved.
+     */
+    static #evaluatorOf(query, window, { kind, use }, resolution = {}) {
+        const resolved = Domql.#resolve(query, resolution);
+
+        if (resolved.kind !== kind) {
+            const article = resolved.kind === 'action' ? 'An' : 'A';
+
+            throw DomqlError.validation(`${article} ${resolved.kind} request is not ${use}`, ParsedTexts.locationsOf(query.definition)?.locate('/query') ?? { pointer: '/query' });
+        }
+
         if (!window?.document) {
             throw DomqlError.evaluation('DOMQL cannot read without a browser window. Pass a window explicitly when running outside a browser.', {});
         }
-
-        const resolved = Domql.#resolve(query, options);
 
         return new QueryEvaluator(Domql.#registry, resolved, query.bindings, { window, document: window.document }, ParsedTexts.locationsOf(query.definition));
     }

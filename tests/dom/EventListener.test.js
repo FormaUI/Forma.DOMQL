@@ -246,7 +246,7 @@ describe('EventListener', () => {
         it('refuses a request that is not a subscription, and options it cannot use', () => {
             const subscription = isolated.parse('@panel.eventsOf("input") { id: target.attributeOf("id") }', { panel });
 
-            expect(() => isolated.subscribe(isolated.parse('@panel.children.count', { panel }), { onEvent: () => {} })).toThrow(expect.objectContaining({ kind: 'evaluation', message: expect.stringContaining('A query request is not listened to') }));
+            expect(() => isolated.subscribe(isolated.parse('@panel.children.count', { panel }), { onEvent: () => {} })).toThrow(expect.objectContaining({ kind: 'validation', message: expect.stringContaining('A query request is not subscribed to') }));
             expect(() => isolated.subscribe(subscription, {})).toThrow(expect.objectContaining({ kind: 'structure' }));
             expect(() => isolated.subscribe(subscription, { onEvent: () => {}, onError: 'loudly' })).toThrow(expect.objectContaining({ kind: 'structure' }));
         });

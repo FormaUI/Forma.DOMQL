@@ -426,10 +426,6 @@ describe('QueryEvaluator', () => {
             expect(failure('@item.intersects', { item: items[0] }).message).toContain("The member 'intersects' is maintained by an observation");
         });
 
-        it('refuse a request that is not a query', () => {
-            expect(failure('@panel.eventsOf("click") { button }', { panel }).message).toContain('subscription request is not read');
-        });
-
         it('refuse a request that is not valid before reading anything', () => {
             expect(() => read('@panel.nonsense', { panel })).toThrow(expect.objectContaining({ kind: 'validation' }));
         });

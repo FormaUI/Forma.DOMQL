@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { QueryEvaluation } from '#domql/dom/QueryEvaluation.mjs';
+import { Watch } from '#domql/dom/Watch.mjs';
 
 /** Lets the observations deliver and the watches that follow them evaluate. */
 const settle = (milliseconds = 0) => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -676,7 +678,7 @@ describe('Watch', () => {
             const subscription = isolated.parse('@panel.eventsOf("click") { ratio: @window.devicePixelRatio }', { panel });
 
             expect(isolated.resolve(subscription, { watch: true }).kind).toBe('subscription');
-            expect(() => isolated.watch(subscription, { onChange: () => {} })).toThrow(expect.objectContaining({ name: 'DomqlError', kind: 'evaluation', message: expect.stringContaining('subscription request is not watched') }));
+            expect(() => isolated.watch(subscription, { onChange: () => {} })).toThrow(expect.objectContaining({ name: 'DomqlError', kind: 'validation', message: expect.stringContaining('A subscription request is not watched') }));
         });
 
         it('is scheduled by animation frame only in a window that has them', () => {
@@ -690,5 +692,54 @@ describe('Watch', () => {
         it('needs a browser window', () => {
             expect(() => isolated.watch(isolated.parse('@window.devicePixelRatio'), { onChange: () => {}, window: null })).toThrow(expect.objectContaining({ kind: 'evaluation' }));
         });
+    });
+});
+
+describe('Watch cleanup', () => {
+    /** A session that counts its disposals, and fails them where it is told to. */
+    const session = failure => {
+        const held = { disposed: 0 };
+
+        held.dispose = () => {
+            held.disposed++;
+
+            if (failure !== undefined) {
+                throw failure;
+            }
+        };
+
+        return held;
+    };
+
+    it('lets go of every evaluation it holds where letting go of one fails, and reports the failure', async () => {
+        const evaluations = [];
+        const reported = [];
+        const snapshots = [];
+        const evaluator = {
+            evaluate: () => {
+                const sessions = [session(new Error(`stuck ${evaluations.length + 1}`)), session()];
+
+                evaluations.push(sessions);
+
+                return new QueryEvaluation({ value: evaluations.length, isPending: false, dependencies: [], sessions, error: null });
+            },
+        };
+        const watch = new Watch({
+            evaluator,
+            observations: null,
+            comparer: { reconcile: (_last, _identities, next) => next },
+            window,
+            reportError: error => reported.push(error),
+            configuration: { schedule: 'immediate', onChange: snapshot => snapshots.push(snapshot) },
+        });
+
+        await watch.refreshAsync();
+        await watch.refreshAsync();
+        watch.dispose();
+
+        expect(snapshots).toEqual([1, 2]);
+        expect(evaluations.flat().map(held => held.disposed)).toEqual([1, 1, 1, 1]);
+        expect(reported.map(error => error.message)).toEqual(['stuck 1', 'stuck 2']);
+        expect(watch.status).toBe('disposed');
     });
 });
